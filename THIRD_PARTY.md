@@ -1,48 +1,50 @@
-# Зависимости и лицензии
+# Компоненты Windows portable и лицензии
 
-Проверка 21 октября 2026. Ниже указаны установленные версии и метаданные пакетов; официальные страницы проверены отдельно. Этот исходный архив не содержит Qt DLL, Python интерпретатора и других бинарных зависимостей. Установка получает их из Python package index.
+Приложение использует python-docx 1.2.0, openpyxl 3.1.5, lxml 6.1.3,
+defusedxml 0.7.1, PySide6-Essentials/shiboken6 6.10.2, et_xmlfile 2.0.0
+и typing_extensions 4.16.0. Windows-рецепт закрепляет CPython 3.13.16 x64,
+PyInstaller 6.22.3 и все build/test-зависимости в requirements/windows-x64.lock.
+Для каждого выбранного Windows wheel указан SHA256 фактически полученного файла.
 
-| Компонент | Проверенная версия | Лицензия по метаданным установленного пакета | Роль |
-| --- | --- | --- | --- |
-| python-docx | 1.2.0 | MIT | Проверка структуры DOCX, примеры и тесты |
-| openpyxl | 3.1.5 | MIT | Чтение XLSX и создание примера |
-| lxml | 6.1.3 | BSD-3-Clause; отдельные условия libxml2/libxslt | Безопасно настроенный разбор OOXML и сохранение текста |
-| defusedxml | 0.7.1 | PSFL | Предварительная проверка XML без DTD/сущностей |
-| PySide6-Essentials | 6.10.2 | LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only | QtCore, QtGui, QtWidgets |
-| shiboken6 | 6.10.2 | LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only | Зависимость PySide6 |
-| et_xmlfile | 2.0.0 | MIT | Зависимость openpyxl |
-| pytest | 9.0.3 | MIT | Только разработка и тестирование |
+## Состав поставки
 
-Установка и работа совместно проверены на CPython 3.12.14, Linux. Зависимости и ограничения версий объявлены в `pyproject.toml`; фактически установленные версии, включая транзитивные зависимости, записаны в `docs/tested-dependencies.txt`. Python 3.11/3.13 и Windows не проверены в этой сессии. Pillow и FFmpeg нужны только для пересоздания рекламного ролика, а не для работы программы.
+- python-docx, openpyxl и et_xmlfile: MIT; lxml: BSD и notices включённых
+  libxml2/libxslt; defusedxml: PSFL; typing_extensions: PSF-2.0.
+- CPython: PSFL и дополнительные notices из LICENSE.txt установленного Python.
+- PyInstaller: GPL с исключением для созданных приложений; исходная лицензия
+  включается вместе с остальными notices. Само исключение не отменяет лицензий
+  библиотек приложения.
+- Qt/PySide6/Shiboken: используется вариант LGPLv3, а не платная лицензия Qt.
+  Файлы DLL остаются отдельно в `_internal/`; их совместимая замена допускается.
+  Обратное исследование для отладки изменений LGPL-библиотек не ограничивается.
 
-## Qt и будущее EXE
+scripts/collect_release_licenses.py копирует имеющиеся тексты из реально
+установленных пакетов. В Windows wheels PySide6/shiboken6 найден только
+коммерческий notice, поэтому полный текст LGPL/GPL и notices Qt дополнительно
+получаются из оригинальных исходных архивов Qt 6.10.2 и pyside-setup 6.10.2.
+Их официальные URL и SHA256 закреплены в packaging/third-party-sources.json.
+Сборка прекращается при несовпадении хеша, отсутствии обязательного текста
+лицензии или обнаружении Qt DLL без предусмотренного соответствующего исходника.
 
-Бесплатный путь с Community Qt предполагает соблюдение LGPLv3 для реально поставляемых компонентов. Динамическое использование само по себе не отменяет остальных обязанностей. Перед распространением Windows-пакета нужно включить полные тексты лицензий, notices Qt и транзитивных компонентов, обеспечить условия замены библиотек и доступность соответствующего исходного кода библиотек. Рецепт EXE использует `--onedir`; факт наличия этого флага не является подтверждением соблюдения всех условий. Сборка и проверка полного набора notices в этой сессии не выполнены.
+В portable находятся licenses/, QT-LGPL-NOTICE.txt, THIRD-PARTY-LICENSES.json
+и THIRD-PARTY-SOURCES.json. Полные соответствующие исходники библиотек,
+включая их build-файлы, прикладываются отдельным ThirdParty-Sources ZIP к тому же
+публичному релизу. Компоненты Qt/PySide6 проектом не изменялись. При дальнейшей
+передаче комплекта сохраняйте лицензии и равнодоступные исходники библиотек.
 
-Платная коммерческая лицензия Qt не включена в расходы проекта. Если выбранный способ распространения не позволяет выполнить условия Community Edition, сначала нужно пересмотреть упаковку/лицензирование, а не покупать лицензию без согласования.
+Это техническое описание фактической упаковки, а не юридическое заключение.
+Собственная открытая лицензия DocFlow Lite не вводится.
 
-PyInstaller здесь не устанавливался и EXE не создавался. В его документации описано исключение из GPL, разрешающее распространять собранные приложения под выбранной лицензией; лицензии самих включённых зависимостей продолжают действовать.
+## Проверка и первичные источники
 
-docxtpl/Jinja в версии 0.1.1 не используются: замена ограничена буквальными именами переменных. Поэтому шаблон не получает язык выражений, доступ к атрибутам Python и выполнение функций.
+Фактическая среда и версии записываются в BUILD-INFO.json. Результаты запуска
+готового EXE — в WINDOWS-CI-RESULTS.json. Полный исходный архив не содержит
+Python/Qt DLL: они находятся только в portable-сборке. Исторический аудит
+зависимостей до этапа 03 сохранён в docs/AUDIT.md и docs/dependency-metadata.json.
+Его результаты не выдаются за свежую проверку нового Windows-комплекта.
 
-## Проверенные первичные источники
-
-- [python-docx 1.2.0 — PyPI](https://pypi.org/project/python-docx/1.2.0/)
-- [openpyxl 3.1.5 — PyPI](https://pypi.org/project/openpyxl/3.1.5/)
-- [openpyxl — предупреждение о безопасности XML](https://openpyxl.readthedocs.io/)
-- [PySide6-Essentials 6.10.2 — PyPI](https://pypi.org/project/PySide6-Essentials/6.10.2/)
-- [Qt for Python — лицензирование](https://doc.qt.io/qtforpython-6/)
-- [Qt — обязательства GPL и LGPL](https://www.qt.io/development/open-source-lgpl-obligations)
-- [defusedxml — PyPI и описание защиты](https://pypi.org/project/defusedxml/)
-- [PyInstaller — лицензия и исключение](https://pyinstaller.org/en/stable/license.html)
-
-Метаданные и тексты лицензий установленной среды сохранены в `docs/dependency-metadata.json` и `third-party-licenses/`. Отсутствие текста для пакета в его wheel отмечено в JSON и не подменяется выдуманным текстом лицензии.
-
-
-## Уточнение аудита 0.1.1
-
-pytest обновлён до 9.0.3 по CVE-2025-71176 (только тестовая зависимость, уязвимая обработка временных каталогов на UNIX). PySide6-Essentials и shiboken6 обновлены до 6.10.2: в Qt исправлена CVE-2025-14576 в VectorImage/Qt Quick; приложение использует Qt Widgets и не загружает пользовательский SVG через VectorImage. lxml закреплён на проверенной версии 6.1.3. Встроенные проверки DTD и resolve_entities=False сохранены.
-
-Повторный pip-audit для 13 пакетов из снимка зависимостей не нашёл известных записей об уязвимостях. Это результат проверки базы PyPI для указанного набора и даты; он не покрывает автоматически все C++ компоненты Qt/libxml2 и не заменяет проверку Windows-сборки. Исходные отчёты переданы вместе с аудитом.
-
-Источники исправлений: https://pytest.org/en/stable/changelog.html ; https://www.qt.io/blog/security-advisory-qml-code-injection-in-vectorimage ; https://pypi.org/project/lxml/6.1.3/ .
+- https://pyinstaller.org/en/stable/license.html
+- https://doc.qt.io/qtforpython-6/licenses.html
+- https://www.qt.io/development/open-source-lgpl-obligations
+- https://download.qt.io/official_releases/qt/6.10/6.10.2/submodules/
+- https://download.qt.io/official_releases/QtForPython/pyside6/PySide6-6.10.2-src/

@@ -16,7 +16,7 @@ VERSION = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["
 
 def eligible(path):
     relative = path.relative_to(ROOT)
-    return (relative.parts[0] not in {"dist", "build"}
+    return (relative.parts[0] not in {"dist", "build", "release", "artifacts", "wheelhouse"}
             and path.name not in {"FILE_HASHES.json", "__audit.html"}
             and not (set(relative.parts) & SKIP)
             and not any(x.endswith(".egg-info") for x in path.parts)

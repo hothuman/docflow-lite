@@ -62,7 +62,7 @@ def safe_name(value: str, fallback: str = "record") -> str:
     value = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", value)
     value = "".join(c for c in value if unicodedata.category(c) not in {"Cf", "Cs"})
     value = value.strip(" .")[:64].rstrip(" .") or fallback
-    if value.split(".")[0].upper() in {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}:
+    if value.split(".")[0].rstrip(" ").upper() in {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}:
         value = "_" + value
     return value
 
