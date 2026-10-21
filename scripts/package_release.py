@@ -24,7 +24,7 @@ def eligible(path):
 
 
 def add(z, path, arc=None):
-    z.write(path, arcname=str(arc or (Path("docflow-lite") / path.relative_to(ROOT))))
+    z.write(path, arcname=Path(arc or (Path("docflow-lite") / path.relative_to(ROOT))).as_posix())
 
 
 def main():
@@ -61,7 +61,7 @@ def main():
             if "demo-output" in rel.parts and not path.is_relative_to(sample):
                 continue
             add(z, path)
-            manifest[str(rel)] = hashlib.sha256(path.read_bytes()).hexdigest()
+            manifest[rel.as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
         z.writestr("docflow-lite/FILE_HASHES.json", json.dumps(manifest, ensure_ascii=False, indent=2))
     for p in (public_demo, archive):
         with zipfile.ZipFile(p) as z:

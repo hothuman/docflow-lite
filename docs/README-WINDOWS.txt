@@ -1,6 +1,6 @@
 DocFlow Lite 0.1.1 — Windows portable beta
 
-Требования: Windows 10/11 x64. Python и Microsoft Word для генерации не нужны.
+Требования: Windows 10 (1809+) или Windows 11, x64. Python и Word для генерации не нужны.
 Для просмотра DOCX используйте Word или LibreOffice. Интернет нужен только
 для скачивания; генерация выполняется локально, без телеметрии.
 

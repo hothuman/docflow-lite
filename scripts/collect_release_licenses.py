@@ -59,6 +59,7 @@ def collect(bundle, sources):
     if not python_license.is_file():
         raise RuntimeError('Python installation LICENSE.txt is required')
     shutil.copy2(python_license,notices/'CPython-LICENSE.txt')
+    shutil.copytree(ROOT/'packaging/licenses',notices/'Microsoft-VC-Runtime',dirs_exist_ok=True)
 
     source_items=json.loads((ROOT/'packaging/third-party-sources.json').read_text(encoding='utf-8'))
     license_count=0

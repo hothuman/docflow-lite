@@ -11,6 +11,9 @@ PyInstaller 6.22.3 и все build/test-зависимости в requirements/w
 - python-docx, openpyxl и et_xmlfile: MIT; lxml: BSD и notices включённых
   libxml2/libxslt; defusedxml: PSFL; typing_extensions: PSF-2.0.
 - CPython: PSFL и дополнительные notices из LICENSE.txt установленного Python.
+- Microsoft Visual C++ Runtime: исходный текст условий 2015–2022 сохранён
+  из официального документа Microsoft в packaging/licenses/ и включается
+  в комплект вместе с DLL среды выполнения.
 - PyInstaller: GPL с исключением для созданных приложений; исходная лицензия
   включается вместе с остальными notices. Само исключение не отменяет лицензий
   библиотек приложения.

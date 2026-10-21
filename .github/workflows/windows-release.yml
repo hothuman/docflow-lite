@@ -43,6 +43,10 @@ jobs:
         with:
           python-version: '3.13.16'
           architecture: x64
+      - name: Install Qt GUI system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libegl1 libopengl0
       - run: python -m pip install -e ".[gui,dev]"
       - run: python -m pytest -q tests site/tests --junitxml=artifacts/linux-tests.xml
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
