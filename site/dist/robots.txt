@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://docflow-lite.rostg2007.chatgpt.site/sitemap.xml

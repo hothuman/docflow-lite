@@ -1,0 +1,50 @@
+{
+  "version": "0.1.1",
+  "created_at": "2026-10-21T15:30:20.746586+00:00",
+  "source": "clients.xlsx",
+  "templates": [
+    "01_request.docx",
+    "02_confirmation.docx"
+  ],
+  "total": 3,
+  "accepted": 2,
+  "rejected": 1,
+  "documents": 4,
+  "records": [
+    {
+      "row": 2,
+      "status": "ok",
+      "files": [
+        "row_0002_001/01_01_request.docx",
+        "row_0002_001/02_02_confirmation.docx"
+      ],
+      "issues": []
+    },
+    {
+      "row": 3,
+      "status": "ok",
+      "files": [
+        "row_0003_002/01_01_request.docx",
+        "row_0003_002/02_02_confirmation.docx"
+      ],
+      "issues": []
+    },
+    {
+      "row": 4,
+      "status": "error",
+      "files": [],
+      "issues": [
+        {
+          "row": 4,
+          "field": "service",
+          "message": "Обязательное поле пусто"
+        },
+        {
+          "row": 4,
+          "field": "amount",
+          "message": "Нужно конечное число не меньше нуля"
+        }
+      ]
+    }
+  ]
+}

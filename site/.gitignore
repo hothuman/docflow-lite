@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+__audit.html
+.DS_Store
+node_modules/
+.sites-runtime/
+.sites-checkout*/

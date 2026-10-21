@@ -1,0 +1,38 @@
+name: Publish existing DocFlow Lite website
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check base URL handling
+        run: python3 -m unittest discover -s site/tests -v
+      - name: Read actual Pages address
+        id: pages
+        uses: actions/configure-pages@v5
+      - name: Configure actual public base URL
+        env:
+          PUBLIC_SITE_URL: ${{ steps.pages.outputs.base_url }}
+        run: python3 site/scripts/configure_public_url.py "$PUBLIC_SITE_URL"
+      - name: Upload only the existing static website
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site/dist
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

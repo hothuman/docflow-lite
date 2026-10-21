@@ -1,0 +1,5 @@
+﻿row;status;field;message
+2;ok;;
+3;ok;;
+4;error;service;Обязательное поле пусто
+4;error;amount;Нужно конечное число не меньше нуля

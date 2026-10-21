@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "data_file": "clients.xlsx",
+  "templates": [
+    "01_request.docx",
+    "02_confirmation.docx"
+  ],
+  "mapping": {
+    "invoice_no": "Номер",
+    "client": "Клиент",
+    "service": "Услуга",
+    "amount": "Сумма",
+    "date": "Дата",
+    "email": "Email"
+  },
+  "rules": {
+    "amount": {
+      "kind": "number",
+      "required": true
+    },
+    "date": {
+      "kind": "date",
+      "required": true
+    },
+    "email": {
+      "kind": "email",
+      "required": true
+    }
+  },
+  "name_column": "Номер"
+}
