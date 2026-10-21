@@ -13,7 +13,7 @@ from pathlib import Path, PurePosixPath
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = ['python-docx','openpyxl','defusedxml','lxml','PySide6-Essentials',
            'shiboken6','et_xmlfile','typing_extensions','pyinstaller']
-QTBASE = {'Qt6Core','Qt6Gui','Qt6Widgets','Qt6Test','Qt6Network','Qt6OpenGL',
+QTBASE = {'Qt6Core','Qt6Gui','Qt6Widgets','Qt6Test','Qt6Network','Qt6OpenGL','Qt6OpenGLWidgets',
           'Qt6PrintSupport','Qt6Concurrent','Qt6DBus','Qt6Sql','Qt6Xml'}
 
 
@@ -44,7 +44,7 @@ def collect(bundle, sources):
         dist=metadata.distribution(name)
         copied=[]
         for item in dist.files or []:
-            if any(word in item.name.lower() for word in ('license','copying','notice','copyright')):
+            if any(word in item.name.lower() for word in ('license','licence','copying','notice','copyright')):
                 source=Path(dist.locate_file(item))
                 if source.is_file() and source.stat().st_size<2*1024*1024:
                     relative=Path(str(item).replace('..','_'))
@@ -75,7 +75,7 @@ def collect(bundle, sources):
                     continue
                 lower=path.name.lower()
                 if ('LICENSES' not in path.parts and
-                    not any(x in lower for x in ('license','copying','notice','copyright','qt_attribution'))):
+                    not any(x in lower for x in ('license','licence','copying','notice','copyright','qt_attribution'))):
                     continue
                 if path.is_absolute() or '..' in path.parts:
                     raise RuntimeError('Unexpected source archive path')

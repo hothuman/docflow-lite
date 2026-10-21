@@ -29,7 +29,7 @@
   "requirements/windows-x64.lock": "8cb1fdb0254d021da2dd4c6d47fd8b488b817759ed91edb030bffe1874ed8bb9",
   "scripts/build_windows.ps1": "1a70ee5f39f165a1de28e3e90da0e32970d60a0576d3ecea05432e3b6b244826",
   "scripts/capture_demo.py": "f5b6c26aee8964fda00fd9731b9169a56d093fefe29da45bafb9cc0bcbee0df9",
-  "scripts/collect_release_licenses.py": "e62e4df06b23561fc269727b49fa3f9d6e4d6a55c0d2ef9e2d46567154369f9e",
+  "scripts/collect_release_licenses.py": "457cdbbec5b105b14226c05f6e3a50f62cd7683276ba23535738be9e876bdd71",
   "scripts/make_examples.py": "aa2f113cdb0302e2e633b4063adce1fa3b781cf6e0294a27df7cfc09db433c64",
   "scripts/package_release.py": "10da497b08148dfc3d7c9c2f7929b9ee80f527dbd2c8825f6900ac1ac07ed857",
   "scripts/package_windows.py": "ab03b99c82c44c6cfd00d8a6dae89dccada1a4006ae542ffa48b69048c38584e",
