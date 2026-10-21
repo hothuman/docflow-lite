@@ -42,7 +42,7 @@ def main():
             for path in sorted((ROOT / folder).rglob("*")):
                 if path.is_file() and eligible(path):
                     add(z, path)
-        for filename in (".gitignore", "pyproject.toml", "launch.py", "start_windows.bat", "THIRD_PARTY.md", "scripts/make_examples.py", "scripts/build_windows.ps1", "docs/dependency-metadata.json", "docs/tested-dependencies.txt"):
+        for filename in (".gitignore", "pyproject.toml", "launch.py", "start_windows.bat", "THIRD_PARTY.md", "scripts/make_examples.py", "docs/dependency-metadata.json", "docs/tested-dependencies.txt"):
             add(z, ROOT / filename)
         for path in sorted(sample.rglob("*")):
             if path.is_file():

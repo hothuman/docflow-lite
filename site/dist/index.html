@@ -28,7 +28,7 @@
   <header class="nav wrap">
     <a class="brand" href="./" aria-label="DocFlow Lite, главная"><img src="assets/icon.svg" alt="" width="32" height="36"><span>DocFlow<span class="lite">Lite</span></span></a>
     <nav aria-label="Главная навигация"><a href="#example">Пример</a><a href="#setup">Настройка</a><a href="#contacts">Связаться с нами</a></nav>
-    <a class="button small" href="#download">Скачать демо <span aria-hidden="true">↗</span></a>
+    <a class="button small" href="#download">Скачать <span aria-hidden="true">↗</span></a>
   </header>
   <main>
     <section class="hero wrap">
@@ -37,8 +37,8 @@
         <div>
           <h1>Из таблицы —<br>в готовые<br><span>документы.</span></h1>
           <p class="lead">Одна строка Excel. Несколько файлов Word. DocFlow Lite подставляет данные в ваши шаблоны и показывает, что нужно исправить.</p>
-          <div class="actions"><a class="button primary" href="#download">Бесплатное демо <span aria-hidden="true">↓</span></a><a class="text-link" href="https://t.me/de1grace" target="_blank" rel="noopener noreferrer">Написать в Telegram <span aria-hidden="true">↗</span></a></div>
-          <p class="fine">Обработка на вашем компьютере. Для демо нужен Python 3.12.<br>Настройка ваших документов под бизнес — <a href="#setup">от 5 000 ₽</a>.</p>
+          <div class="actions"><a class="button primary" href="https://github.com/hothuman/docflow-lite/releases/download/v0.1.1/DocFlow-Lite-0.1.1-Windows-x64-Portable.zip">Скачать для Windows <span aria-hidden="true">↓</span></a><a class="text-link" href="https://t.me/de1grace" target="_blank" rel="noopener noreferrer">Написать в Telegram <span aria-hidden="true">↗</span></a></div>
+          <p class="fine">Windows 10 (1809+) / 11, x64. Portable ZIP без установки Python.<br>Настройка ваших документов под бизнес — <a href="#setup">от 5 000 ₽</a>.</p>
         </div>
         <div class="hero-visual">
           <div class="file-card source"><span class="file-icon">X</span><div><strong>Заявки.xlsx</strong><small>Строки с данными клиентов</small></div><span class="file-tag">Вход</span></div>
@@ -103,7 +103,7 @@
       </div>
     </section>
 
-    <section class="wrap download" id="download"><p class="eyebrow">БЕСПЛАТНОЕ ДЕМО · БЕЗ РЕГИСТРАЦИИ</p><h2>Начните с готового примера.</h2><p>Исходники приложения, инструкция запуска с Python, два DOCX-шаблона, таблица и готовый результат генерации в одном архиве.</p><a class="button primary" href="assets/DocFlow-Lite-Demo.zip" download="DocFlow-Lite-Demo.zip">Скачать демо 0.1.1 <span aria-hidden="true">↓</span></a><p class="fine">ZIP с исходниками, около 303 КБ. Требуется Python 3.12. При первой настройке нужен интернет для библиотек.<br>Проверено в Linux. Проверка в Windows и готовый EXE ещё не выполнены.</p><p class="fine"><a href="assets/demo.mp4" download="DocFlow-Lite-Demo.mp4">Скачать видеодемонстрацию</a> · <a href="https://t.me/de1grace" target="_blank" rel="noopener noreferrer">Нужна помощь с запуском?</a></p></section>
+    <section class="wrap download" id="download"><p class="eyebrow">БЕСПЛАТНОЕ ДЕМО · БЕТА 0.1.1</p><h2>Начните с готового примера.</h2><p>Приложение для Windows, два DOCX-шаблона и таблица с вымышленными данными. Распакуйте весь архив, откройте DocFlow-Lite.exe и нажмите «Открыть демопример».</p><a class="button primary" href="https://github.com/hothuman/docflow-lite/releases/download/v0.1.1/DocFlow-Lite-0.1.1-Windows-x64-Portable.zip">Скачать для Windows <span aria-hidden="true">↓</span></a><p class="fine">Portable ZIP, около 49 МБ. Windows 10 (1809+) / 11, x64. Python устанавливать не нужно.<br>Сохраните папку _internal рядом с EXE. Бета без цифровой подписи; Windows может показать предупреждение.<br>Запуск и генерация проверены автоматически на Windows Server 2022; ручная проверка Windows 10/11 ещё не выполнена.<br><a href="https://github.com/hothuman/docflow-lite/releases/tag/v0.1.1">Релиз, инструкция, контрольные суммы и ограничения</a></p><a class="button" href="assets/DocFlow-Lite-Demo.zip" download="DocFlow-Lite-Demo.zip">Скачать демо 0.1.1 — исходники <span aria-hidden="true">↓</span></a><p class="fine">Отдельный ZIP с исходниками, таблицей, шаблонами и готовыми DOCX. Для запуска исходников нужен Python 3.12 и интернет при первой установке библиотек. Генерация выполняется локально.</p><p class="fine"><a href="assets/demo.mp4" download="DocFlow-Lite-Demo.mp4">Скачать видеодемонстрацию</a> · <a href="https://t.me/de1grace" target="_blank" rel="noopener noreferrer">Нужна помощь с запуском?</a></p></section>
 
     <section class="wrap faq"><h2>До первого запуска</h2><details><summary>Что остаётся на компьютере?</summary><p>Таблица, шаблоны, настройки, выходные документы и отчёты. Приложение не отправляет их на сервер, не содержит телеметрии и не требует аккаунта. Позаботьтесь о доступе к папке результатов: DOCX содержат ваши данные.</p></details><details><summary>Предпросмотр повторяет оформление Word?</summary><p>В версии 0.1.1 доступен текстовый просмотр. Финальные поля, переносы страниц и оформление проверяйте в Word или LibreOffice перед отправкой.</p></details><details><summary>Какие есть ограничения?</summary><p>До 5000 записей, 100 столбцов и 20 шаблонов за запуск. Поддерживаются простые переменные в тексте, таблицах и колонтитулах. Циклы, выражения, макросы, внешние связи, поля Word, надписи и переменные в примечаниях не поддерживаются. Формулы Excel нужно предварительно заменить значениями.</p></details><details><summary>Можно ли создавать многострочные спецификации?</summary><p>Повторяющиеся строки и циклы в этой версии отсутствуют. Можно заполнять фиксированный набор полей в заранее подготовленной таблице Word.</p></details></section>
   </main>
