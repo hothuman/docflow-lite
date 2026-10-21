@@ -1,7 +1,8 @@
 {
+  ".gitattributes": "e52fabf19fc3c286a99a6fb512bac22095698483b697f48727de34ee6d27126a",
   ".github/workflows/pages.yml": "04822033ef61680d268ed1257eb361a39c1d89fbc6e02f58331135a303df6464",
   ".github/workflows/verify.yml": "1e296d399678affdbd28549a253a85bd8007a99b79d4039a92f3c0cb8217ec7e",
-  ".github/workflows/windows-release.yml": "16fae72f3ae57532d8b97d864d563fa7bfc4b392c681858a05c07e781f3d4c90",
+  ".github/workflows/windows-release.yml": "74ffb120cc43e85ba9fd8d1fe27d6f408a19145955828a225890dfa06004c717",
   ".gitignore": "2d3e1614dada9876df192aa332c4c44f552d59134fdd745fa9f6d889c976b405",
   "README.md": "5ad803adc324cd406cd9521cce2022f4d191568198d09ef757260fd7fe47f70e",
   "THIRD_PARTY.md": "cf2bb7233f4ae06f80279bcc96dab90cd4d2d8ba791a9f2f7cf1bcd3b4d818f7",

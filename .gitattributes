@@ -1,0 +1,2 @@
+# Preserve exact repository bytes for release SHA256 on every operating system.
+* -text
