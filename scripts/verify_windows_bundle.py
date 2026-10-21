@@ -8,11 +8,52 @@ import shutil
 import struct
 import subprocess
 import tempfile
+import time
 import zipfile
 from pathlib import Path
 from docx import Document
 
 ROOT=Path(__file__).resolve().parents[1]
+
+
+def normal_start(exe,cwd,env):
+    """Exercise the ordinary entrypoint/event loop, with no diagnostic flag."""
+    import ctypes
+    from ctypes import wintypes
+    user32=ctypes.WinDLL('user32',use_last_error=True)
+    callback_type=ctypes.WINFUNCTYPE(wintypes.BOOL,wintypes.HWND,wintypes.LPARAM)
+    user32.EnumWindows.argtypes=[callback_type,wintypes.LPARAM]
+    user32.GetWindowThreadProcessId.argtypes=[wintypes.HWND,ctypes.POINTER(wintypes.DWORD)]
+    user32.IsWindowVisible.argtypes=[wintypes.HWND]
+    user32.GetWindowTextW.argtypes=[wintypes.HWND,wintypes.LPWSTR,ctypes.c_int]
+    user32.PostMessageW.argtypes=[wintypes.HWND,wintypes.UINT,wintypes.WPARAM,wintypes.LPARAM]
+    process=subprocess.Popen([str(exe)],cwd=cwd,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    found=[]
+    @callback_type
+    def visit(hwnd,param):
+        owner=wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd,ctypes.byref(owner))
+        if owner.value==process.pid and user32.IsWindowVisible(hwnd):
+            title=ctypes.create_unicode_buffer(1024)
+            user32.GetWindowTextW(hwnd,title,len(title))
+            if title.value.startswith('DocFlow Lite'):
+                found.append((hwnd,title.value))
+        return True
+    try:
+        deadline=time.monotonic()+25
+        while not found and time.monotonic()<deadline:
+            assert process.poll() is None, 'Normal EXE startup exited early'
+            user32.EnumWindows(visit,0)
+            time.sleep(0.1)
+        assert found, 'Ordinary EXE did not expose its main window'
+        assert user32.PostMessageW(found[0][0],0x0010,0,0), 'WM_CLOSE failed'
+        code=process.wait(timeout=20)
+        assert code==0, f'Normal EXE close returned {code}'
+        return {'visible_main_window':True,'title':found[0][1],'exit_code':code,'diagnostic_flag':False}
+    finally:
+        if process.poll() is None:
+            process.terminate()
+            process.wait(timeout=10)
 
 
 def verify(archive,evidence,release):
@@ -40,9 +81,10 @@ def verify(archive,evidence,release):
         env=os.environ.copy()
         for name in list(env):
             if name.upper().startswith(('PYTHON','QT_','VIRTUAL_ENV')):env.pop(name)
-        env['PATH']=str(Path(env['SystemRoot'])/'System32')
+        env['PATH']=str(Path(os.environ['SYSTEMROOT'])/'System32')
         result['runtime_path_contains_python']=False
         for attempt in (1,2):
+            ordinary=normal_start(exe,testroot,env)
             output=evidence/f'Запуск {attempt}'
             completed=subprocess.run([str(exe),'--release-self-test','--require-windows',
                                       '--output',str(output)],cwd=testroot,env=env,
@@ -60,6 +102,7 @@ def verify(archive,evidence,release):
                 with zipfile.ZipFile(path) as z:assert z.testzip() is None
                 assert 'Демо' in '\n'.join(p.text for p in Document(path).paragraphs)
             result['runs'].append({'attempt':attempt,'exit_code':completed.returncode,
+                                   'ordinary_start_and_close':ordinary,
                                    'frozen':report['frozen'],'qt_platform':report['qt_platform'],
                                    'checks':report['checks'],'generated_docx':len(docs)})
     result['status']='passed'
