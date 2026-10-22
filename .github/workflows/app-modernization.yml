@@ -1,0 +1,81 @@
+name: DocFlow application RC
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ['src/**', 'tests/**', 'tools/**', 'scripts/**', 'packaging/**', 'requirements/**', 'pyproject.toml', 'FILE_HASHES.json', 'docs/**', '.github/workflows/app-modernization.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: application-rc-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.13.16'
+      - name: Install Qt libraries and pinned Python dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libegl1 libopengl0
+          python -m pip install -e ".[gui,dev]"
+      - name: Engine, GUI, security and existing website regressions
+        run: python -m pytest -q tests site/tests --junitxml=artifacts/linux-tests.xml
+      - name: Virtual layouts at all six sizes and five scale factors
+        run: |
+          for scale in 1 1.25 1.5 1.75 2; do
+            QT_SCALE_FACTOR=$scale python tools/qa_layout.py --output artifacts/layout-$scale
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: application-linux-qa
+          path: artifacts/
+          retention-days: 7
+
+  windows-rc:
+    runs-on: windows-2022
+    timeout-minutes: 40
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.13.16'
+          architecture: x64
+      - name: Build and execute portable RC without system Python
+        shell: pwsh
+        run: ./scripts/build_windows.ps1
+      - name: Compare native startup with unchanged public v0.1.1
+        run: python scripts/compare_windows_startup.py --exe dist/DocFlow-Lite/DocFlow-Lite.exe --output artifacts/windows-startup-comparison.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: application-windows-qa
+          path: |
+            artifacts/
+            build/windows/warn-*.txt
+          retention-days: 7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: application-windows-rc-files
+          path: release/*
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7

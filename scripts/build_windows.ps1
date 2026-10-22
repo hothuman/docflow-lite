@@ -23,7 +23,9 @@ if ($LASTEXITCODE -ne 0) { throw 'PyInstaller failed' }
 if ($LASTEXITCODE -ne 0) { throw 'License/source collection failed' }
 & $Python scripts/package_windows.py
 if ($LASTEXITCODE -ne 0) { throw 'Portable packaging failed' }
-& $Python scripts/verify_windows_bundle.py --archive release/DocFlow-Lite-0.1.1-Windows-x64-Portable.zip
+$docflowVersion = & $Python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])"
+if ($LASTEXITCODE -ne 0) { throw 'Could not read application version' }
+& $Python scripts/verify_windows_bundle.py --archive "release/DocFlow-Lite-$docflowVersion-Windows-x64-Portable.zip"
 if ($LASTEXITCODE -ne 0) { throw 'Compiled Windows EXE runtime check failed' }
 & $Python scripts/package_windows.py --checksums-only
 if ($LASTEXITCODE -ne 0) { throw 'Checksums failed' }

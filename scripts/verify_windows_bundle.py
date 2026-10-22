@@ -27,6 +27,7 @@ def normal_start(exe,cwd,env):
     user32.IsWindowVisible.argtypes=[wintypes.HWND]
     user32.GetWindowTextW.argtypes=[wintypes.HWND,wintypes.LPWSTR,ctypes.c_int]
     user32.PostMessageW.argtypes=[wintypes.HWND,wintypes.UINT,wintypes.WPARAM,wintypes.LPARAM]
+    started=time.monotonic()
     process=subprocess.Popen([str(exe)],cwd=cwd,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     found=[]
     @callback_type
@@ -46,10 +47,27 @@ def normal_start(exe,cwd,env):
             user32.EnumWindows(visit,0)
             time.sleep(0.1)
         assert found, 'Ordinary EXE did not expose its main window'
+        startup=time.monotonic()-started
+        time.sleep(.2)
+        class Counters(ctypes.Structure):
+            _fields_=[('cb',wintypes.DWORD),('faults',wintypes.DWORD)]+[(name,ctypes.c_size_t) for name in
+                ('peakWorkingSet','workingSet','peakPaged','paged','peakNonPaged','nonPaged','pagefile','peakPagefile')]
+        memory=Counters();memory.cb=ctypes.sizeof(memory)
+        kernel=ctypes.WinDLL('kernel32',use_last_error=True)
+        kernel.OpenProcess.argtypes=[wintypes.DWORD,wintypes.BOOL,wintypes.DWORD];kernel.OpenProcess.restype=wintypes.HANDLE
+        kernel.CloseHandle.argtypes=[wintypes.HANDLE]
+        psapi=ctypes.WinDLL('psapi',use_last_error=True)
+        psapi.GetProcessMemoryInfo.argtypes=[wintypes.HANDLE,ctypes.c_void_p,wintypes.DWORD]
+        handle=kernel.OpenProcess(0x410,False,process.pid)
+        try:
+            assert handle and psapi.GetProcessMemoryInfo(handle,ctypes.byref(memory),memory.cb)
+        finally:
+            if handle:kernel.CloseHandle(handle)
         assert user32.PostMessageW(found[0][0],0x0010,0,0), 'WM_CLOSE failed'
         code=process.wait(timeout=20)
         assert code==0, f'Normal EXE close returned {code}'
-        return {'visible_main_window':True,'title':found[0][1],'exit_code':code,'diagnostic_flag':False}
+        return {'visible_main_window':True,'title':found[0][1],'exit_code':code,'diagnostic_flag':False,
+                'startup_to_visible_s':startup,'working_set_bytes':memory.workingSet,'peak_working_set_bytes':memory.peakWorkingSet}
     finally:
         if process.poll() is None:
             process.terminate()

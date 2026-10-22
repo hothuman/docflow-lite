@@ -13,6 +13,7 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
 VERSION=tomllib.loads((ROOT/'pyproject.toml').read_text(encoding='utf-8'))['project']['version']
+INSTRUCTIONS=ROOT/'docs'/('README-WINDOWS-RC.txt' if 'rc' in VERSION else 'README-WINDOWS.txt')
 
 
 def sha256(path):
@@ -36,7 +37,7 @@ def package(bundle,out,sources):
     assert (bundle/'DocFlow-Lite.exe').is_file() and (bundle/'_internal').is_dir()
     assert (bundle/'THIRD-PARTY-LICENSES.json').is_file()
     out.mkdir(parents=True,exist_ok=True)
-    shutil.copy2(ROOT/'docs/README-WINDOWS.txt',bundle/'README-WINDOWS.txt')
+    shutil.copy2(INSTRUCTIONS,bundle/'README-WINDOWS.txt')
     shutil.copy2(ROOT/'THIRD_PARTY.md',bundle/'THIRD_PARTY.md')
     shutil.copytree(ROOT/'src/docflow/examples',bundle/'examples',dirs_exist_ok=True)
     manifest={str(p.relative_to(bundle)).replace('\\','/'):sha256(p)
@@ -65,7 +66,7 @@ def package(bundle,out,sources):
           'exe_sha256':sha256(bundle/'DocFlow-Lite.exe'),
           'procedure':'Pinned Windows wheels with SHA256, PyInstaller onedir; byte-for-byte reproducibility is not claimed'}
     (out/'BUILD-INFO.json').write_text(json.dumps(info,indent=2),encoding='utf-8')
-    shutil.copy2(ROOT/'docs/README-WINDOWS.txt',out/'README-WINDOWS.txt')
+    shutil.copy2(INSTRUCTIONS,out/'README-WINDOWS.txt')
     print(json.dumps({'portable':str(portable),'source':str(source_zip),'third_party_sources':str(library_zip)}))
 
 

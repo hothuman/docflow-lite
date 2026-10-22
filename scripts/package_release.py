@@ -74,7 +74,9 @@ def main():
             for key, value in attrs:
                 if key not in {"src", "href", "poster"} or not value or value.startswith(("#", "http", "mailto:", "data:")):
                     continue
-                assert (self.base / value.split("#")[0]).exists(), value
+                relative = value.split("#")[0].split("?")[0]
+                target = DIST / relative.lstrip("/") if relative.startswith("/") else self.base / relative
+                assert target.exists(), value
     for html in DIST.glob("*.html"):
         parser = Links(); parser.base = html.parent; parser.feed(html.read_text(encoding="utf-8"))
     print(json.dumps({"files":[{"path":str(p),"bytes":p.stat().st_size} for p in OUT.iterdir() if p.is_file()],"sample_run":sample.name,"source_files":len(manifest),"website_links":"all local assets present"},ensure_ascii=False,indent=2))

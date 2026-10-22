@@ -6,6 +6,7 @@ import io
 import re
 import zipfile
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 
 from lxml import etree as ET
@@ -137,9 +138,11 @@ class Template:
             current.addnext(added)
             current = added
 
-    def preview(self, values: dict[str, str]) -> str:
+    @cached_property
+    def _preview_lines(self) -> tuple[str, ...]:
+        """Immutable text plan: preview does not recompress an entire DOCX."""
         lines = []
-        with zipfile.ZipFile(io.BytesIO(self.render(values))) as z:
+        with zipfile.ZipFile(io.BytesIO(self.raw)) as z:
             for name in z.namelist():
                 if STORY.fullmatch(name):
                     if name != "word/document.xml":
@@ -153,5 +156,14 @@ class Template:
                             elif node.tag in {W + "br", W + "tab"}:
                                 parts.append("\n" if node.tag == W + "br" else "\t")
                         lines.append("".join(parts))
-        return "\n".join(lines)
+        return tuple(lines)
+
+    def preview(self, values: dict[str, str]) -> str:
+        if self.fields - values.keys():
+            raise DocFlowError("Не переданы все переменные шаблона")
+        if any(not isinstance(v, str) or BAD_XML_CHARS.search(v) for v in values.values()):
+            raise DocFlowError("Подстановка содержит недопустимый текст XML")
+        # Literal callback replacement preserves values containing braces/backslashes.
+        return "\n".join(TOKEN.sub(lambda m: values[m.group(1)].replace("\r\n", "\n").replace("\r", "\n"), line)
+                         for line in self._preview_lines)
 
