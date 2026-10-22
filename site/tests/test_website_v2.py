@@ -1,0 +1,125 @@
+"""Offline build/privacy regressions. Reserved .test URLs are not live deployments."""
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from html.parser import HTMLParser
+from urllib.parse import urljoin, urlsplit
+from xml.etree import ElementTree
+import importlib.util
+import json
+import os
+import subprocess
+import sys
+import unittest
+
+SITE=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(SITE/'scripts'))
+import build_site
+
+
+class Page(HTMLParser):
+    def __init__(self,text):
+        super().__init__(); self.tags=[];self.feed(text)
+    def handle_starttag(self,tag,attrs): self.tags.append((tag,dict(attrs)))
+
+
+class WebsiteV2Tests(unittest.TestCase):
+    def setUp(self):
+        self.temp=TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.base=Path(self.temp.name)
+    def build(self,**kwargs):
+        out=self.base/'build'; build_site.build(out,**kwargs);return out
+    def test_default_build_is_not_indexed_and_has_no_invented_domain(self):
+        out=self.build(); info=json.loads((out/'build-info.json').read_text())
+        self.assertIsNone(info['public_url']);self.assertFalse(info['lead_collection_enabled'])
+        for file in out.glob('*.html'):
+            self.assertIn('noindex',file.read_text())
+            self.assertNotIn('chatgpt.site',file.read_text())
+            self.assertNotIn('rel="canonical"',file.read_text())
+        self.assertIn('Disallow: /',(out/'robots.txt').read_text())
+        self.assertEqual(ElementTree.parse(out/'sitemap.xml').findall('.//{*}loc'),[])
+    def test_confirmed_url_can_remain_in_review_mode(self):
+        out=self.build(public_url='https://review.example.test/subdir/')
+        text=(out/'index.html').read_text()
+        self.assertIn('href="https://review.example.test/subdir/"',text)
+        self.assertIn('content="https://review.example.test/subdir/assets/social-card.png"',text)
+        self.assertIn('noindex,follow',text)
+        self.assertIn('Disallow: /',(out/'robots.txt').read_text())
+        self.assertIn('href="/subdir/style.css"',(out/'404.html').read_text())
+    def test_explicit_indexing_only_indexes_home(self):
+        out=self.build(public_url='https://approved.example.test/',index_home=True)
+        self.assertIn('content="index,follow"',(out/'index.html').read_text())
+        for name in ('privacy.html','terms.html','404.html'):
+            self.assertIn('noindex',(out/name).read_text())
+        self.assertNotIn('X-Robots-Tag:',(out/'_headers').read_text())
+        self.assertEqual([v.text for v in ElementTree.parse(out/'sitemap.xml').findall('.//{*}loc')],['https://approved.example.test/'])
+    def test_preview_branch_never_inherits_production_indexing(self):
+        out=self.base/'preview'
+        env={**os.environ,'ENABLE_INDEXING':'1','PUBLIC_SITE_URL':'https://approved.example.test/',
+             'CF_PAGES_BRANCH':'feature/website-v2','PRODUCTION_BRANCH':'main'}
+        run=subprocess.run([sys.executable,str(SITE/'scripts/build_site.py'),'--output',str(out)],env=env,capture_output=True,text=True)
+        self.assertEqual(run.returncode,0,run.stderr)
+        self.assertFalse(json.loads((out/'build-info.json').read_text())['indexing_enabled'])
+    def test_invalid_configuration_does_not_write(self):
+        for url in ('http://bad.example.test','https://user:secret@bad.example.test','https://bad.example.test/?key=x','https://bad.example.test/%2e%2e/','https://product.chatgpt.site/'):
+            with self.subTest(url=url),self.assertRaises(ValueError): self.build(public_url=url)
+            self.assertFalse((self.base/'build').exists())
+        with self.assertRaises(ValueError): self.build(index_home=True)
+        protected=self.base/'owned-by-user';protected.mkdir();(protected/'keep.txt').write_text('keep')
+        with self.assertRaises(ValueError): build_site.build(protected)
+        self.assertEqual((protected/'keep.txt').read_text(),'keep')
+        with self.assertRaises(ValueError): build_site.build(SITE/'dist')
+    def test_build_is_deterministic_and_preserves_source(self):
+        before={str(p):p.read_bytes() for p in (SITE/'dist').rglob('*') if p.is_file()}
+        out=self.build();first={str(p.relative_to(out)):p.read_bytes() for p in out.rglob('*') if p.is_file()}
+        build_site.build(out)
+        self.assertEqual(first,{str(p.relative_to(out)):p.read_bytes() for p in out.rglob('*') if p.is_file()})
+        self.assertEqual(before,{str(p):p.read_bytes() for p in (SITE/'dist').rglob('*') if p.is_file()})
+    def test_all_local_resources_and_fragments_resolve(self):
+        out=self.build()
+        for file in out.glob('*.html'):
+            page=Page(file.read_text())
+            ids=[a['id'] for _,a in page.tags if 'id' in a]
+            self.assertEqual(len(ids),len(set(ids)),str(file))
+            for tag,attrs in page.tags:
+                for key in ('href','src','poster'):
+                    value=attrs.get(key)
+                    if not value: continue
+                    link=urlsplit(urljoin('https://offline.example.test/'+('' if file.name=='index.html' else file.name),value))
+                    if link.netloc!='offline.example.test': continue
+                    target=out/(link.path.lstrip('/') or 'index.html')
+                    self.assertTrue(target.is_file(),(file.name,value))
+                    if link.fragment:
+                        self.assertIn(link.fragment,[a.get('id') for _,a in Page(target.read_text()).tags],(file.name,value))
+                if tag=='img': self.assertIn('alt',attrs)
+                if tag=='a' and attrs.get('target')=='_blank': self.assertIn('noopener',attrs.get('rel',''))
+    def test_intake_disabled_without_javascript(self):
+        page=Page((SITE/'dist/index.html').read_text())
+        forms=[a for t,a in page.tags if t=='form'];self.assertEqual(len(forms),1)
+        self.assertNotIn('action',forms[0]);self.assertNotIn('data-netlify',forms[0])
+        fields=[a for t,a in page.tags if t=='fieldset'];self.assertEqual(len(fields),1);self.assertIn('disabled',fields[0])
+        controls=[a for t,a in page.tags if t in ('input','textarea')]
+        self.assertEqual([c['name'] for c in controls],['name','contact','task'])
+        self.assertTrue(all(c.get('id') in [a.get('for') for t,a in page.tags if t=='label'] for c in controls))
+        submit=[a for t,a in page.tags if t=='button' and a.get('type')=='submit'];self.assertIn('disabled',submit[0])
+        headers=(SITE/'dist/_headers').read_text()
+        self.assertIn("form-action 'none'",headers);self.assertIn("connect-src 'none'",headers)
+        self.assertIn('X-Robots-Tag: noindex',headers)
+    def test_no_external_resource_dependencies_or_storage_calls(self):
+        for file in (SITE/'dist').glob('*.html'):
+            for tag,a in Page(file.read_text()).tags:
+                if tag in ('script','img','source','track') or (tag=='link' and a.get('rel')=='stylesheet'):
+                    self.assertFalse(urlsplit(a.get('src',a.get('href',''))).scheme,(file.name,a))
+        script=(SITE/'dist/app.js').read_text()
+        for call in ('fetch(', 'XMLHttpRequest', 'sendBeacon', 'localStorage', 'sessionStorage','indexedDB','document.cookie'):
+            self.assertNotIn(call,script)
+    def test_core_palette_contrast(self):
+        def luminance(h):
+            c=[int(h[i:i+2],16)/255 for i in (0,2,4)]
+            c=[v/12.92 if v<=.04045 else ((v+.055)/1.055)**2.4 for v in c]
+            return sum(v*w for v,w in zip(c,(.2126,.7152,.0722)))
+        for foreground,background in [('f3efeb','161517'),('c3bec2','1e1c20'),('a69fa6','2c2028'),('ffffff','873047'),('ffffff','a13d57'),('e1a2b2','161517'),('28242b','f1eee8'),('335840','e3e8e1'),('70283e','eedde2')]:
+            a,b=sorted((luminance(foreground),luminance(background)))
+            self.assertGreaterEqual((b+.05)/(a+.05),4.5,(foreground,background))
+
+
+if __name__=='__main__':unittest.main()

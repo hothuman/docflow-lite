@@ -1,4 +1,27 @@
 'use strict';
+document.documentElement.classList.add('js');
+const menuToggle = document.querySelector('.menu-toggle');
+const navigation = document.querySelector('#main-nav');
+function closeMenu(returnFocus = false) {
+  if (!menuToggle || !navigation) return;
+  menuToggle.setAttribute('aria-expanded', 'false');
+  navigation.classList.remove('is-open');
+  if (returnFocus) menuToggle.focus();
+}
+if (menuToggle && navigation) {
+  menuToggle.addEventListener('click', () => {
+    const open = menuToggle.getAttribute('aria-expanded') !== 'true';
+    menuToggle.setAttribute('aria-expanded', String(open));
+    navigation.classList.toggle('is-open', open);
+  });
+  navigation.querySelectorAll('a').forEach(link => link.addEventListener('click', () => closeMenu()));
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && menuToggle.getAttribute('aria-expanded') === 'true') closeMenu(true);
+  });
+}
+// Intake is disabled: no endpoint, persistence, SDK or transmission.
+const requestForm = document.querySelector('#request-form');
+if (requestForm) requestForm.addEventListener('submit', event => event.preventDefault());
 const rows = window.DOCFLOW_DEMO || [];
 const records = document.querySelector('#demo-records');
 const preview = document.querySelector('#demo-preview');

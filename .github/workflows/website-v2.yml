@@ -1,0 +1,27 @@
+name: Website 2.0 checks
+
+on:
+  push:
+    branches: [feature/website-v2]
+    paths: ['site/**', '.github/workflows/website-v2.yml']
+  pull_request:
+    branches: [main]
+    paths: ['site/**', '.github/workflows/website-v2.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  website:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Offline build, privacy and link regressions
+        run: python3 -m unittest discover -s site/tests -v
+      - name: Build static review version
+        run: python3 site/scripts/build_site.py
+      - name: Check browser JavaScript syntax
+        run: node --check site/dist/app.js

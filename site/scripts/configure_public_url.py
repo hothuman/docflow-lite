@@ -31,7 +31,7 @@ def normalize_base(value: str) -> tuple[str, str]:
     return origin + prefix, prefix
 
 
-def configure(value: str, directory: Path) -> str:
+def configure(value: str, directory: Path, index_home: bool = True) -> str:
     home, prefix = normalize_base(value)
     prepared = {}
     indexed = []
@@ -40,8 +40,10 @@ def configure(value: str, directory: Path) -> str:
         page_url = home if name == "index.html" else home + name
         html = re.sub(r'\s*<link rel="canonical"[^>]*>', "", html)
         html = re.sub(r'\s*<meta property="og:url"[^>]*>', "", html)
+        html = re.sub(r'\s*<meta name="robots"[^>]*>', "", html)
         html = re.sub(r'(<meta property="og:image" content=")[^"]*', r'\g<1>' + home + "assets/social-card.png", html)
-        html = html.replace("</head>", f'  <link rel="canonical" href="{page_url}">\n  <meta property="og:url" content="{page_url}">\n</head>')
+        robots = "index,follow" if name == "index.html" and index_home else "noindex,follow"
+        html = html.replace("</head>", f'  <link rel="canonical" href="{page_url}">\n  <meta property="og:url" content="{page_url}">\n  <meta name="robots" content="{robots}">\n</head>')
         prepared[name] = html
         if not re.search(r'<meta\s+name="robots"\s+content="[^"]*noindex', html, re.I):
             indexed.append(page_url)
@@ -50,7 +52,8 @@ def configure(value: str, directory: Path) -> str:
         (directory / name).write_text(html, encoding="utf-8")
     urls = "".join("<url><loc>" + url + "</loc></url>" for url in indexed)
     (directory / "sitemap.xml").write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + urls + '</urlset>\n', encoding="utf-8")
-    (directory / "robots.txt").write_text("User-agent: *\nAllow: " + prefix + "\nSitemap: " + home + "sitemap.xml\n", encoding="utf-8")
+    robots_text = "User-agent: *\nAllow: " + prefix + "\nSitemap: " + home + "sitemap.xml\n" if index_home else "User-agent: *\nDisallow: /\n"
+    (directory / "robots.txt").write_text(robots_text, encoding="utf-8")
     return home
 
 
