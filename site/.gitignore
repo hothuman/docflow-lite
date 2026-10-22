@@ -5,3 +5,4 @@ __audit.html
 node_modules/
 .sites-runtime/
 .sites-checkout*/
+build/
