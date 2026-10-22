@@ -1,0 +1,27 @@
+{
+  "platform": "Linux-6.18.55-x86_64-with-glibc2.39",
+  "python": "3.12.14",
+  "qt_platform": "offscreen",
+  "main_window_construction_s": 0.01781258300002264,
+  "rss_peak_bytes": 121987072,
+  "memory_method": "/proc/self/status VmRSS on Linux; GetProcessMemoryInfo on Windows; 25 ms sampling",
+  "memory_only": true,
+  "results": [
+    {
+      "records": 5000,
+      "templates": 2,
+      "csv_load_s": 0.01978505900001437,
+      "xlsx_load_s": 0.7606898579999779,
+      "prepare_s": 0.22924989399984952,
+      "validation_s": 0.0450515649999943,
+      "preview_median_s": 0.00954264950007655,
+      "gui_install_s": 0.26552932300000975,
+      "snapshot_s": 0.056158224999990125,
+      "generation_s": null,
+      "documents": 0,
+      "gui_timer_max_interval_s": null,
+      "rss_peak_bytes": 121987072
+    }
+  ],
+  "scope": "One local run per size, same synthetic six columns and bundled two templates; medians of 20 previews. RSS sampled every 25 ms; GUI heartbeat only at 100 rows. Native Windows/physical DPI performance is not asserted."
+}

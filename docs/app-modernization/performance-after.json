@@ -1,0 +1,72 @@
+{
+  "platform": "Linux-6.18.55-x86_64-with-glibc2.39",
+  "python": "3.12.14",
+  "qt_platform": "offscreen",
+  "main_window_construction_s": 0.02748085899997932,
+  "rss_peak_bytes": 143020032,
+  "memory_method": "/proc/self/status VmRSS on Linux; GetProcessMemoryInfo on Windows; 25 ms sampling",
+  "memory_only": false,
+  "results": [
+    {
+      "records": 10,
+      "templates": 2,
+      "csv_load_s": 0.0011008500000571075,
+      "xlsx_load_s": 0.005818322999857628,
+      "prepare_s": 0.14218146900020656,
+      "validation_s": 0.000311736999947243,
+      "preview_median_s": 7.160999984989758e-06,
+      "gui_install_s": 0.14778727300017636,
+      "snapshot_s": 0.00044064099984097993,
+      "generation_s": 0.1622180289998596,
+      "documents": 20,
+      "gui_timer_max_interval_s": null,
+      "rss_peak_bytes": 109998080
+    },
+    {
+      "records": 100,
+      "templates": 2,
+      "csv_load_s": 0.0012992880001547746,
+      "xlsx_load_s": 0.01693282599990198,
+      "prepare_s": 0.12337608600000749,
+      "validation_s": 0.0006124179999460466,
+      "preview_median_s": 7.12599990038143e-06,
+      "gui_install_s": 0.15685143299992887,
+      "snapshot_s": 0.0010618519997933618,
+      "generation_s": 1.6096859659999154,
+      "documents": 200,
+      "gui_timer_max_interval_s": 0.016623696999886306,
+      "rss_peak_bytes": 112734208
+    },
+    {
+      "records": 1000,
+      "templates": 2,
+      "csv_load_s": 0.005016784999952506,
+      "xlsx_load_s": 0.15800596400003997,
+      "prepare_s": 0.14584719899994525,
+      "validation_s": 0.007176906000040617,
+      "preview_median_s": 8.412500051235838e-06,
+      "gui_install_s": 0.16563889799999743,
+      "snapshot_s": 0.010730085999966832,
+      "generation_s": 16.790282984999976,
+      "documents": 2000,
+      "gui_timer_max_interval_s": null,
+      "rss_peak_bytes": 124297216
+    },
+    {
+      "records": 5000,
+      "templates": 2,
+      "csv_load_s": 0.0186476760000005,
+      "xlsx_load_s": 0.7756410500001039,
+      "prepare_s": 0.14102194900010545,
+      "validation_s": 0.025972176999857766,
+      "preview_median_s": 7.064999977046682e-06,
+      "gui_install_s": 0.1655048689999603,
+      "snapshot_s": 0.04167657299990424,
+      "generation_s": 81.68696283700001,
+      "documents": 10000,
+      "gui_timer_max_interval_s": null,
+      "rss_peak_bytes": 143020032
+    }
+  ],
+  "scope": "One local run per size, same synthetic six columns and bundled two templates; medians of 20 previews. RSS sampled every 25 ms; GUI heartbeat only at 100 rows. Native Windows/physical DPI performance is not asserted."
+}
