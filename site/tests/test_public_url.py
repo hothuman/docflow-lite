@@ -12,7 +12,7 @@ SITE = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("public_url", SITE / "scripts/configure_public_url.py")
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
-ROOT_URL = "https://docflow-lite.rostg2007.chatgpt.site/"
+ROOT_URL = "https://docflow-lite.pages.dev/"
 PAGES_FIXTURE = "https://hothuman.github.io/docflow-lite/"
 
 
