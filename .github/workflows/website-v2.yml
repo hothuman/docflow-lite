@@ -2,7 +2,7 @@ name: Website 2.0 checks
 
 on:
   push:
-    branches: [feature/website-v2]
+    branches: [main, feature/website-v2]
     paths: ['site/**', '.github/workflows/website-v2.yml']
   pull_request:
     branches: [main]
