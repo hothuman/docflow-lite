@@ -52,12 +52,13 @@ def run(output, require_windows=False):
     from docx import Document
     from . import __version__
     from .cli import demo_profile
-    from .gui import MainWindow
+    from .gui import MainWindow, configure_app
     from .profile import Profile
     from .validation import Rule
 
     output.mkdir(parents=True, exist_ok=True)
     app = QApplication.instance() or QApplication([])
+    configure_app(app)
     app.setQuitOnLastWindowClosed(False)
     window = MainWindow()
     proof = {'version':__version__, 'os':platform.platform(),

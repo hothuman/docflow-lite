@@ -103,7 +103,8 @@ class MainWindow(QMainWindow):
         self.pages=QStackedWidget();work.addWidget(self.pages,1)
         self._build_create();self._build_templates();self._build_mapping();self._build_result();self._build_about()
         self.status=text('Откройте демопример или выберите свои файлы','status');self.status.setAccessibleName('Текущий статус')
-        work.addWidget(self.status)
+        self.footer_layout=QHBoxLayout();self.footer_layout.setSpacing(12);self.footer_layout.addWidget(self.status,1)
+        self._pinned_action=None;work.addLayout(self.footer_layout)
         self.navigate(0);self._responsive();self.update_readiness()
 
     def button(self,title,callback,kind=None,primary=False):
@@ -154,6 +155,7 @@ class MainWindow(QMainWindow):
         self.report_text=QTextBrowser();self.report_text.setOpenExternalLinks(False);self.report_text.setPlainText('Здесь появятся результаты проверки и отчёт генерации')
         self.tabs.addTab(self.report_text,'Отчёт')
         self.options_card,options=card('2. Настройки генерации')
+        self.options_layout=options
         options.addWidget(text('Формат результата','eyebrow'));options.addWidget(text('DOCX · отдельные файлы для каждой записи'))
         options.addWidget(text('Название папки записи','eyebrow'))
         self.name_selector=QComboBox();self.name_selector.setAccessibleName('Столбец для названий папок');options.addWidget(self.name_selector)
@@ -238,6 +240,11 @@ class MainWindow(QMainWindow):
         self.demo_btn.setText('Демо' if compact else 'Открыть демопример');self.folder_btn.setText('Папка' if compact else 'Открыть папку')
         width=self.width()-self.rail.width()-48
         mode=3 if width>=1120 else 2 if width>=760 else 1
+        pinned=self.height()<800 or compact
+        if hasattr(self,'footer_layout') and self._pinned_action!=pinned:
+            self.options_layout.removeWidget(self.generate_btn);self.footer_layout.removeWidget(self.generate_btn)
+            (self.footer_layout if pinned else self.options_layout).addWidget(self.generate_btn)
+            self.generate_btn.show();self._pinned_action=pinned
         if getattr(self,'_columns',None)==mode:return
         self._columns=mode
         for item in (self.source_card,self.options_card,self.ready_card):self.create_grid.removeWidget(item)

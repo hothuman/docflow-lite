@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 from docx import Document
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QTimer, Qt, QPoint
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
@@ -163,6 +163,17 @@ def test_snapshot_copies_mutable_data_but_keeps_immutable_template_bytes(window)
     assert prepared.table.records[0].values['Клиент']==original
     assert prepared.table is not window.table
     assert prepared.templates[0].raw is window.active_templates()[0].raw
+
+
+@pytest.mark.parametrize('size',[(640,360),(1024,750),(1280,720),(1400,860)])
+def test_primary_action_remains_reachable_when_window_resizes(window,size):
+    window.resize(*size);QApplication.processEvents()
+    primary=window.generate_btn;point=primary.mapTo(window,QPoint())
+    assert primary.isVisible() and window.rect().contains(point)
+    assert window.rect().contains(point+QPoint(primary.width()-1,primary.height()-1))
+    if window._pinned_action:
+        window.navigate(2);QApplication.processEvents()
+        assert primary.isVisible() and primary.isEnabled()
 
 
 @pytest.mark.parametrize('value',['literal {{not_a_field}} \\ text','line 1\r\nline 2\tvalue','<tag> & "quotes"'])

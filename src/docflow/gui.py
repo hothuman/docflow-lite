@@ -4,11 +4,14 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 from .ui.window import MainWindow, GenerationWorker
 
-def main():
-    app=QApplication(sys.argv)
+def configure_app(app):
     app.setApplicationName('DocFlow Lite')
     app.setStyle('Fusion')
     app.styleHints().setColorScheme(Qt.ColorScheme.Dark)
+
+def main():
+    app=QApplication(sys.argv)
+    configure_app(app)
     window=MainWindow();window.show()
     return app.exec()
 

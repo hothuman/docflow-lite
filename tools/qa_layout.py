@@ -6,7 +6,7 @@ import argparse,json,os,shutil,tempfile,time
 from pathlib import Path
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import QApplication
-from docflow.gui import MainWindow
+from docflow.gui import MainWindow, configure_app
 from docflow.profile import Profile
 from docflow.cli import demo_profile
 from docflow.release_check import wait_idle
@@ -16,6 +16,7 @@ SIZES=((1280,720),(1366,768),(1600,900),(1920,1080),(2560,1440),(3840,2160))
 def run(output):
     output.mkdir(parents=True,exist_ok=True)
     app=QApplication.instance() or QApplication([]);app.setStyle('Fusion');app.setQuitOnLastWindowClosed(False)
+    configure_app(app)
     window=MainWindow();window.show();scale=float(os.environ.get('QT_SCALE_FACTOR','1'));cases=[]
     with tempfile.TemporaryDirectory(prefix='DocFlow layout ') as temp:
         root=Path(temp);base=Profile.load(demo_profile())
@@ -32,6 +33,10 @@ def run(output):
                 failures=[]
                 if (window.width(),window.height())!=logical:failures.append('window exceeded requested logical size')
                 if scroll.horizontalScrollBar().maximum():failures.append('unexpected page horizontal scrolling')
+                if window._pinned_action:
+                    primary=window.generate_btn;point=primary.mapTo(window,QPoint())
+                    if not primary.isVisible() or not window.rect().contains(point) or not window.rect().contains(point+QPoint(primary.width()-1,primary.height()-1)):
+                        failures.append('primary generation action clipped or hidden')
                 for button in [window.demo_btn,window.folder_btn,*window.nav_buttons]:
                     point=button.mapTo(window,QPoint(0,0))
                     if not window.rect().contains(point) or not window.rect().contains(point+QPoint(button.width()-1,button.height()-1)):
