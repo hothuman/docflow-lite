@@ -27,3 +27,8 @@ site/dist/__audit.html
 /client-work/
 /orders/
 /sales/leads-private*
+
+# Private operator records, signed orders, tax/bank evidence and RKN keys.
+/private-legal/
+/legal-client-files/
+/sales/*-filled.*

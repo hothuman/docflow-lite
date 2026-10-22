@@ -1,0 +1,24 @@
+test_clickable_site_and_contact_uris (test_offer_pdf.OfferPDFTests.test_clickable_site_and_contact_uris) ... ok
+test_current_demo_archive_uses_the_official_site (test_offer_pdf.OfferPDFTests.test_current_demo_archive_uses_the_official_site) ... ok
+test_visible_url_is_updated_in_pdf_content (test_offer_pdf.OfferPDFTests.test_visible_url_is_updated_in_pdf_content) ... ok
+test_github_pages_subdirectory (test_public_url.PublicURLTests.test_github_pages_subdirectory) ... ok
+test_rejects_unsafe_or_ambiguous_urls_without_writes (test_public_url.PublicURLTests.test_rejects_unsafe_or_ambiguous_urls_without_writes) ... ok
+test_resources_keep_subdirectory (test_public_url.PublicURLTests.test_resources_keep_subdirectory) ... ok
+test_root_and_direct_page_canonicals (test_public_url.PublicURLTests.test_root_and_direct_page_canonicals) ... ok
+test_sitemap_and_robots_scope (test_public_url.PublicURLTests.test_sitemap_and_robots_scope) ... ok
+test_switching_hosts_is_idempotent (test_public_url.PublicURLTests.test_switching_hosts_is_idempotent) ... ok
+test_all_local_resources_and_fragments_resolve (test_website_v2.WebsiteV2Tests.test_all_local_resources_and_fragments_resolve) ... ok
+test_build_is_deterministic_and_preserves_source (test_website_v2.WebsiteV2Tests.test_build_is_deterministic_and_preserves_source) ... ok
+test_confirmed_url_can_remain_in_review_mode (test_website_v2.WebsiteV2Tests.test_confirmed_url_can_remain_in_review_mode) ... ok
+test_core_palette_contrast (test_website_v2.WebsiteV2Tests.test_core_palette_contrast) ... ok
+test_default_build_is_not_indexed_and_has_no_invented_domain (test_website_v2.WebsiteV2Tests.test_default_build_is_not_indexed_and_has_no_invented_domain) ... ok
+test_explicit_indexing_only_indexes_home (test_website_v2.WebsiteV2Tests.test_explicit_indexing_only_indexes_home) ... ok
+test_intake_disabled_without_javascript (test_website_v2.WebsiteV2Tests.test_intake_disabled_without_javascript) ... ok
+test_invalid_configuration_does_not_write (test_website_v2.WebsiteV2Tests.test_invalid_configuration_does_not_write) ... ok
+test_no_external_resource_dependencies_or_storage_calls (test_website_v2.WebsiteV2Tests.test_no_external_resource_dependencies_or_storage_calls) ... ok
+test_preview_branch_never_inherits_production_indexing (test_website_v2.WebsiteV2Tests.test_preview_branch_never_inherits_production_indexing) ... ok
+
+----------------------------------------------------------------------
+Ran 19 tests in 0.187s
+
+OK

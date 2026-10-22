@@ -1,0 +1,91 @@
+{
+  "checked_at_utc": "2026-10-22T20:16:57.537196+00:00",
+  "base_commit": "12db5cc1f28ac580b7250fe002e8b3cd80e1f66b",
+  "changed_files": [
+    ".gitignore",
+    "DocFlow_Lite_Stage_05_Launch_Readiness.md",
+    "FILE_HASHES.json",
+    "docs/LAUNCH.md",
+    "docs/legal/01_Requirements_and_Sources.md",
+    "docs/legal/02_Data_Processing_Map.md",
+    "docs/legal/03_Privacy_Policy_Draft.md",
+    "docs/legal/04_Service_Terms_Draft.md",
+    "docs/legal/05_Consent_and_Form_Gates.md",
+    "docs/legal/06_Software_Licensing.md",
+    "docs/legal/07_Free_Software_Terms_Draft.md",
+    "docs/legal/08_Owner_Checklist.md",
+    "docs/legal/09_Verification.md",
+    "docs/legal/README.md",
+    "docs/legal/evidence/licenses-0.2.0rc1.json",
+    "docs/legal/evidence/licenses-v0.1.1.json",
+    "docs/legal/evidence/native-library-comparison.json",
+    "docs/legal/evidence/public-http-final.json",
+    "docs/legal/evidence/scope-and-site-verification.json",
+    "sales/01_Offer_and_Prices.md",
+    "sales/02_Client_Workflow.md",
+    "sales/04_Payment_and_Legal.md",
+    "sales/05_Individual_Order_and_Acceptance.md",
+    "site/dist/index.html",
+    "site/dist/privacy.html",
+    "site/dist/terms.html",
+    "tools/audit_distribution_licenses.py"
+  ],
+  "protected_files_identical": 53,
+  "private_identifiers_in_public_changes": false,
+  "secret_patterns_in_public_changes": false,
+  "markdown_relative_links": "all resolve",
+  "lead_csv": "header only, seven columns",
+  "site_build_files": 20,
+  "indexing_enabled": false,
+  "lead_collection_enabled": false,
+  "contacts": [
+    {
+      "page": "index.html",
+      "kind": "telegram",
+      "prefill": "Здравствуйте! Интересует настройка одного DOCX-шаблона DocFlow Lite от 5 000 ₽. Моя задача: [описание]. Таблица: [Excel или CSV]. Нужный срок: [дата]. Файлы для оценки подготовлю с вымышленными данными после согласования канала."
+    },
+    {
+      "page": "index.html",
+      "kind": "telegram",
+      "prefill": "Здравствуйте! Интересует комплект до трёх DOCX-шаблонов DocFlow Lite от 9 000 ₽. Документы: [названия]. Таблица: [Excel или CSV]. Нужный срок: [дата]. Файлы для оценки подготовлю с вымышленными данными после согласования канала."
+    },
+    {
+      "page": "index.html",
+      "kind": "telegram",
+      "prefill": "Здравствуйте! Хочу настроить DocFlow Lite для своих документов. Задача: [что заполняем]. Шаблонов: [количество]. Таблица: [Excel или CSV]. Нужный срок: [дата]. Файлы для оценки подготовлю с вымышленными данными после согласования канала."
+    },
+    {
+      "page": "index.html",
+      "kind": "email"
+    },
+    {
+      "page": "index.html",
+      "kind": "telegram",
+      "prefill": ""
+    },
+    {
+      "page": "privacy.html",
+      "kind": "telegram",
+      "prefill": ""
+    },
+    {
+      "page": "privacy.html",
+      "kind": "email"
+    },
+    {
+      "page": "privacy.html",
+      "kind": "email"
+    },
+    {
+      "page": "terms.html",
+      "kind": "telegram",
+      "prefill": ""
+    },
+    {
+      "page": "terms.html",
+      "kind": "email"
+    }
+  ],
+  "docx_pages_visually_reviewed": 4,
+  "native_windows_execution_this_stage": false
+}
