@@ -14,7 +14,7 @@
   "demo-output/DocFlow_20261021_153020_4e57451354/row_0002_001/02_02_confirmation.docx": "b47677db467c36c15a944fdfc62033039f449d79d5ca17dec5eb51a08dacfad0",
   "demo-output/DocFlow_20261021_153020_4e57451354/row_0003_002/01_01_request.docx": "f86684f83ce0749ee9f81cb777a9a7e442850bf9ac1be453393ceabdae7d1206",
   "demo-output/DocFlow_20261021_153020_4e57451354/row_0003_002/02_02_confirmation.docx": "b12ec9a379919a36a1ac5e241d666bd5c3489c974e96db4a530c8a6da8e16ff7",
-  "docs/APP_MODERNIZATION.md": "2a8ae0fb63ed500d38d5feb9a6454b843ef4ce570a55ec901c4ecfecf9127056",
+  "docs/APP_MODERNIZATION.md": "bd6a075ba6a7165aa8452dd9adca88dc8427af33794df9f2bb868a8337cd538c",
   "docs/ARCHITECTURE.md": "41ba93cc34a51c130f2dbbf27fee4aebe6390a048af8781bf466dd0e3f8d969a",
   "docs/AUDIT.md": "a9bc53bb9d00d1511cb690176ae10d0cba6933093737de8a7ef33931d71c7767",
   "docs/LAUNCH.md": "859444e14c43a6cd4e36c3035f54e2e18fd055db3b2bef11360a7d59fbbda35c",
@@ -102,13 +102,13 @@
   "src/docflow/ui/app.ico": "78ca426408fa59c1897ab9f2c5c7fa2087543c033b9934348c4598e888218b39",
   "src/docflow/ui/theme.qss": "45fbd084a1e8aa4f26d29ac70d54c1de0ca6afcc53e6a7ea775ebb3479ea50a3",
   "src/docflow/ui/widgets.py": "03d1a7f6b56ed851bcee5026155d2581162251b8ba3945203fa2d54ee978ea8d",
-  "src/docflow/ui/window.py": "ac9553aefd8249b32e64f51c69afcfaf263a7587d2fc0ca1dfee109510d61365",
+  "src/docflow/ui/window.py": "f084a84936de7f07b9bc5d9617c3d9fbd0245bbc6daf840854fbde1ab0c4a811",
   "src/docflow/validation.py": "526899f0966affc81acbd068b787440066f13fa8ee9d6c9f399467a2e5749014",
   "start_windows.bat": "b1f40c5a3ada7c295082bad46eea92cc246a2a2c3f389325566a81ab5b1b3cb9",
   "tests/test_audit_regressions.py": "a1d6db85b1ee2ce210623d4666dd253a36a5ccceb92788687d6d7b776783087f",
   "tests/test_engine.py": "061585385e89bb548ea4b7ec84addc303e455aa1cc5535f27cd92562973b61de",
   "tests/test_gui.py": "b625817eb4c700b5ff704603759ca463b21e2a4a0bb0981c93c51124758b3d58",
-  "tests/test_modernization.py": "a35c3f516507c98b19ff720119ac52ec52ca21bfeb7632a073d2e9956386fad4",
+  "tests/test_modernization.py": "65cb9bc8c700fbd41ef28b6a81a47ce0406cb875015121e396cca8d4b5cea665",
   "tests/test_windows_compat.py": "8ba85e953d18b6018a35df1ade35c606db1ce5ef4808ad5030c2162c789e872d",
   "third-party-licenses/defusedxml/LICENSE": "b80ce9da8c42a1f91079627fbbe2bf27210ae108a0ffe5f077d5b08e076c24c8",
   "third-party-licenses/et_xmlfile/AUTHORS.txt": "7f038029ea5463605dd2278d300099a381bce9e90dda83ccab2042346b6c8107",
@@ -131,5 +131,5 @@
   "third-party-licenses/python-docx/LICENSE": "7652f271e46d0d533e9dc463f3b5fcbdcacf4d6a9c8d6b554d15efd0f37f6132",
   "third-party-licenses/typing_extensions/LICENSE": "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf",
   "tools/benchmark_app.py": "fb137770d36cce2d852fb175ad5d1ff87611a827f897587010f5aaf7c6e7be94",
-  "tools/qa_layout.py": "38e497bf3322093982ba1771f7e44de022071ab6454f4c334c22a1548945c544"
+  "tools/qa_layout.py": "d0385446641bf2a3f976279def7a22eb6d30bb0d104d911384ab39001580c6a7"
 }

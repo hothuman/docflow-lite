@@ -41,6 +41,9 @@ def run(output):
                     point=button.mapTo(window,QPoint(0,0))
                     if not window.rect().contains(point) or not window.rect().contains(point+QPoint(button.width()-1,button.height()-1)):
                         failures.append('header/navigation clipped: '+button.accessibleName())
+                for button in window.nav_buttons:
+                    if button.text() and button.width()<button.sizeHint().width():
+                        failures.append('navigation label truncated: '+button.text())
                 case={'physical_client_size':[width,height],'scale_factor':scale,'device_pixel_ratio':window.devicePixelRatioF(),
                       'logical_size':[window.width(),window.height()],'page':page,'horizontal_scroll_max':scroll.horizontalScrollBar().maximum(),
                       'vertical_scroll_max':scroll.verticalScrollBar().maximum(),'failures':failures}

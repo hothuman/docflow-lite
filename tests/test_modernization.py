@@ -47,6 +47,12 @@ def test_navigation_preserves_loaded_state_and_field_rules(window):
     assert window.data_model.rowCount()==3 and len(window.templates)==2
 
 
+def test_wide_navigation_labels_fit_without_truncation(window):
+    window.resize(1920,1080);QApplication.processEvents()
+    for button in window.nav_buttons:
+        assert button.width()>=button.sizeHint().width(),button.text()
+
+
 def test_template_selection_preserves_mapping_rules_and_folder_column(window,tmp_path):
     before=window.mapping();folder=window.name_selector.currentText()
     window.template_list.item(0).setCheckState(Qt.CheckState.Unchecked)
