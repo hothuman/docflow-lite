@@ -1,0 +1,17 @@
+{
+  "all_compared_libraries_byte_identical": true,
+  "compared": {
+    "_internal/PySide6/pyside6.abi3.dll": true,
+    "_internal/PySide6/Qt6Core.dll": true,
+    "_internal/PySide6/Qt6Gui.dll": true,
+    "_internal/PySide6/Qt6Network.dll": true,
+    "_internal/PySide6/Qt6Svg.dll": true,
+    "_internal/PySide6/Qt6Test.dll": true,
+    "_internal/PySide6/Qt6Widgets.dll": true,
+    "_internal/PySide6/QtCore.pyd": true,
+    "_internal/PySide6/QtGui.pyd": true,
+    "_internal/PySide6/QtWidgets.pyd": true,
+    "_internal/shiboken6/shiboken6.abi3.dll": true
+  },
+  "scope": "Same Qt/PySide6/Shiboken PE bytes across public 0.1.1 and prepared 0.2.0rc1; not a replacement runtime test."
+}
