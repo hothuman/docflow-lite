@@ -232,11 +232,11 @@ class MainWindow(QMainWindow):
 
     def _responsive(self):
         compact=self.width()<1050
-        self.rail.setFixedWidth(64 if compact else 202)
         self.rail.layout().setContentsMargins(9 if compact else 14,12 if compact else 22,9 if compact else 14,12 if compact else 18)
         self.rail.layout().setSpacing(5 if compact else 8)
         self.brand.setText('DF' if compact else 'DocFlow Lite');self.version_label.setVisible(not compact);self.local_note.setVisible(not compact)
         for i,button in enumerate(self.nav_buttons):button.setText('' if compact else self.NAV_NAMES[i])
+        self.rail.setFixedWidth(64 if compact else max(202,max(button.sizeHint().width() for button in self.nav_buttons)+28))
         self.demo_btn.setText('Демо' if compact else 'Открыть демопример');self.folder_btn.setText('Папка' if compact else 'Открыть папку')
         width=self.width()-self.rail.width()-48
         mode=3 if width>=1120 else 2 if width>=760 else 1
