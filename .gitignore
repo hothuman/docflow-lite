@@ -22,3 +22,8 @@ site/dist/__audit.html
 /artifacts/
 /wheelhouse/
 
+
+# Customer files and filled lead trackers must never enter this public repository.
+/client-work/
+/orders/
+/sales/leads-private*
