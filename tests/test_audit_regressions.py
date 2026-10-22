@@ -77,6 +77,7 @@ def test_gui_generation_uses_the_record_that_was_previewed(tmp_path):
     pytest.importorskip("PySide6")
     from PySide6.QtWidgets import QApplication
     from docflow.gui import MainWindow
+    from docflow.release_check import wait_idle
     app = QApplication.instance() or QApplication([])
     source = tmp_path / "data.csv"
     source.write_text("name\nOriginal Client\n", encoding="utf-8")
@@ -84,6 +85,7 @@ def test_gui_generation_uses_the_record_that_was_previewed(tmp_path):
     d = Document(); d.add_paragraph("{{name}}"); d.save(template)
     window = MainWindow()
     window.apply_profile(Profile(source, [template], {"name":"name"}))
+    wait_idle(window)
     assert "Original Client" in window.preview_text.toPlainText()
     # An external process changes both inputs after the user sees a preview.
     source.write_text("name\nUnexpected Client\n", encoding="utf-8")

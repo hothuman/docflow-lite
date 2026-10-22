@@ -8,6 +8,7 @@ pytest.importorskip("PySide6")
 
 from PySide6.QtWidgets import QApplication
 from docflow.gui import MainWindow
+from docflow.release_check import wait_idle
 
 
 @pytest.fixture(scope="module")
@@ -19,13 +20,14 @@ def test_gui_demo_preview_validation_and_worker(app, tmp_path):
     window = MainWindow()
     window.show()
     window.load_demo()
-    app.processEvents()
+    wait_idle(window)
     assert window.source_table.rowCount() == 3
     assert window.mapping_table.rowCount() == 6
     assert "Демо Клиент А" in window.preview_text.toPlainText()
     window.row_selector.setCurrentIndex(2)
     assert "будет пропущена" in window.preview_text.toPlainText()
     window.check_all()
+    wait_idle(window)
     assert "С ошибками: 1" in window.status.text()
     window.output_path.setText(str(tmp_path))
     window.start_generation()
@@ -34,7 +36,7 @@ def test_gui_demo_preview_validation_and_worker(app, tmp_path):
         app.processEvents()
         time.sleep(0.01)
     window.worker.wait(1000)
-    app.processEvents()
+    wait_idle(window)
     assert window.last_result.documents == 4
     assert window.generate_btn.isEnabled()
     assert "4 DOCX" in window.status.text()

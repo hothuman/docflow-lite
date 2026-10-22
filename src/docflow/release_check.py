@@ -29,19 +29,36 @@ def dialog_choice(dialog, method, value):
         setattr(dialog, method, previous)
 
 
+def wait_idle(window, timeout=15):
+    """Pump Qt events while allowing Python worker threads to acquire the GIL."""
+    from PySide6.QtWidgets import QApplication
+    app=QApplication.instance()
+    deadline=time.monotonic()+timeout
+    while True:
+        app.processEvents()
+        running=any(worker and worker.isRunning() for worker in
+                    (window.worker,getattr(window,'task_worker',None),getattr(window,'preview_worker',None)))
+        timer=getattr(window,'_preview_timer',None)
+        if not running and not getattr(window,'_busy',False) and not (timer and timer.isActive()) and not getattr(window,'_pending_preview',None):
+            app.processEvents();return
+        if time.monotonic()>deadline:raise RuntimeError('GUI operation timed out: '+window.status.text())
+        time.sleep(.005)
+
+
 def run(output, require_windows=False):
     from PySide6.QtCore import Qt, qVersion
     from PySide6.QtTest import QTest
-    from PySide6.QtWidgets import QApplication, QFileDialog
+    from PySide6.QtWidgets import QApplication, QFileDialog, QScrollArea
     from docx import Document
     from . import __version__
     from .cli import demo_profile
-    from .gui import MainWindow
+    from .gui import MainWindow, configure_app
     from .profile import Profile
     from .validation import Rule
 
     output.mkdir(parents=True, exist_ok=True)
     app = QApplication.instance() or QApplication([])
+    configure_app(app)
     app.setQuitOnLastWindowClosed(False)
     window = MainWindow()
     proof = {'version':__version__, 'os':platform.platform(),
@@ -55,8 +72,16 @@ def run(output, require_windows=False):
 
     def click(widget):
         assert widget.isEnabled(), widget.text()
+        parent=widget.parentWidget()
+        while parent is not None:
+            if isinstance(parent,QScrollArea):
+                parent.ensureWidgetVisible(widget,12,12)
+                app.processEvents()
+                break
+            parent=parent.parentWidget()
         QTest.mouseClick(widget, Qt.MouseButton.LeftButton)
         app.processEvents()
+        wait_idle(window)
 
     def wait_for_generation():
         deadline = time.monotonic()+30
@@ -64,7 +89,7 @@ def run(output, require_windows=False):
             app.processEvents()
             if time.monotonic()>deadline:
                 raise RuntimeError('Generation timed out: '+window.status.text())
-            QTest.qWait(20)
+            time.sleep(.01)
         assert window.worker.wait(2000)
         app.processEvents()
         result = window.last_result
@@ -100,6 +125,12 @@ def run(output, require_windows=False):
         click(window.demo_btn)
         assert window.source_table.rowCount()==3 and len(window.templates)==2
         assert 'Демо Клиент А' in window.preview_text.toPlainText()
+        assert window.grab().save(str(output/'demo-loaded.png'))
+        window.navigate(1);app.processEvents()
+        assert window.grab().save(str(output/'templates.png'))
+        window.navigate(2);app.processEvents()
+        assert window.grab().save(str(output/'mapping.png'))
+        window.navigate(0);app.processEvents()
         window.row_selector.setCurrentIndex(2)
         assert 'будет пропущена' in window.preview_text.toPlainText()
         click(window.check_btn)
@@ -119,9 +150,11 @@ def run(output, require_windows=False):
             shutil.copy2(path,target)
             templates.append(target)
         for extension in ('xlsx','csv'):
+            window.navigate(1);app.processEvents()
             while window.template_list.count():
                 window.template_list.setCurrentRow(0)
                 click(window.remove_btn)
+            window.navigate(0);app.processEvents()
             data = inputs/('Демонстрационные клиенты.'+extension)
             shutil.copy2(demo.data_file.with_suffix('.'+extension),data)
             before = {p:hashlib.sha256(p.read_bytes()).hexdigest() for p in [data,*templates]}
@@ -139,6 +172,7 @@ def run(output, require_windows=False):
                 kind.setCurrentIndex(kind.findData(rule.kind))
                 window.mapping_table.cellWidget(row,3).setChecked(rule.required)
             window.name_selector.setCurrentText(demo.name_column)
+            window.navigate(2);app.processEvents()
             saved = inputs/f'Сохранённый профиль {extension}.json'
             with dialog_choice(QFileDialog,'getSaveFileName',(str(saved),'')):
                 click(window.save_profile_btn)
@@ -147,6 +181,7 @@ def run(output, require_windows=False):
             with dialog_choice(QFileDialog,'getOpenFileName',(str(saved),'')):
                 click(window.open_profile_btn)
             assert window.table.source==data.resolve()
+            window.navigate(0);app.processEvents()
             with dialog_choice(QFileDialog,'getExistingDirectory',str(output/('Документы '+extension))):
                 click(window.output_btn)
             window.last_result=None

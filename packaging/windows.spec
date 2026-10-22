@@ -18,6 +18,6 @@ exe = EXE(
     pyz,a.scripts,[],exclude_binaries=True,name='DocFlow-Lite',
     debug=False,bootloader_ignore_signals=False,strip=False,upx=False,
     console=False,disable_windowed_traceback=False,
-    icon=str(root/'site/dist/favicon.ico'),
+    icon=str(root/'src/docflow/ui/app.ico'),
 )
 coll = COLLECT(exe,a.binaries,a.datas,strip=False,upx=False,name='DocFlow-Lite')

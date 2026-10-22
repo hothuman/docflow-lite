@@ -91,7 +91,7 @@ jobs:
 
   publish:
     needs: [linux-tests, windows-build]
-    if: github.event_name == 'push' || inputs.publish
+    if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
