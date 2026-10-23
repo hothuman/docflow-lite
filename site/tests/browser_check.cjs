@@ -39,7 +39,9 @@ const widths=[320,360,390,620,768,860,1024,1280];
      assert.notEqual(await page.locator('fieldset').getAttribute('disabled'),null);
      for(const field of await page.locator('#request-form input, #request-form textarea, #request-form button[type=submit]').all())assert(await field.isDisabled());
      await page.locator('#demo-records button').last().click();assert.match(await page.locator('#demo-status').innerText(),/пропущена/);
-     await page.locator('#demo-template').selectOption({index:1});
+     assert(await page.locator('#demo-template').isDisabled());
+     await page.locator('#demo-records button').first().click();assert.equal(await page.locator('#demo-template').isDisabled(),false);
+     await page.locator('#demo-template').selectOption({index:1});assert((await page.locator('#demo-preview').innerText()).length>30);
      if(width===1280){
       const pending=page.waitForEvent('download');await page.locator('a[href="assets/DocFlow-Lite-Demo.zip"]').first().click();const download=await pending;const downloaded=await download.path();assert(downloaded);
       const got=await fs.readFile(downloaded);const original=await fs.readFile(path.join(root,'assets/DocFlow-Lite-Demo.zip'));assert(got.equals(original));await download.saveAs(path.join(output,'browser-downloaded-demo.zip'));
