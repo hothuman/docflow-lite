@@ -3,6 +3,7 @@
 No encryption or signatures are claimed. Restore only into a new empty folder.
 """
 from pathlib import Path
+from contextlib import closing
 import hashlib, json, os, sqlite3, tempfile, zipfile, shutil
 from uuid import uuid4
 from .attachments import safe_path,digest,MAX_ATTACHMENT
@@ -27,9 +28,9 @@ def create_backup(store,destination):
     temporary=destination.with_name('.'+destination.name+'.'+uuid4().hex+'.tmp')
     with store.lock,tempfile.TemporaryDirectory(prefix='docflow-backup-') as temp:
         stage=Path(temp)
-        with store.db.connection() as src,sqlite3.connect(stage/'service.db') as dst:src.backup(dst)
+        with store.db.connection() as src,closing(sqlite3.connect(stage/'service.db')) as dst:src.backup(dst)
         files={'service.db':stage/'service.db'}
-        with sqlite3.connect(stage/'service.db') as c:
+        with closing(sqlite3.connect(stage/'service.db')) as c:
             c.row_factory=sqlite3.Row
             for table in ('attachments','generated_documents'):
                 for r in c.execute(f'SELECT path,sha256 FROM {table}'):

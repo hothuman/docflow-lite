@@ -202,3 +202,17 @@ def test_backup_disk_full_keeps_source_and_removes_partial(store,tmp_path,monkey
  monkeypatch.setattr(b.shutil,'copyfileobj',full)
  with pytest.raises(OSError):b.create_backup(s,tmp_path/'full.zip')
  assert not (tmp_path/'full.zip').exists() and s.snapshot(ids['repair'])==before
+
+def test_backup_explicitly_closes_all_sqlite_connections(store,tmp_path,monkeypatch):
+ import sqlite3
+ import docflow.service.backup as backup
+ s,_=store;opened=[];original=sqlite3.connect
+ class Tracked(sqlite3.Connection):
+  closed=False
+  def close(self):
+   self.closed=True;return super().close()
+ def connect(*a,**kw):
+  c=original(*a,**kw,factory=Tracked);opened.append(c);return c
+ monkeypatch.setattr(sqlite3,'connect',connect)
+ backup.create_backup(s,tmp_path/'close-check.zip')
+ assert opened and all(c.closed for c in opened)

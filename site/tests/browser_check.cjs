@@ -36,7 +36,8 @@ const widths=[320,360,390,620,768,860,1024,1280];
      await page.locator('.menu-toggle').click();assert.equal(await page.locator('.menu-toggle').getAttribute('aria-expanded'),'true');await page.keyboard.press('Escape');assert.equal(await page.locator('.menu-toggle').getAttribute('aria-expanded'),'false');
     }
     if(name==='index.html'){
-     assert(await page.locator('fieldset').isDisabled());assert(await page.locator('#request-form button[type=submit]').isDisabled());
+     assert.notEqual(await page.locator('fieldset').getAttribute('disabled'),null);
+     for(const field of await page.locator('#request-form input, #request-form textarea, #request-form button[type=submit]').all())assert(await field.isDisabled());
      await page.locator('#demo-records button').last().click();assert.match(await page.locator('#demo-status').innerText(),/пропущена/);
      await page.locator('#demo-template').selectOption({index:1});
      if(width===1280){

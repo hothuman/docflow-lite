@@ -1,5 +1,5 @@
 """Short per-thread connections and atomic, versioned SQLite migrations."""
-from contextlib import contextmanager
+from contextlib import contextmanager,closing
 from pathlib import Path
 import sqlite3
 from .validation import ServiceError,now
@@ -35,7 +35,7 @@ class Database:
                 if version>SCHEMA_VERSION: raise ServiceError('База создана более новой версией программы')
                 if version and version<SCHEMA_VERSION:
                     backup=self.path.with_name(self.path.name+f'.before-v{SCHEMA_VERSION}-{now().replace(":","-")}.bak')
-                    with sqlite3.connect(backup) as dest:c.backup(dest)
+                    with closing(sqlite3.connect(backup)) as dest:c.backup(dest)
                 c.execute('BEGIN IMMEDIATE')
                 try:
                     for v in range(version+1,SCHEMA_VERSION+1):
