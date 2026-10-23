@@ -19,12 +19,12 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[2]
 INPUT = ROOT / ".handoff-input"
 OUT = ROOT / "handoff"
-VERSION = "0.3.0a1"
-BUILD_RUN = 39947489151
-BROWSER_RUN = 39949024477
-CODE_SHA = "b9c5377edcde6cbee979062e6e87f97ed74a6505"
-PORTABLE_SHA = "2d3507c648da1f1fda76d7763d07ff7e7fe1b552b54d1f5a2347ed0617618e1f"
-EXE_SHA = "737f8e820d493fee638bdcd04b761d0dc8314adb43838138058c135ca4c07ecb"
+VERSION = "0.3.0a2"
+BUILD_RUN = 40038041947
+BROWSER_RUN = 40038041864
+CODE_SHA = "978c95173be5cedcf64327a4e3230aa6dd5fa80a"
+PORTABLE_SHA = "f3136dcf32fda368bf62036b846d545b8e93274cd6320add92f55cf796ad9b1d"
+EXE_SHA = "8932416e6bdee573493864470e123fc51ff3a0779315ee383360af19460d63ca"
 
 
 def digest(path):
@@ -56,6 +56,8 @@ def main():
     results = read_json(release / "WINDOWS-CI-RESULTS.json")
     assert results["status"] == "passed"
     assert results["service"]["status"] == "passed"
+    assert results["service"]["completion"]["status"] == "passed"
+    assert all(x["passed"] for x in results["service"]["completion"]["checks"])
     assert len(results["service"]["checks"]) == 9
     assert all(x["passed"] for x in results["service"]["checks"])
     assert all(r["frozen"] and r["exit_code"] == 0 for r in results["runs"])
@@ -81,7 +83,7 @@ def main():
         assert digest(ROOT / name) == expected, name
         assert not any(p in {"private", "client-work", ".git"} for p in Path(name).parts)
     with zipfile.ZipFile(release / f"DocFlow-Lite-{VERSION}-Source.zip") as z:
-        runtime = [n for n in hashes if n.startswith(("src/", "scripts/", "packaging/", "requirements/")) or n in {"launch.py", "pyproject.toml"}]
+        runtime = [n for n in hashes if n.startswith(("src/", "scripts/", "packaging/", "requirements/", "tools/")) or n in {"launch.py", "pyproject.toml"}]
         for name in runtime:
             assert z.read("docflow-lite/" + name) == (ROOT / name).read_bytes(), name
 
@@ -108,8 +110,8 @@ def main():
         demo = stage / "Service-Synthetic-Demo"
         project = demo / "project"
         project.mkdir(parents=True)
-        for folder in ("attachments", "generated", "templates"):
-            shutil.copytree(source / folder, project / folder)
+        for folder in ("attachments", "generated", "templates", "profiles"):
+            if (source / folder).is_dir(): shutil.copytree(source / folder, project / folder)
         with closing(sqlite3.connect(source / "service.db")) as src, closing(sqlite3.connect(project / "service.db")) as dst:
             src.backup(dst)
         with closing(sqlite3.connect(project / "service.db")) as c:
@@ -128,7 +130,9 @@ def main():
             w = csv.writer(f, delimiter=";")
             w.writerow(["Постоянный номер", "Модель"])
             w.writerows([["SYNTH-IMPORT-001", "Учебный аппарат А"], ["SYNTH-IMPORT-002", "Учебный аппарат Б"]])
-        backup = projects[0].parent / "synthetic.service-backup.zip"
+        for example in (ROOT / "examples/service").glob("History-900.*"):
+            shutil.copy2(example, demo / example.name)
+        backup = projects[0].parent / "completion.service-backup.zip"
         if backup.is_file():
             with zipfile.ZipFile(backup) as z:
                 assert z.testzip() is None
@@ -137,7 +141,7 @@ def main():
             "ТОЛЬКО СИНТЕТИЧЕСКИЕ ДАННЫЕ. Нет реального клиента, заказа или оплаты.\n\n"
             "Распакуйте Windows Portable целиком. Service → Настройки → Открыть другой локальный проект → папка project.\n"
             "Это проект из фактически пройденного Windows CI: " + json.dumps(counts, ensure_ascii=False) + ".\n"
-            "Пять редактируемых форм находятся в project/templates, созданные документы — project/generated.\n"
+            "Восемь редактируемых форм находятся в project/templates/default-v3, созданные документы — project/generated.\n"
             "Видео показывает встроенный пример Core, а не оборудование реального клиента.\n"
             "CSV содержит два дополнительных учебных аппарата: при импорте явно сопоставьте номер/модель и выберите вымышленного владельца.\n"
             "Работайте локально одним пользователем. Проверьте Word и backup/restore перед реальными данными.\n"
@@ -158,7 +162,7 @@ def main():
             "status": "passed",
             "handoff_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
             "binary_source_commit": CODE_SHA,
-            "binary_ci_merge_commit": "86164b56901dab80435d77022ad8008105baab3f",
+            "binary_ci_merge_commit": "729fbdfb1fd68f9900b05fcfb993cad13bca54ab",
             "binary_ci_run": BUILD_RUN,
             "browser_ci_run": BROWSER_RUN,
             "current_runtime_matches_exact_build_source": True,
@@ -182,9 +186,9 @@ def main():
             encoding="utf-8",
         )
         public_checks = [
-            {"kind": "windows_public_v0.1.1", "status": 200, "bytes": 48776852, "sha256": "c0cac130ec4b39d7d42f0ea6ea1d5f128ff6402c89cc4cb8518bc60403f2a034", "zip_crc_ok": True, "checked_at_utc": "2026-10-23T11:41:20.507787+00:00"},
-            {"kind": "public_demo", "status": 200, "bytes": 314068, "sha256": "d93b7b48be7f63dfb5d8d3bc39ea2579d1997ae79c9317ed3e80b4afe77ffd0a", "zip_crc_ok": True, "matches_repo": True, "checked_at_utc": "2026-10-23T11:41:15.559364+00:00"},
-            {"kind": "public_home", "status": 200, "bytes": 31040, "service_not_deployed": True, "noindex": True, "form_action_none": True, "connect_src_none": True, "checked_at_utc": "2026-10-23T11:41:15.547671+00:00"},
+            {"historical_check": True, "kind": "windows_public_v0.1.1", "status": 200, "bytes": 48776852, "sha256": "c0cac130ec4b39d7d42f0ea6ea1d5f128ff6402c89cc4cb8518bc60403f2a034", "zip_crc_ok": True, "checked_at_utc": "2026-10-23T11:41:20.507787+00:00"},
+            {"historical_check": True, "kind": "public_demo", "status": 200, "bytes": 314068, "sha256": "d93b7b48be7f63dfb5d8d3bc39ea2579d1997ae79c9317ed3e80b4afe77ffd0a", "zip_crc_ok": True, "matches_repo": True, "checked_at_utc": "2026-10-23T11:41:15.559364+00:00"},
+            {"historical_check": True, "kind": "public_home", "status": 200, "bytes": 31040, "service_not_deployed": True, "noindex": True, "form_action_none": True, "connect_src_none": True, "checked_at_utc": "2026-10-23T11:41:15.547671+00:00"},
         ]
         (qa / "public-downloads.json").write_text(json.dumps(public_checks, indent=2), encoding="utf-8")
         archive(qa, OUT / "DocFlow-Lite-Service-QA-and-Docs.zip")
@@ -192,7 +196,7 @@ def main():
             print("REVIEW_IMAGE " + p.name + " " + base64.b64encode(p.read_bytes()).decode("ascii"))
         print("BROWSER_REPORT " + (browser / "browser-checks.json").read_text(encoding="utf-8").replace("\n", " "))
         print("HANDOFF_PROOF " + json.dumps(proof, ensure_ascii=False))
-    shutil.copy2(ROOT / "docs/service/15_HANDOFF_REPORT.md", OUT / "DocFlow-Lite-Service-Report-2026-10-23.md")
+    shutil.copy2(ROOT / "docs/service/17_COMPLETION_REPORT.md", OUT / "DocFlow-Lite-Service-Report-2026-10-24.md")
     for p in OUT.glob("*.zip"):
         with zipfile.ZipFile(p) as z:
             assert z.testzip() is None
