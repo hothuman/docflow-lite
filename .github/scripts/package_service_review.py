@@ -20,11 +20,11 @@ ROOT = Path(__file__).resolve().parents[2]
 INPUT = ROOT / ".handoff-input"
 OUT = ROOT / "handoff"
 VERSION = "0.3.0a2"
-BUILD_RUN = 40038041947
-BROWSER_RUN = 40038041864
-CODE_SHA = "978c95173be5cedcf64327a4e3230aa6dd5fa80a"
-PORTABLE_SHA = "f3136dcf32fda368bf62036b846d545b8e93274cd6320add92f55cf796ad9b1d"
-EXE_SHA = "8932416e6bdee573493864470e123fc51ff3a0779315ee383360af19460d63ca"
+BUILD_RUN = 40039598809
+BROWSER_RUN = 40039598815
+CODE_SHA = "0f58f9ef64760d4c18d1cf8c6e3690b96d17ebf4"
+PORTABLE_SHA = "c531a3254c5ecbaeca2b376823ec14809f92f304fe7a566f23a0b209da40e7bb"
+EXE_SHA = "17470e4f3f9a9677ab674a39d5c41df50ed6be3387db383344f8affb3b88f60e"
 
 
 def digest(path):
@@ -162,7 +162,7 @@ def main():
             "status": "passed",
             "handoff_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
             "binary_source_commit": CODE_SHA,
-            "binary_ci_merge_commit": "729fbdfb1fd68f9900b05fcfb993cad13bca54ab",
+            "binary_ci_merge_commit": "c2364940dca7f855d536b71ad44856bab7d7dd2e",
             "binary_ci_run": BUILD_RUN,
             "browser_ci_run": BROWSER_RUN,
             "current_runtime_matches_exact_build_source": True,

@@ -60,29 +60,29 @@ Deploy ZIP собирается с PUBLIC_SITE_URL=https://docflow-lite.pages.de
 
 Команды: `QT_QPA_PLATFORM=offscreen python -m pytest -q tests site/tests`, `python tools/qa_service_performance.py --output <новая папка>`, `python -m docflow.service.self_test --output <новая папка>`, `PUBLIC_SITE_URL=https://docflow-lite.pages.dev/ ENABLE_INDEXING=0 python site/scripts/build_site.py`, `node site/tests/browser_check.cjs` в изолированном CI.
 
-Локальный полный прогон после исправлений: **215 passed + 16 subtests**, затем отдельная проверка поставляемых CSV/XLSX в наборе 11 passed. Финальный CI уже включает новый тест примеров: **Windows и Linux — по 216 passed + 16 subtests (232 JUnit cases), 0 failed/errors/skipped**. Windows 83,90 с; Linux 27,36 с. Старые зелёные alpha1-запуски за новые результаты не засчитаны.
+Локальный полный прогон после исправлений: **215 passed + 16 subtests**, затем отдельная проверка поставляемых CSV/XLSX в наборе 11 passed. Финальный CI уже включает новый тест примеров: **Windows и Linux — по 216 passed + 16 subtests (232 JUnit cases), 0 failed/errors/skipped**. Windows 69,96 с; Linux 38,52 с. Старые зелёные alpha1-запуски за новые результаты не засчитаны.
 
-Новый application CI: https://github.com/hothuman/docflow-lite/actions/runs/40038041947 — success. Новый Chromium CI: https://github.com/hothuman/docflow-lite/actions/runs/40038041864 — success.
+Новый application CI: https://github.com/hothuman/docflow-lite/actions/runs/40039598809 — success. Новый Chromium CI: https://github.com/hothuman/docflow-lite/actions/runs/40039598815 — success.
 
 Нагрузка на Linux: 100 аппаратов/624 ремонта/1 972 позиции и 1000 аппаратов/6024 ремонта/18 172 позиции; у одного аппарата 30 ремонтов. На локальной среде большой журнал 0,145 с, поиск 0,188 с, история аппарата 0,019 с, DOCX с 103 позициями 0,684 с. CI повторил нагрузочный сценарий отдельно; его собственные значения сохранены в performance.json. Это синтетические замеры, не SLA и не замер на компьютере заказчика.
 
 ## K. Windows
 
-Собран новый **0.3.0a2 Windows x64 Portable**, 50 219 434 байта. Новый EXE фактически запущен на нативном Windows Server 2022 runner: обычное видимое окно/закрытие, два Core-прогона (24 DOCX), девять базовых Service-сценариев и пять расширенных (мастер истории, профили, сметы, фактические расходы, индивидуальные изображения и restore). Проверены кириллица и пробелы. Runtime использует собранный комплект вне checkout и без Python в PATH.
+Собран новый **0.3.0a2 Windows x64 Portable**, 50 161 738 байта. Новый EXE фактически запущен на нативном Windows Server 2022 runner: обычное видимое окно/закрытие, два Core-прогона (24 DOCX), девять базовых Service-сценариев и пять расширенных (мастер истории, профили, сметы, фактические расходы, индивидуальные изображения и restore). Проверены кириллица и пробелы. Runtime использует собранный комплект вне checkout и без Python в PATH.
 
-EXE SHA256: `8932416e6bdee573493864470e123fc51ff3a0779315ee383360af19460d63ca`.
+EXE SHA256: `17470e4f3f9a9677ab674a39d5c41df50ed6be3387db383344f8affb3b88f60e`.
 
-Portable SHA256: `f3136dcf32fda368bf62036b846d545b8e93274cd6320add92f55cf796ad9b1d`.
+Portable SHA256: `c531a3254c5ecbaeca2b376823ec14809f92f304fe7a566f23a0b209da40e7bb`.
 
-Проверенный head кода: `978c95173be5cedcf64327a4e3230aa6dd5fa80a`; CI build merge SHA: `729fbdfb1fd68f9900b05fcfb993cad13bca54ab`. Точные исходники из этого CI передаются отдельно; дополнения отчётов/упаковки не изменяют runtime. Сравнены 69 runtime/tool файлов с Source.zip — совпадают побайтно. ZIP получен, SHA256/CRC проверены; EXE внутри проверен по хешу.
+Проверенный head кода: `0f58f9ef64760d4c18d1cf8c6e3690b96d17ebf4`; CI build merge SHA: `c2364940dca7f855d536b71ad44856bab7d7dd2e`. Точные исходники из этого CI передаются отдельно; дополнения отчётов/упаковки не изменяют runtime. Сравнены 69 runtime/tool файлов с Source.zip — совпадают побайтно. ZIP получен, SHA256/CRC проверены; EXE внутри проверен по хешу.
 
 Границы: новый a2 не проверен человеком на физическом Windows 10/11, нативные OS file-dialogs не управляются диагностикой, Microsoft Word не открывался. Факт прежнего запуска v0.1.1 владельцем за приёмку a2 не засчитан. EXE без подписи; побайтная воспроизводимость PyInstaller не обещается. Release v0.1.1, теги и его файлы не менялись.
 
 ## L. GitHub
 
-Продолжен существующий Draft PR №5: https://github.com/hothuman/docflow-lite/pull/5. Контрольные точки: f918af6 (надёжность), c8d5e1c (история/расчёты), cc08129 (DOCX/UI), 978c951 (расширенная диагностика/нагрузка/сайт и новые реальные CI). Последующие изменения касаются отчётов и проверяемой упаковки. Промежуточные checkpoints [skip ci] имели локальные проверки; финальный код получил настоящий Windows/Linux/Chromium CI.
+Продолжен существующий Draft PR №5: https://github.com/hothuman/docflow-lite/pull/5. Контрольные точки: f918af6 (надёжность), c8d5e1c (история/расчёты), cc08129 (DOCX/UI), 978c951 (расширенная диагностика/нагрузка/сайт и новые реальные CI). После первого успешного CI найден устаревший заголовок 0.3.0a1 в инструкции Portable. Коммит 0f58f9e исправляет README и привязывает заголовок к версии сборки; выполнен новый полный Windows/Linux/Chromium CI, именно его Portable передаётся. Последующие изменения касаются отчётов и проверяемой упаковки. Промежуточные checkpoints [skip ci] имели локальные проверки; финальный код получил настоящий Windows/Linux/Chromium CI.
 
-PR не объединён. main, юридический PR №4 (draft/open, 589069508ff9eaf9709c1a294abe29e1080f7846), официальный Release и Cloudflare не изменялись. Артефакты Actions хранятся до 31.10.2026 примерно 02:10–02:13 МСК; передаваемые архивы следует скачать и сохранить.
+PR не объединён. main, юридический PR №4 (draft/open, 589069508ff9eaf9709c1a294abe29e1080f7846), официальный Release и Cloudflare не изменялись. Артефакты Actions хранятся до 31.10.2026 примерно 02:26–02:30 МСК; передаваемые архивы следует скачать и сохранить.
 
 ## M. Остаток работ
 
