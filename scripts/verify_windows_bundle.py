@@ -123,6 +123,12 @@ def verify(archive,evidence,release):
                                    'ordinary_start_and_close':ordinary,
                                    'frozen':report['frozen'],'qt_platform':report['qt_platform'],
                                    'checks':report['checks'],'generated_docx':len(docs)})
+        service_output=evidence/'Service с пробелами'
+        service_run=subprocess.run([str(exe),'--service-self-test','--require-windows','--output',str(service_output)],cwd=testroot.parent if testroot.exists() else evidence,env=env,capture_output=True,timeout=180)
+        service=json.loads((service_output/'SERVICE-SELF-TEST.json').read_text(encoding='utf-8'))
+        assert service_run.returncode==0 and service['status']=='passed',service
+        assert service['frozen'] and service['qt_platform']=='windows'
+        result['service']=service
     result['status']='passed'
     result['limits']=['Automated native Windows runner, not manual Windows 10/11 acceptance',
                       'Native OS file-dialog interaction is not tested; selections supplied by harness',

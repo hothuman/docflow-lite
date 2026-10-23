@@ -35,7 +35,7 @@ def configure(value: str, directory: Path, index_home: bool = True) -> str:
     home, prefix = normalize_base(value)
     prepared = {}
     indexed = []
-    for name in ("index.html", "privacy.html", "terms.html"):
+    for name in ("index.html", "privacy.html", "terms.html", *(["service.html"] if (directory / "service.html").is_file() else [])):
         html = (directory / name).read_text(encoding="utf-8")
         page_url = home if name == "index.html" else home + name
         html = re.sub(r'\s*<link rel="canonical"[^>]*>', "", html)

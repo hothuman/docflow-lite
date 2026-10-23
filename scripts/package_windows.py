@@ -13,7 +13,7 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
 VERSION=tomllib.loads((ROOT/'pyproject.toml').read_text(encoding='utf-8'))['project']['version']
-INSTRUCTIONS=ROOT/'docs'/('README-WINDOWS-RC.txt' if 'rc' in VERSION else 'README-WINDOWS.txt')
+INSTRUCTIONS=ROOT/'docs'/'README-WINDOWS-SERVICE.txt'
 
 
 def sha256(path):

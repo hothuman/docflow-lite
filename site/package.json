@@ -1,0 +1,10 @@
+{
+  "name": "docflow-website-checks",
+  "private": true,
+  "scripts": {
+    "test:browser": "node tests/browser_check.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
+  }
+}
