@@ -3,6 +3,7 @@ from pathlib import Path
 import json
 from .validation import text,ServiceError
 from ..data import load_table
+from .history_import import HISTORY_FIELDS,workbook_sheets,preview_history,import_history
 
 FIELDS=('number','model','manufacturer','serial','kind','identifiers','notes')
 def preview_equipment(path,mapping):

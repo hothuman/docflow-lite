@@ -8,6 +8,20 @@ from .validation import ServiceError,text,now
 
 MAX_ATTACHMENT=250*1024*1024
 
+def copy_bounded(source,target,limit=MAX_ATTACHMENT):
+    """An exclusive bounded copy also handles a source growing during the read."""
+    created=False
+    try:
+        with Path(source).open('rb') as src,Path(target).open('xb') as dst:
+            created=True;size=0
+            for part in iter(lambda:src.read(1024*1024),b''):
+                size+=len(part)
+                if size>limit:raise ServiceError('Копируемый файл превышает допустимый размер')
+                dst.write(part)
+    except Exception:
+        if created:Path(target).unlink(missing_ok=True)
+        raise
+
 def safe_path(root,relative):
     root=Path(root).absolute();r=PurePosixPath(str(relative))
     if r.is_absolute() or not r.parts or any(x in ('..','.') or ':' in x or '\\' in x for x in r.parts):raise ServiceError('Небезопасный путь')
