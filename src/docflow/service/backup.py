@@ -16,7 +16,7 @@ def _check_tree(folder):
     db=Database(folder/'service.db')
     with db.connection() as c:
         if c.execute('PRAGMA integrity_check').fetchone()[0]!='ok' or c.execute('PRAGMA foreign_key_check').fetchall():raise ServiceError('Нарушена целостность резервной базы')
-        for table in ('attachments','generated_documents'):
+        for table in ('attachments','generated_documents','managed_files'):
             for r in c.execute(f'SELECT path,sha256 FROM {table}'):
                 f=safe_path(folder,r['path'])
                 if not f.is_file() or digest(f)!=r['sha256']:raise ServiceError('Файл резервной копии отсутствует или изменён')
@@ -32,11 +32,18 @@ def create_backup(store,destination):
         files={'service.db':stage/'service.db'}
         with closing(sqlite3.connect(stage/'service.db')) as c:
             c.row_factory=sqlite3.Row
-            for table in ('attachments','generated_documents'):
+            for table in ('attachments','generated_documents','managed_files'):
                 for r in c.execute(f'SELECT path,sha256 FROM {table}'):
                     f=safe_path(store.root,r['path'])
                     if not f.is_file() or digest(f)!=r['sha256']:raise ServiceError('Не удалось включить изменённое или пропавшее вложение')
                     files[r['path']]=f
+        # User-edited templates are data too, even if not installed via a profile.
+        templates=safe_path(store.root,'templates')
+        if templates.exists():
+            for f in templates.rglob('*'):
+                if f.is_symlink():raise ServiceError('Ссылка среди шаблонов запрещена')
+                if f.is_file():files[f.relative_to(store.root).as_posix()]=f
+        if len(files)>19999:raise ServiceError('Слишком много файлов для резервной копии')
         if sum(f.stat().st_size for f in files.values())>MAX_BACKUP:raise ServiceError('Резервная копия превышает 5 GiB')
         manifest={'format':'docflow-service-backup-1','schema':SCHEMA_VERSION,'created_at':now(),'files':{n:{'sha256':digest(p),'size':p.stat().st_size} for n,p in files.items()}}
         created=False
@@ -81,7 +88,7 @@ def restore_backup(archive,destination):
                     if info.filename=='manifest.json':continue
                     if (info.external_attr>>16)&0o170000==0o120000:raise ServiceError('Ссылка в архиве запрещена')
                     name=info.filename
-                    if name!='service.db' and not name.startswith(('attachments/','generated/')):raise ServiceError('Непредусмотренный файл в архиве')
+                    if name!='service.db' and not name.startswith(('attachments/','generated/','templates/','profiles/')):raise ServiceError('Непредусмотренный файл в архиве')
                     target=safe_path(stage,name);target.parent.mkdir(parents=True,exist_ok=True)
                     h=hashlib.sha256();size=0
                     with z.open(info) as src,target.open('xb') as dst:

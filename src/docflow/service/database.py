@@ -2,9 +2,10 @@
 from contextlib import contextmanager,closing
 from pathlib import Path
 import sqlite3
+from uuid import uuid4
 from .validation import ServiceError,now
 
-SCHEMA_VERSION=2
+SCHEMA_VERSION=3
 MIGRATIONS={1:[
  '''CREATE TABLE clients(id TEXT PRIMARY KEY, kind TEXT NOT NULL, name TEXT NOT NULL, legal_name TEXT NOT NULL DEFAULT '', contact TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN(0,1)), created_at TEXT NOT NULL, updated_at TEXT NOT NULL)''',
  '''CREATE TABLE equipment(id TEXT PRIMARY KEY, number TEXT NOT NULL COLLATE NOCASE UNIQUE, manufacturer TEXT NOT NULL DEFAULT '', model TEXT NOT NULL, kind TEXT NOT NULL DEFAULT '', serial TEXT NOT NULL DEFAULT '', owner_id TEXT NOT NULL REFERENCES clients(id), identifiers TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN(0,1)), created_at TEXT NOT NULL, updated_at TEXT NOT NULL)''',
@@ -21,6 +22,30 @@ MIGRATIONS={1:[
  'CREATE INDEX items_repair ON repair_items(repair_id,position)',
  'CREATE INDEX payments_repair ON payments(repair_id)',
  'CREATE INDEX attachments_repair ON attachments(repair_id)'
+],3:[
+ '''CREATE TABLE organization_profiles(id TEXT PRIMARY KEY, name TEXT NOT NULL, data_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)''',
+ '''CREATE TABLE service_settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)''',
+ '''CREATE TABLE managed_files(path TEXT PRIMARY KEY, sha256 TEXT NOT NULL, size INTEGER NOT NULL, kind TEXT NOT NULL)''',
+ 'ALTER TABLE repair_orders ADD COLUMN profile_id TEXT REFERENCES organization_profiles(id)',
+ 'ALTER TABLE repair_items RENAME TO repair_items_v2',
+ '''CREATE TABLE repair_items(id TEXT PRIMARY KEY, repair_id TEXT NOT NULL REFERENCES repair_orders(id), kind TEXT NOT NULL CHECK(kind IN('work','part','delivery','other')), name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', quantity TEXT NOT NULL, unit TEXT NOT NULL, price_cents INTEGER NOT NULL CHECK(price_cents>=0), total_cents INTEGER NOT NULL CHECK(total_cents>=0), position INTEGER NOT NULL DEFAULT 0, notes TEXT NOT NULL DEFAULT '')''',
+ 'INSERT INTO repair_items SELECT * FROM repair_items_v2',
+ 'DROP TABLE repair_items_v2',
+ 'CREATE INDEX items_repair ON repair_items(repair_id,position)',
+ 'CREATE INDEX items_repair_kind ON repair_items(repair_id,kind)',
+ '''CREATE TABLE estimate_drafts(repair_id TEXT PRIMARY KEY REFERENCES repair_orders(id), lines_json TEXT NOT NULL, discount_cents INTEGER NOT NULL CHECK(discount_cents>=0), comment TEXT NOT NULL DEFAULT '', revision INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL)''',
+ '''CREATE TABLE estimate_versions(id TEXT PRIMARY KEY, repair_id TEXT NOT NULL REFERENCES repair_orders(id), kind TEXT NOT NULL CHECK(kind IN('preliminary','final')), version INTEGER NOT NULL, payload_json TEXT NOT NULL, payload_sha256 TEXT NOT NULL, prepared_by TEXT NOT NULL, reason TEXT NOT NULL, created_at TEXT NOT NULL, source_revision INTEGER NOT NULL, request_id TEXT UNIQUE, UNIQUE(repair_id,kind,version))''',
+ '''CREATE TABLE estimate_events(id INTEGER PRIMARY KEY, estimate_id TEXT NOT NULL REFERENCES estimate_versions(id), action TEXT NOT NULL CHECK(action IN('prepared','sent','approved','rejected','withdrawn')), actor TEXT NOT NULL, comment TEXT NOT NULL, occurred_at TEXT NOT NULL)''',
+ '''CREATE TRIGGER immutable_estimate_update BEFORE UPDATE ON estimate_versions BEGIN SELECT RAISE(ABORT,'Estimate snapshots are immutable'); END''',
+ '''CREATE TRIGGER immutable_estimate_delete BEFORE DELETE ON estimate_versions BEGIN SELECT RAISE(ABORT,'Estimate snapshots are immutable'); END''',
+ '''CREATE TRIGGER immutable_estimate_event_update BEFORE UPDATE ON estimate_events BEGIN SELECT RAISE(ABORT,'Estimate history is immutable'); END''',
+ '''CREATE TRIGGER immutable_estimate_event_delete BEFORE DELETE ON estimate_events BEGIN SELECT RAISE(ABORT,'Estimate history is immutable'); END''',
+ 'CREATE INDEX estimates_repair ON estimate_versions(repair_id,kind,version)',
+ '''CREATE TABLE import_sources(id TEXT PRIMARY KEY, name TEXT NOT NULL, file_sha256 TEXT NOT NULL, sheet TEXT NOT NULL, mapping_json TEXT NOT NULL, created_at TEXT NOT NULL)''',
+ '''CREATE TABLE import_records(id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES import_sources(id), source_key TEXT NOT NULL, record_sha256 TEXT NOT NULL, repair_id TEXT NOT NULL REFERENCES repair_orders(id), rows_json TEXT NOT NULL, imported_at TEXT NOT NULL, UNIQUE(source_id,source_key))''',
+ '''CREATE TABLE import_runs(id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES import_sources(id), report_json TEXT NOT NULL, created_at TEXT NOT NULL)''',
+ 'ALTER TABLE generated_documents ADD COLUMN metadata_json TEXT NOT NULL DEFAULT \'{}\'',
+ 'CREATE INDEX imports_repair ON import_records(repair_id)'
 ]}
 
 class Database:
@@ -31,16 +56,23 @@ class Database:
         try:
             with self.connection() as c:
                 if c.execute('PRAGMA quick_check').fetchone()[0]!='ok': raise ServiceError('База повреждена; используйте проверенную копию')
+                if c.execute('PRAGMA foreign_key_check').fetchall(): raise ServiceError('Нарушены связи базы; исходные данные не изменены')
                 version=c.execute('PRAGMA user_version').fetchone()[0]
                 if version>SCHEMA_VERSION: raise ServiceError('База создана более новой версией программы')
                 if version and version<SCHEMA_VERSION:
-                    backup=self.path.with_name(self.path.name+f'.before-v{SCHEMA_VERSION}-{now().replace(":","-")}.bak')
-                    with closing(sqlite3.connect(backup)) as dest:c.backup(dest)
+                    backup=self.path.with_name(self.path.name+f'.before-v{SCHEMA_VERSION}-{uuid4().hex}.bak')
+                    with backup.open('xb'): pass
+                    try:
+                        with closing(sqlite3.connect(backup)) as dest:c.backup(dest)
+                    except Exception:
+                        backup.unlink(missing_ok=True)
+                        raise
                 c.execute('BEGIN IMMEDIATE')
                 try:
                     for v in range(version+1,SCHEMA_VERSION+1):
                         for statement in MIGRATIONS[v]:c.execute(statement)
                         c.execute(f'PRAGMA user_version={v}')
+                    if c.execute('PRAGMA foreign_key_check').fetchall(): raise ServiceError('Миграция нарушает связи; выполнен откат')
                     c.commit()
                 except Exception:c.rollback();raise
                 c.execute('PRAGMA journal_mode=WAL')

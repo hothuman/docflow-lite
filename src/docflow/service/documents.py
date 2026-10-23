@@ -140,17 +140,18 @@ def generate_document(store,repair_id,kind,template=None,image_ids=()):
             images.append((attachment_path(store,key),item['comment'] or item['name']))
         path=Path(template) if template else create_templates(safe_path(store.root,'templates'))[kind]
         rendered=render_service(path,values,s['repair_items'],images)
-        with store.db.connection(True) as db:
-            version=db.execute('SELECT COALESCE(MAX(version),0)+1 FROM generated_documents WHERE repair_id=? AND kind=?',(repair_id,kind)).fetchone()[0]
-            relative=f'generated/{repair_id}/{kind}-v{version:03d}-{uuid4().hex[:8]}.docx'
-            target=safe_path(store.root,relative);target.parent.mkdir(parents=True,exist_ok=True)
-            created=False
-            try:
+        target=None;created=False
+        try:
+            with store.db.connection(True) as db:
+                version=db.execute('SELECT COALESCE(MAX(version),0)+1 FROM generated_documents WHERE repair_id=? AND kind=?',(repair_id,kind)).fetchone()[0]
+                relative=f'generated/{repair_id}/{kind}-v{version:03d}-{uuid4().hex[:8]}.docx'
+                target=safe_path(store.root,relative);target.parent.mkdir(parents=True,exist_ok=True)
                 with target.open('xb') as f:
                     created=True;f.write(rendered)
                 db.execute('INSERT INTO generated_documents(id,repair_id,kind,version,created_at,path,sha256,template) VALUES(?,?,?,?,?,?,?,?)',(uuid4().hex,repair_id,kind,version,now(),relative,digest(target),path.name))
                 store.audit(db,'document',repair_id,'generate',kind+':'+str(version))
-            except Exception:
-                if created:target.unlink(missing_ok=True)
-                raise
+        except Exception:
+            # The transaction's commit can fail after INSERT (disk full/IO).
+            if created:target.unlink(missing_ok=True)
+            raise
         return target

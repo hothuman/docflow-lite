@@ -70,7 +70,7 @@ def run(output,require_windows=False):
         pay=store.add_payment(r,'500',comment='Синтетический тест, реального платежа нет')
         store.add_payment(r,'100','refund',comment='Синтетический возврат')
         store.save_repair(r,{'status':'ready'})
-        assert store.snapshot(r)['totals']=={'work':150038,'parts':40020,'discount':0,'total':190058,'paid':40000,'balance':150058,'overpaid':0}
+        assert store.snapshot(r)['totals']=={'work':150038,'parts':40020,'delivery':0,'other':0,'discount':0,'total':190058,'paid':40000,'balance':150058,'overpaid':0,'financial_status':'Частично оплачено'}
         check('exact_finance_partial_payment_refund_and_independent_status',balance_cents=150058)
         photo=output/'synthetic-scheme.png';image=QImage(640,360,QImage.Format.Format_RGB32);image.fill(QColor('#873047'));assert image.save(str(photo))
         picture=add_attachment(store,r,photo,'Вымышленная схема')
