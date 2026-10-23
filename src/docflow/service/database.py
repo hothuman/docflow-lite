@@ -5,7 +5,7 @@ import sqlite3
 from uuid import uuid4
 from .validation import ServiceError,now
 
-SCHEMA_VERSION=3
+SCHEMA_VERSION=4
 MIGRATIONS={1:[
  '''CREATE TABLE clients(id TEXT PRIMARY KEY, kind TEXT NOT NULL, name TEXT NOT NULL, legal_name TEXT NOT NULL DEFAULT '', contact TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN(0,1)), created_at TEXT NOT NULL, updated_at TEXT NOT NULL)''',
  '''CREATE TABLE equipment(id TEXT PRIMARY KEY, number TEXT NOT NULL COLLATE NOCASE UNIQUE, manufacturer TEXT NOT NULL DEFAULT '', model TEXT NOT NULL, kind TEXT NOT NULL DEFAULT '', serial TEXT NOT NULL DEFAULT '', owner_id TEXT NOT NULL REFERENCES clients(id), identifiers TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN(0,1)), created_at TEXT NOT NULL, updated_at TEXT NOT NULL)''',
@@ -46,6 +46,9 @@ MIGRATIONS={1:[
  '''CREATE TABLE import_runs(id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES import_sources(id), report_json TEXT NOT NULL, created_at TEXT NOT NULL)''',
  'ALTER TABLE generated_documents ADD COLUMN metadata_json TEXT NOT NULL DEFAULT \'{}\'',
  'CREATE INDEX imports_repair ON import_records(repair_id)'
+],4:[
+ 'CREATE INDEX estimate_events_version ON estimate_events(estimate_id,id)',
+ 'CREATE INDEX repairs_received ON repair_orders(received_at)',
 ]}
 
 class Database:
@@ -60,7 +63,7 @@ class Database:
                 version=c.execute('PRAGMA user_version').fetchone()[0]
                 if version>SCHEMA_VERSION: raise ServiceError('База создана более новой версией программы')
                 if version and version<SCHEMA_VERSION:
-                    backup=self.path.with_name(self.path.name+f'.before-v{SCHEMA_VERSION}-{uuid4().hex}.bak')
+                    backup=self.path.with_name(self.path.name+f'.before-v{version+1}-{uuid4().hex}.bak')
                     with backup.open('xb'): pass
                     try:
                         with closing(sqlite3.connect(backup)) as dest:c.backup(dest)

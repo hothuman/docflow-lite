@@ -12,12 +12,13 @@ class RowsModel(QAbstractTableModel):
     def data(self,index,role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid():return None
         row=self.rows[index.row()];key=self.columns[index.column()][0];v=row.get(key,'')
+        if role==Qt.ItemDataRole.UserRole+1:return self.search[index.row()]
         if role==Qt.ItemDataRole.UserRole:return v
         if role in (Qt.ItemDataRole.DisplayRole,Qt.ItemDataRole.ToolTipRole):
             if key in ('total','paid','balance','debt'):return rub(v)
-            if key in ('status','old_status','new_status'):return STATUSES.get(v,(v,''))[0]
+            if key in ('status','old_status','new_status'):return row.get('status_display',STATUSES.get(v,(v,''))[0]) if key=='status' else STATUSES.get(v,(v,''))[0]
             if key=='voided':return 'Исправлена' if v else 'Действует'
-            if key=='kind':return {'work':'Работа','part':'Запчасть','payment':'Оплата','refund':'Возврат'}.get(v,v)
+            if key=='kind':return {'work':'Работа','part':'Запчасть','delivery':'Доставка','other':'Прочие расходы','preliminary':'Предварительная','final':'Окончательная','payment':'Оплата','refund':'Возврат'}.get(v,v)
             return str(v)
         if role==Qt.ItemDataRole.ForegroundRole:
             if key=='status':return QColor(STATUSES.get(v,('','#aaaaaa'))[1])
@@ -25,4 +26,5 @@ class RowsModel(QAbstractTableModel):
         return None
     def headerData(self,section,orientation,role=Qt.ItemDataRole.DisplayRole):
         if role==Qt.ItemDataRole.DisplayRole:return self.columns[section][1] if orientation==Qt.Orientation.Horizontal else str(section+1)
-    def install(self,rows):self.beginResetModel();self.rows=list(rows);self.endResetModel()
+    def install(self,rows):
+        self.beginResetModel();self.rows=list(rows);self.search=[' '.join(str(v) for v in row.values()) for row in self.rows];self.endResetModel()

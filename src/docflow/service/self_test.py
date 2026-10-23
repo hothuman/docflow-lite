@@ -75,12 +75,16 @@ def run(output,require_windows=False):
         photo=output/'synthetic-scheme.png';image=QImage(640,360,QImage.Format.Format_RGB32);image.fill(QColor('#873047'));assert image.save(str(photo))
         picture=add_attachment(store,r,photo,'Вымышленная схема')
         video=Path(__file__).with_name('resources')/'synthetic-demo.mp4';clip=add_attachment(store,r,video,'Видео встроенного синтетического примера Core')
+        from .estimates import save_draft,freeze_estimate
+        save_draft(store,r,store.snapshot(r)['repair_items'],comment='Проверочный расчёт')
+        freeze_estimate(store,r,'preliminary',prepared_by='Синтетический оператор')
+        freeze_estimate(store,r,'final',prepared_by='Синтетический оператор')
         for kind in KINDS:
             path=generate_document(store,r,kind,image_ids=[picture] if kind=='combined' else [])
             from docx import Document
             assert 'SYNTH-REPAIR-001' in '\n'.join(p.text for p in Document(path).paragraphs)
         generate_document(store,r,'completion')
-        check('five_document_kinds_and_version_history',generated=6)
+        check('eight_document_kinds_and_version_history',generated=len(KINDS)+1)
         store.save_repair(r,{'status':'issued','issued_at':'2026-10-23','handover':'Вымышленная тестовая отметка, не подпись'})
         second=store.create_repair(e,'SYNTH-REPAIR-002','Повторный тестовый ремонт')
         assert len(store.repairs(equipment_id=e))==2;check('repeat_repair_preserves_history')

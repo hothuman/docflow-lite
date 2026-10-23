@@ -32,10 +32,11 @@ class ServiceWorkspace(QWidget):
         self.views={};self.toolbars={}
         definitions={
         'equipment':('Оборудование',[('number','Постоянный №'),('model','Модель'),('owner','Владелец'),('serial','Серийный №')]),
-        'repairs':('Ремонты',[('number','Ремонт №'),('received_at','Приёмка'),('equipment_number','Оборудование №'),('model','Модель'),('client','Клиент'),('complaint','Жалоба'),('status','Производство'),('total','Стоимость'),('paid','Оплачено'),('balance','Остаток')]),
+        'repairs':('Ремонты',[('number','Ремонт №'),('received_at','Приёмка'),('equipment_number','Оборудование №'),('model','Модель'),('client','Клиент'),('complaint','Жалоба'),('status','Производство'),('total','Стоимость'),('paid','Оплачено'),('balance','Остаток'),('financial_status','Расчёты')]),
         'clients':('Клиенты',[('name','Название'),('legal_name','ФИО / наименование'),('contact','Контактное лицо'),('phone','Телефон'),('email','Email')]),
-        'finance':('Финансы',[('number','Ремонт №'),('client','Клиент'),('status','Производство'),('total','Стоимость'),('paid','Учтено оплат'),('balance','Остаток')]),
-        'documents':('Документы',[('number','Ремонт №'),('kind','Тип'),('version','Версия'),('created_at','Создано'),('path','Файл')])}
+        'finance':('Финансы',[('number','Ремонт №'),('client','Клиент'),('status','Производство'),('total','Стоимость'),('paid','Учтено оплат'),('balance','Остаток'),('financial_status','Расчёты')]),
+        'documents':('Документы',[('number','Ремонт №'),('kind','Тип'),('version','Версия'),('created_at','Создано'),('path','Файл')]),
+        'estimates':('Сметы',[('number','Ремонт №'),('client','Клиент'),('kind','Смета'),('version','Версия'),('state','Ручная отметка'),('total','Итог')])}
         for key,(name,cols) in definitions.items():
             page=QWidget();layout=QVBoxLayout(page);bar=QToolBar();bar.setMovable(False);layout.addWidget(bar);self.toolbars[key]=bar
             search=QLineEdit();search.setPlaceholderText('Поиск по всем столбцам');search.setAccessibleName('Поиск '+name);layout.addWidget(search)
@@ -49,11 +50,13 @@ class ServiceWorkspace(QWidget):
         self.archived=QCheckBox('Архив');self.toolbars['equipment'].addWidget(self.archived);self.archived.toggled.connect(self.refresh)
         self.active_only=QCheckBox('Активные');self.toolbars['equipment'].addWidget(self.active_only);self.active_only.toggled.connect(self.refresh)
         button(self.toolbars['finance'],'Карточка и платежи',lambda:self.open_selected('finance'))
+        button(self.toolbars['estimates'],'Открыть ремонт и сметы',lambda:self.open_selected('estimates'))
+        self.views['estimates'].doubleClicked.connect(lambda _:self.open_selected('estimates'))
         button(self.toolbars['documents'],'Открыть DOCX',lambda:self.open_file(True));button(self.toolbars['documents'],'Экспортировать',self.export_document)
         for k in ('repairs','finance'):self.views[k].doubleClicked.connect(lambda _,key=k:self.open_selected(key))
         self.views['equipment'].doubleClicked.connect(self.equipment_card)
         settings=QWidget();sl=QVBoxLayout(settings);note=QLabel('Рабочая база находится в пользовательском каталоге, отдельно от EXE. Резервные копии не зашифрованы. Восстановление выполняется в новую папку; действующий проект не заменяется.');note.setWordWrap(True);sl.addWidget(note)
-        for label,fn in [('Открыть другой локальный проект',self.choose_project),('Открыть папку проекта',self.open_folder),('Создать отдельное синтетическое демо',self.demo),('Резервная копия',self.backup),('Восстановить в новую папку',self.restore),('Импорт оборудования XLSX / CSV',self.import_equipment)]:button(sl,label,fn)
+        for label,fn in [('Открыть другой локальный проект',self.choose_project),('Открыть папку проекта',self.open_folder),('Создать отдельное синтетическое демо',self.demo),('Резервная копия',self.backup),('Восстановить в новую папку',self.restore),('Импорт оборудования XLSX / CSV',self.import_equipment),('Исторический импорт XLSX / CSV',self.import_history),('Word → проверочный CSV',self.review_docx),('Профили организаций',self.organization_profiles)]:button(sl,label,fn)
         sl.addStretch();self.tabs.addTab(settings,'Настройки')
         self.message=QLabel('');self.message.setWordWrap(True);out.addWidget(self.message)
         for label in self.findChildren(QLabel):label.setTextFormat(Qt.TextFormat.PlainText)
@@ -91,8 +94,9 @@ class ServiceWorkspace(QWidget):
         if self.worker:self._pending_refresh=True;return
         s=self.store;archived=self.archived.isChecked();active=self.active_only.isChecked();status=self.status_filter.currentData()
         def query():
+            from ...service.estimates import estimate_summaries
             docs=s.documents()
-            return {'clients':s.clients(archived=archived),'equipment':s.equipment(archived=archived,active=active),'repairs':s.repairs(status=status),'finance':s.repairs(),'documents':docs,'dashboard':s.dashboard(),'active_clients':s.clients(),'active_equipment':s.equipment()}
+            return {'clients':s.clients(archived=archived),'equipment':s.equipment(archived=archived,active=active),'repairs':s.repairs(status=status),'finance':s.repairs(),'documents':docs,'estimates':estimate_summaries(s),'dashboard':s.dashboard(),'active_clients':s.clients(),'active_equipment':s.equipment()}
         def install(data):
             self.cache=data
             for k,v in self.views.items():v.install(data[k])
@@ -130,17 +134,8 @@ class ServiceWorkspace(QWidget):
     def equipment_card(self,*args):
         row=self.selection('equipment')
         if not row:return
-        s=self.store
-        def show(rows):
-            d=QDialog(self);d.setWindowTitle('Оборудование '+row['number']);d.resize(850,520);layout=QVBoxLayout(d)
-            label=QLabel(f"{row['model']} · {row['serial']}\nВладелец: {row['owner']}\n{row['notes']}");label.setWordWrap(True);label.setTextFormat(Qt.TextFormat.PlainText);layout.addWidget(label)
-            grid=Grid([('number','Ремонт №'),('received_at','Приёмка'),('client','Клиент на момент ремонта'),('status','Статус'),('total','Стоимость'),('balance','Остаток')]);grid.install(rows);layout.addWidget(grid)
-            bar=QHBoxLayout();layout.addLayout(bar)
-            def open_repair():
-                chosen=grid.selected()
-                if chosen:d.accept();self.open_repair(chosen['id'])
-            button(bar,'Открыть ремонт',open_repair);button(bar,'Новое обращение',lambda:(d.accept(),self.new_repair_for(row)));button(bar,'Закрыть',d.accept);d.exec()
-        self.run(lambda:s.repairs(equipment_id=row['id']),show)
+        from .history import HistoryDialog
+        self.modal(HistoryDialog(self,row));return
     def new_repair(self):
         eq=[(x['id'],x['number']+' · '+x['model']) for x in self.cache.get('active_equipment',[])]
         if not eq:QMessageBox.information(self,'Оборудование','Сначала добавьте оборудование');return
@@ -154,7 +149,25 @@ class ServiceWorkspace(QWidget):
             self.run(lambda:s.create_repair(v['equipment_id'],v['number'],v['complaint'],request,client_id=v['client_id']),self.open_repair)
     def open_selected(self,key):
         r=self.selection(key)
-        if r:self.open_repair(r['id'])
+        if r:self.open_repair(r['repair_id'] if key=='estimates' else r['id'])
+    def modal(self,dialog):
+        self.dialogs.append(dialog)
+        if self.worker:dialog.setEnabled(False)
+        try:return dialog.exec()
+        finally:self.dialogs.remove(dialog);self.refresh()
+    def import_history(self):
+        from .import_wizard import HistoryWizard
+        self.modal(HistoryWizard(self))
+    def organization_profiles(self):
+        from .profiles import ProfileDialog
+        self.modal(ProfileDialog(self))
+    def review_docx(self):
+        from ...service.docx_extract import export_review_csv
+        source,_=QFileDialog.getOpenFileName(self,'Таблицы Word для ручной проверки','','Word (*.docx)')
+        if not source:return
+        target,_=QFileDialog.getSaveFileName(self,'Новый проверочный CSV','word-review.csv','CSV (*.csv)')
+        if target and confirm(self,'Сохранить текст таблиц с координатами источника? Это не импорт ремонтов: связи, колонки и суммы нужно проверить вручную.'):
+            self.run(lambda:export_review_csv(source,target),lambda _:self.message.setText('CSV сохранён. Исправьте и сопоставьте колонки перед историческим импортом.'))
     def open_repair(self,key):
         s=self.store
         def show(snapshot):

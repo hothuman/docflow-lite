@@ -131,12 +131,12 @@ def freeze_estimate(store, repair_id, kind, prepared_by, reason='', request_id=N
                 raise ServiceError('Укажите причину отличия окончательной сметы от согласованной')
         payload = {'repair':r, 'equipment':store.require(c, 'equipment', r['equipment_id']),
                    'client':store.require(c, 'clients', r['client_id']), 'profile':profile(c, r['profile_id']),
-                   'lines':lines, 'totals':quote_totals, 'comment':comment, 'kind':kind}
+                   'lines':lines, 'totals':quote_totals, 'comment':comment, 'kind':kind, 'comparison':comparison(c,repair_id) if kind=='final' else None}
         content = canonical(payload); sha = hashlib.sha256(content.encode()).hexdigest()
         if request_id:
             prior = c.execute('SELECT * FROM estimate_versions WHERE request_id=?', (request_id,)).fetchone()
             if prior:
-                if prior['repair_id'] != repair_id or prior['kind'] != kind or prior['payload_sha256'] != sha:
+                if prior['repair_id'] != repair_id or prior['kind'] != kind or prior['payload_sha256'] != sha or prior['prepared_by'] != actor or prior['reason'] != reason:
                     raise ServiceError('Идентификатор относится к другой операции сохранения сметы')
                 return prior['id']
         version = c.execute('SELECT COALESCE(MAX(version),0)+1 FROM estimate_versions WHERE repair_id=? AND kind=?', (repair_id,kind)).fetchone()[0]
@@ -148,6 +148,17 @@ def freeze_estimate(store, repair_id, kind, prepared_by, reason='', request_id=N
         c.execute('INSERT INTO estimate_events(estimate_id,action,actor,comment,occurred_at) VALUES(?,?,?,?,?)', (key,'prepared',actor,reason,stamp))
         store.audit(c, 'estimate', key, 'freeze', kind+':'+str(version))
     return key
+
+
+def estimate_summaries(store):
+    """One indexed query for the global journal; no per-row JSON or event reads."""
+    with store.db.connection() as c:
+        return [dict(r) for r in c.execute("""SELECT v.id,v.repair_id,r.number,cl.name AS client,
+          v.kind,v.version,v.created_at,v.prepared_by,
+          CAST(json_extract(v.payload_json,'$.totals.total') AS INTEGER) AS total,
+          COALESCE((SELECT action FROM estimate_events e WHERE e.estimate_id=v.id ORDER BY e.id DESC LIMIT 1),'prepared') AS state
+          FROM estimate_versions v JOIN repair_orders r ON r.id=v.repair_id
+          JOIN clients cl ON cl.id=r.client_id ORDER BY v.created_at DESC,v.rowid DESC""")]
 
 
 def record_event(store, estimate_id, action, actor, comment):

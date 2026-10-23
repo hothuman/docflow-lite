@@ -24,7 +24,7 @@ class RepairDialog(QDialog):
         for title,fields in sections:
             scroll=QScrollArea();scroll.setWidgetResizable(True);body=QWidget();form=QFormLayout(body);form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow);scroll.setWidget(body);self.tabs.addTab(scroll,title)
             for key,label,kind in fields:self.add_field(form,key,label,kind)
-        for group,title in [('work','Работы'),('part','Запчасти')]:
+        for group,title in [('work','Работы'),('part','Запчасти'),('delivery','Доставка'),('other','Прочие расходы')]:
             p=QWidget();layout=QVBoxLayout(p);bar=QHBoxLayout();layout.addLayout(bar)
             grid=Grid([('name','Наименование'),('description','Описание'),('quantity','Количество'),('unit','Ед.'),('price','Цена'),('total','Сумма')]);self.grids[group]=grid;layout.addWidget(grid);self.tabs.addTab(p,title)
             button(bar,'Добавить',lambda _,g=group:self.with_saved(lambda:self.item(g)));button(bar,'Изменить',lambda _,g=group:self.with_saved(lambda:self.item(g,True)));button(bar,'Удалить',lambda _,g=group:self.with_saved(lambda:self.delete_item(g)))
@@ -32,12 +32,14 @@ class RepairDialog(QDialog):
         label=QLabel('Только внутренние записи. Программа не проводит платежи и не выдаёт чеки. Ошибочная запись исправляется аннулированием с причиной и новой корректной записью.');label.setWordWrap(True);layout.addWidget(label)
         bar=QHBoxLayout();layout.addLayout(bar);button(bar,'Учесть оплату / возврат',lambda:self.with_saved(self.payment));button(bar,'Исправить ошибочную запись',lambda:self.with_saved(self.void_payment))
         self.grids['payments']=Grid([('occurred_at','Дата'),('kind','Вид'),('amount','Сумма'),('method','Способ'),('voided','Состояние'),('void_reason','Причина'),('comment','Комментарий')]);layout.addWidget(self.grids['payments']);self.tabs.addTab(p,'Финансы')
+        from .estimates import EstimatesPanel
+        self.estimates=EstimatesPanel(self);self.tabs.addTab(self.estimates,'Сметы')
         p=QWidget();layout=QVBoxLayout(p);bar=QHBoxLayout();layout.addLayout(bar)
         button(bar,'Прикрепить',lambda:self.with_saved(self.add_file));button(bar,'Открыть',self.open_attachment);button(bar,'Просмотр фото',self.preview_image);button(bar,'Удалить',self.delete_attachment)
         self.grids['attachments']=Grid([('name','Имя'),('kind','Тип'),('size','Байт'),('comment','Подпись')]);layout.addWidget(self.grids['attachments']);self.image=QLabel('PNG / JPEG · MP4 · безопасный DOCX');self.image.setAlignment(Qt.AlignmentFlag.AlignCenter);layout.addWidget(self.image);self.tabs.addTab(p,'Вложения')
         p=QWidget();layout=QVBoxLayout(p);bar=QHBoxLayout();layout.addLayout(bar);self.doc_kind=QComboBox()
         for k,title in KINDS.items():self.doc_kind.addItem(title,k)
-        bar.addWidget(self.doc_kind);button(bar,'Создать DOCX',lambda:self.with_saved(self.generate));self.images=QCheckBox('Включить фото этого ремонта (до 10)');layout.addWidget(self.images)
+        bar.addWidget(self.doc_kind);button(bar,'Создать DOCX',lambda:self.with_saved(self.generate));self.images=QCheckBox('Выбрать изображения, порядок и подписи (до 10)');self.image_choices=[];layout.addWidget(self.images)
         custom=QHBoxLayout();layout.addLayout(custom);self.template_path=QLineEdit();self.template_path.setPlaceholderText('Встроенная нейтральная форма');self.template_path.setReadOnly(True);custom.addWidget(self.template_path);button(custom,'Свой DOCX',self.pick_template);button(custom,'Сбросить',self.template_path.clear)
         self.grids['documents']=Grid([('kind','Тип'),('version','Версия'),('created_at','Создано'),('path','Путь')]);layout.addWidget(self.grids['documents']);bar2=QHBoxLayout();layout.addLayout(bar2);button(bar2,'Открыть версию',self.open_document);button(bar2,'Сохранить копию',self.export_document);self.tabs.addTab(p,'Документы')
         scroll=QScrollArea();scroll.setWidgetResizable(True);p=QWidget();form=QFormLayout(p);scroll.setWidget(p)
@@ -67,8 +69,9 @@ class RepairDialog(QDialog):
             else:w.setText(str(value))
             w.blockSignals(False)
         self.identity.setText(f"{s['equipment']['number']} · {s['equipment']['model']} · Клиент: {s['client']['name']}")
-        t=s['totals'];self.summary.setText(f"Производство: {STATUSES[r['status']][0]}   |   Сумма {rub(t['total'])} · Учтено {rub(t['paid'])} · Остаток {rub(t['balance'])}")
-        for group in ('work','part'):
+        t=s['totals'];self.summary.setText(f"Производство: {s['profile']['status_labels'].get(r['status'],STATUSES[r['status']][0])}   |   Фактически {rub(t['total'])} · Учтено {rub(t['paid'])} · Остаток {rub(t['balance'])} · {t['financial_status']}")
+        self.estimates.install(s)
+        for group in ('work','part','delivery','other'):
             rows=[{**x,'price':rub(x['price_cents']),'total':x['total_cents']} for x in s['repair_items'] if x['kind']==group];self.grids[group].install(rows)
         self.grids['payments'].install([{**x,'amount':rub(x['amount_cents'])} for x in s['payments']]);self.grids['attachments'].install(s['attachments']);self.grids['documents'].install(s['generated_documents']);self.grids['history'].install(s['repair_status_history']);self.dirty=False;self.dirty_label.setText('Черновик сохранён')
     def values(self):return {k:(w.currentData() if isinstance(w,QComboBox) else w.toPlainText() if isinstance(w,QPlainTextEdit) else w.text()) for k,w in self.fields.items()}
@@ -76,6 +79,10 @@ class RepairDialog(QDialog):
         # clicked(bool) is not a callback.
         if not callable(after):after=None
         v=self.values();revision=self.revision;s=self.store;key=self.key
+        if v['discount']!=amount(self.snapshot['repair']['discount_cents']) and self.snapshot['estimate_comparison']['approved_estimate_id']:
+            reason,ok=QInputDialog.getText(self,'Изменение согласованной стоимости','Причина изменения скидки *')
+            if not ok:return
+            v['change_reason']=reason
         def work():s.save_repair(key,v,revision);return s.snapshot(key)
         def done(snapshot):
             self.install(snapshot)
@@ -95,14 +102,20 @@ class RepairDialog(QDialog):
         row=self.selected(kind) if edit else None
         if edit and not row:return
         fields=[('name','Наименование *','text'),('description','Описание','long'),('quantity','Количество (до 4 знаков)','text'),('unit','Единица','text'),('price','Цена за единицу, ₽','text'),('notes','Примечание','long')]
+        if self.snapshot['estimate_comparison']['approved_estimate_id']:fields.append(('change_reason','Причина изменения согласованного объёма *','long'))
         values={**row,'price':amount(row['price_cents'])} if row else {'quantity':'1','unit':'шт.','price':'0'}
-        d=FieldsDialog('Работа' if kind=='work' else 'Запчасть',fields,values,self)
+        from ...service.finance import ITEM_KINDS
+        d=FieldsDialog(ITEM_KINDS[kind],fields,values,self)
         if d.exec()==QDialog.DialogCode.Accepted:
             v={**d.values(),'kind':kind};key=row['id'] if row else None;s=self.store;r=self.key;self.mutate(lambda:s.save_item(r,v,key))
     def delete_item(self,kind):
         row=self.selected(kind)
         if row and confirm(self,'Удалить позицию?'):
-            s=self.store;self.mutate(lambda:s.remove_item(row['id']))
+            reason=''
+            if self.snapshot['estimate_comparison']['approved_estimate_id']:
+                reason,ok=QInputDialog.getText(self,'Изменение согласованного объёма','Причина удаления *')
+                if not ok:return
+            s=self.store;self.mutate(lambda:s.remove_item(row['id'],reason))
     def payment(self):
         fields=[('kind','Операция',[('payment','Оплата'),('refund','Возврат')]),('amount','Сумма, ₽','text'),('occurred_at','Дата ГГГГ-ММ-ДД (пусто — сегодня)','text'),('method','Способ (внутренняя запись)','text'),('comment','Примечание','long')]
         d=FieldsDialog('Учёт расчётов — не проведение платежа',fields,{'method':'Перевод — запись вручную'},self)
@@ -141,8 +154,13 @@ class RepairDialog(QDialog):
         if p:self.template_path.setText(p)
     def generate(self):
         s=self.store;key=self.key;kind=self.doc_kind.currentData();path=self.template_path.text() or None
-        images=[x['id'] for x in self.snapshot['attachments'] if x['kind']=='image'] if self.images.isChecked() else []
-        self.mutate(lambda:generate_document(s,key,kind,path,images))
+        choices=[]
+        if self.images.isChecked():
+            from .images import ImagesDialog
+            dialog=ImagesDialog(self.snapshot['attachments'],self,self.image_choices)
+            if dialog.exec()!=QDialog.DialogCode.Accepted:return
+            choices=dialog.values();self.image_choices=choices
+        self.mutate(lambda:generate_document(s,key,kind,path,image_choices=choices))
     def open_document(self):
         row=self.selected('documents')
         if row:

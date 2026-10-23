@@ -4,7 +4,7 @@ from .models import RowsModel
 
 class Grid(QTableView):
     def __init__(self,columns,parent=None):
-        super().__init__(parent);self.records=RowsModel(columns,self);self.proxy=QSortFilterProxyModel(self);self.proxy.setSourceModel(self.records);self.proxy.setSortRole(Qt.ItemDataRole.UserRole);self.proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive);self.proxy.setFilterKeyColumn(-1);self.setModel(self.proxy);self.setSortingEnabled(True)
+        super().__init__(parent);self.records=RowsModel(columns,self);self.proxy=QSortFilterProxyModel(self);self.proxy.setSourceModel(self.records);self.proxy.setSortRole(Qt.ItemDataRole.UserRole);self.proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive);self.proxy.setFilterKeyColumn(0);self.proxy.setFilterRole(Qt.ItemDataRole.UserRole+1);self.setModel(self.proxy);self.setSortingEnabled(True)
         self.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows);self.setSelectionMode(QTableView.SelectionMode.SingleSelection);self.setAlternatingRowColors(True);self.setWordWrap(False);self.setMinimumHeight(150);self.horizontalHeader().setDefaultSectionSize(145);self.horizontalHeader().setStretchLastSection(True)
     def install(self,rows):self.records.install(rows)
     def selected(self):

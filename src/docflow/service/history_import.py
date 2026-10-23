@@ -24,7 +24,7 @@ from .validation import ServiceError, day, money, now, text
 HISTORY_FIELDS = {
  'repair_number':'Исторический номер ремонта *', 'repair_key':'Внешний ID ремонта (если есть)',
  'equipment_number':'Постоянный номер оборудования', 'model':'Модель', 'manufacturer':'Производитель', 'serial':'Серийный номер',
- 'client_key':'Внешний ID клиента (если есть)', 'client_name':'Клиент', 'client_contact':'Контактное лицо',
+ 'client_key':'Внешний ID клиента (если есть)', 'client_name':'Клиент', 'client_kind':'Тип клиента (organization / individual / entrepreneur)', 'client_contact':'Контактное лицо',
  'client_phone':'Телефон', 'client_email':'Email', 'received_at':'Дата приёмки *',
  'complaint':'Жалоба', 'defects':'Дефектовка', 'plan':'План', 'works':'Описание выполненных работ', 'parts':'Описание запчастей',
  'work_cost':'Общая стоимость работ', 'parts_cost':'Общая стоимость запчастей', 'delivery_cost':'Общая доставка',
@@ -115,6 +115,7 @@ def _groups(table, mapping, status_map, default_status):
         d = g['data']
         try:
             d['received_at'] = import_day(d.get('received_at',''))
+            if d.get('client_kind') and d['client_kind'] not in ('organization','individual','entrepreneur'): raise ServiceError('Неизвестный тип клиента')
             production = d.get('status','')
             if production:
                 if production not in status_map: raise ServiceError('Явно сопоставьте производственный статус: '+production)
@@ -254,7 +255,7 @@ def import_history(store, plan, *, confirmed=False, selected_keys=None):
                 email=text(d.get('client_email'),limit=300)
                 if email and ('@' not in email or any(x.isspace() for x in email)):raise ServiceError('Неверный email выбранного владельца')
                 c.execute('INSERT INTO clients(id,kind,name,contact,phone,email,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',
-                          (ident,'organization',text(d.get('client_name'),'Клиент',True,300),text(d.get('client_contact'),limit=300),
+                          (ident,d.get('client_kind') or 'organization',text(d.get('client_name'),'Клиент',True,300),text(d.get('client_contact'),limit=300),
                            text(d.get('client_phone'),limit=300),email,stamp,stamp))
                 client_cache[key]=ident; return ident
             report=[]
