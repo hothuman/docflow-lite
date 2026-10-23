@@ -128,6 +128,8 @@ def verify(archive,evidence,release):
         service=json.loads((service_output/'SERVICE-SELF-TEST.json').read_text(encoding='utf-8'))
         assert service_run.returncode==0 and service['status']=='passed',service
         assert service['frozen'] and service['qt_platform']=='windows'
+        assert service['completion']['status']=='passed'
+        assert len(service['completion']['checks'])==5 and all(c['passed'] for c in service['completion']['checks'])
         result['service']=service
     result['status']='passed'
     result['limits']=['Automated native Windows runner, not manual Windows 10/11 acceptance',

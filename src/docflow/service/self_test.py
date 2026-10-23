@@ -97,6 +97,9 @@ def run(output,require_windows=False):
         window.navigate(0);window.load_demo()
         from ..release_check import wait_idle
         wait_idle(window);assert len(window.table.records)==3;check('switch_back_to_core_and_load_demo')
+        window.navigate(5);idle(window.service_workspace)
+        from .completion_check import exercise
+        proof['completion']=exercise(window.service_workspace,app,output,idle,fill_dialog)
         window.close();app.processEvents();check('normal_close_after_service')
         proof['status']='passed'
     except Exception:

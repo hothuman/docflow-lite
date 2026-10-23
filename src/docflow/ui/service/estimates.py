@@ -20,7 +20,7 @@ class DraftDialog(QDialog):
         bar=QHBoxLayout();layout.addLayout(bar)
         for title,fn in [('Добавить',self.add),('Изменить',self.edit),('Удалить',self.remove),('Выше',lambda:self.move(-1)),('Ниже',lambda:self.move(1))]:button(bar,title,fn)
         self.grid=Grid([('kind','Тип'),('name','Наименование'),('description','Описание'),('quantity','Количество'),('unit','Ед.'),('price','Цена')]);layout.addWidget(self.grid)
-        self.discount=QLineEdit(amount(source['discount_cents']));self.discount.setAccessibleName('Скидка предварительной сметы');layout.addWidget(QLabel('Скидка, ₽'));layout.addWidget(self.discount)
+        self.discount=QLineEdit(amount(source['discount_cents']) if source['revision'] else editor.snapshot['profile']['default_discount']);self.discount.setAccessibleName('Скидка предварительной сметы');layout.addWidget(QLabel('Скидка, ₽'));layout.addWidget(self.discount)
         self.comment=QPlainTextEdit(source['comment']);self.comment.setAccessibleName('Комментарий предварительной сметы');self.comment.setMaximumHeight(100);layout.addWidget(self.comment)
         bottom=QHBoxLayout();layout.addLayout(bottom);button(bottom,'Сохранить расчёт',self.save);button(bottom,'Отмена',self.reject);self.install()
     def install(self):
@@ -61,6 +61,7 @@ class EstimatesPanel(QWidget):
         self.summary=QLabel();self.summary.setWordWrap(True);self.summary.setTextFormat(Qt.TextFormat.PlainText);layout.addWidget(self.summary)
         bar=QHBoxLayout();layout.addLayout(bar)
         button(bar,'Редактировать предварительный расчёт',lambda:editor.with_saved(self.edit_draft))
+        bar=QHBoxLayout();layout.addLayout(bar)
         button(bar,'Сохранить предварительную версию',lambda:editor.with_saved(lambda:self.freeze('preliminary')))
         button(bar,'Сохранить окончательную версию',lambda:editor.with_saved(lambda:self.freeze('final')))
         self.grid=Grid([('kind','Смета'),('version','Версия'),('created_at','Подготовлена'),('prepared_by','Автор'),('state_label','Ручная отметка'),('total','Итог')]);layout.addWidget(self.grid)

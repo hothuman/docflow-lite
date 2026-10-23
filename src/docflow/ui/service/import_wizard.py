@@ -31,7 +31,7 @@ class HistoryWizard(QWizard):
         self.identity.doubleClicked.connect(self.decide)
         self.status_container=QWidget();self.status_form=QFormLayout(self.status_container);l.addWidget(self.status_container)
         l=self.page(3).layout();self.selection=QTableWidget(0,4);self.selection.setHorizontalHeaderLabels(['Выбрать','Ремонт / строки','Результат','Проблемы и предупреждения']);self.selection.horizontalHeader().setStretchLastSection(True);l.addWidget(self.selection)
-        self.confirmed=QCheckBox('Я проверил аппарат, заказчика, дату, статус, позиции и суммы выбранных ремонтов; остальные строки откладываю. Применить одну транзакцию.');l.addWidget(self.confirmed)
+        self.confirmed=QCheckBox('Я проверил аппарат, заказчика, даты, статусы, позиции и суммы.\nПрименить выбранные ремонты одной транзакцией; остальные строки отложить.');l.addWidget(self.confirmed)
         l=self.page(4).layout();self.report=QPlainTextEdit();self.report.setReadOnly(True);l.addWidget(self.report);button(l,'Сохранить отчёт JSON',self.save_report)
         for label in self.findChildren(QLabel):label.setTextFormat(Qt.TextFormat.PlainText)
     def choose(self):

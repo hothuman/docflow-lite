@@ -111,6 +111,7 @@ def create_templates(folder):
             d.add_paragraph('Работы {{work_total}} · Запчасти {{parts_total}}')
             d.add_paragraph('Доставка {{delivery_total}} · Прочие расходы {{other_total}}')
             d.add_paragraph('Скидка {{discount}} · Всего {{total}}')
+            for paragraph in d.paragraphs[-3:]:paragraph.paragraph_format.keep_with_next=True
             if kind!='estimate_preliminary':
                 d.add_paragraph('Внутренние записи на дату расчёта: учтено {{paid}}, остаток {{balance}}. Не банковский документ и не чек.')
             if kind=='estimate_final':
@@ -127,7 +128,7 @@ def create_templates(folder):
         d.add_paragraph('Производственный статус: {{status}} · Примечания: {{notes}}')
         if quote:
             d.add_paragraph('Ручные отметки в программе не заменяют подтверждение клиента. Предварительная смета не является задолженностью.')
-        d.add_paragraph('Проект формы. Сведения сторон и условия утверждаются отдельно; подписи не проставлены.')
+        d.add_paragraph('Проект формы. Сведения сторон и условия утверждаются отдельно; подписи не проставлены.').paragraph_format.keep_with_next=True
         d.add_paragraph('Передал ____________________     Принял ____________________')
         d.core_properties.author=''; d.core_properties.last_modified_by=''; d.core_properties.comments=''
         d.save(path)
@@ -155,9 +156,9 @@ def _stories(document):
             yield part.element, SimpleNamespace(part=part)
 
 
-def _image_width(path, section, caption=True):
+def _image_width(path, section, caption=True, reserve_inches=None):
     image=Image.from_file(str(path)); width=section.page_width-section.left_margin-section.right_margin
-    height=section.page_height-section.top_margin-section.bottom_margin-Inches(1 if caption else .25)
+    height=section.page_height-section.top_margin-section.bottom_margin-Inches(reserve_inches if reserve_inches is not None else (1 if caption else .25))
     if width<=0 or height<=0: raise ServiceError('В разделе шаблона нет места для изображения')
     # Integer EMU dimensions preserve aspect ratio and fit portrait/landscape.
     return int(min(width,height*image.px_width/image.px_height))
@@ -225,18 +226,31 @@ def render_service(template_path, values, items, images=(), *, history=(), logo=
                     p.getparent().remove(p)
     if len(images)>10: raise ServiceError('Для документа выберите не более десяти изображений')
     if images:
-        document.add_page_break(); document.add_paragraph('Приложение с изображениями','Heading 1')
+        document.add_paragraph('Приложение с изображениями','Heading 1').paragraph_format.page_break_before=True
         previous_stage=None
         for index,image in enumerate(images):
             path,caption=image[:2]; stage=image[2] if len(image)>2 else ''
             if Path(path).stat().st_size>10*1024**2:
                 raise ServiceError('Изображение для DOCX больше 10 MiB; подготовьте уменьшенную копию')
             if stage and stage!=previous_stage:
-                document.add_paragraph(stage,'Heading 2'); previous_stage=stage
+                heading=document.add_paragraph(stage,'Heading 2')
+                if index:heading.paragraph_format.page_break_before=True
+                previous_stage=stage
+            else:heading=None
             name=f'_image_caption_{index}'; extra[name]=text(caption,'Подпись изображения',limit=2000)
             paragraph=document.add_paragraph('{{'+name+'}}'); paragraph.paragraph_format.keep_with_next=True
+            if index and heading is None:paragraph.paragraph_format.page_break_before=True
             picture=document.add_paragraph(); picture.paragraph_format.keep_together=True
-            picture.add_run().add_picture(str(path),width=_image_width(path,document.sections[-1]))
+            picture.paragraph_format.line_spacing=1
+            picture.paragraph_format.space_before=picture.paragraph_format.space_after=Pt(0)
+            section=document.sections[-1]
+            width_inches=(section.page_width-section.left_margin-section.right_margin)/Inches(1)
+            # Leave space for the heading, stage and wrapped caption. Exact
+            # Word pagination depends on the template's fonts; visual QA still
+            # remains required for a customer's final form.
+            caption_lines=1+len(extra[name])//max(20,int(width_inches*11))
+            reserve=1.1+(0.5 if index==0 else 0)+caption_lines*.2
+            picture.add_run().add_picture(str(path),width=_image_width(path,section,reserve_inches=reserve))
     raw=io.BytesIO(); document.save(raw); raw=raw.getvalue(); check_archive(raw)
     fields=set()
     with zipfile.ZipFile(io.BytesIO(raw)) as z:

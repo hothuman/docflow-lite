@@ -171,3 +171,18 @@ def test_import_document_must_stay_in_explicit_root(tmp_path):
     assert plan['groups'][0]['status']=='error'
     with pytest.raises(ServiceError):import_history(s,plan,confirmed=True)
     assert counts(s)['repair_orders']==0
+
+
+def test_shipped_history_csv_and_xlsx_import_same_three_repairs(tmp_path):
+    from pathlib import Path
+    sample=Path(__file__).resolve().parents[2]/'examples/service'
+    for extension in ('csv','xlsx'):
+        s=ServiceStore(tmp_path/extension)
+        mapping={k:k for k in ('repair_number','equipment_number','model','client_key','client_name','received_at','works','work_cost')}
+        options={'equipment_decisions':{'900':'new'},'client_decisions':{'a':'new','b':'new'},'current_owners':{'900':'b'},'default_status':'closed'}
+        if extension=='xlsx':mapping.update(status='status',client_kind='client_kind');options.update(sheet='История',status_map={'Выполнен':'closed'})
+        p=preview_history(s,sample/('History-900.'+extension),mapping,**options)
+        result=import_history(s,p,confirmed=True)
+        assert result['imported']==3 and len(s.equipment())==1
+        assert {r['number'] for r in s.repairs()}=={'101','305','900'}
+        assert s.equipment()[0]['owner']=='Учебный клиент Б'
