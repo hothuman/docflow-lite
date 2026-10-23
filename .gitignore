@@ -39,3 +39,7 @@ site/dist/__audit.html
 *.bak
 *.service-backup.zip
 site/node_modules/
+
+# Synthetic CI handoff inputs and generated deliverables
+/.handoff-input/
+/handoff/

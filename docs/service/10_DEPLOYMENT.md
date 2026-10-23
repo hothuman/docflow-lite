@@ -6,3 +6,11 @@
 Сайт собирается прежним `PUBLIC_SITE_URL=https://docflow-lite.pages.dev/ ENABLE_INDEXING=0 python site/scripts/build_site.py`. Результат — только ZIP для предварительного рассмотрения. Никакого Direct Upload этим шагом нет. Перед разрешённой публикацией сверить пересечение контактов/политики/условий с PR №4; не переносить черновики как утверждённые. Не включать noindex/form/payments автоматически.
 
 Публикация, merge и официальный Release требуют отдельного решения владельца. Реальные файлы клиента и рабочая база не должны войти в Git, сайт или CI-артефакты. Оставьте только вымышленные fixtures.
+
+## Cloudflare Direct Upload после отдельного разрешения
+
+Используйте существующий Pages-проект docflow-lite: Workers & Pages → docflow-lite → Create deployment → Production. Website Review ZIP содержит index.html, service.html, _headers, _redirects и assets прямо в корне. Не загружайте полный Source ZIP, демобазу или Windows Portable. GitHub-коммит не обновляет Direct Upload.
+
+Сборка: PUBLIC_SITE_URL=https://docflow-lite.pages.dev/ ENABLE_INDEXING=0 python3 site/scripts/build_site.py. Отключённая форма/индексация/аналитика сохраняются. Перед публикацией сверить контакты и правовые страницы с PR №4, не переносить неподтверждённые черновики. После отдельно разрешённой публикации повторить реальный HTTPS/CDN-контроль обеих страниц, privacy/terms, 404, ресурсов, CSP/noindex, скачанного демо и контактов. CI проверяет изолированный вывод, а не новую публичную публикацию.
+
+Передаваемый Portable получен из фактически успешного Windows CI 39947489151. Source-Review.zip включает более поздние документы/упаковщик; helper сравнивает каждый runtime-файл с точным Source ZIP сборки. Exact-CI-Build-Source.zip сохранён в QA. Из-за отключения рабочей среды финальная упаковка перенесена в Service review handoff CI; Actions-артефакты сохраняются 7 дней. Скачайте комплект для долгосрочного хранения. Обычный запуск не требует интернет-доступа или системного Python.
