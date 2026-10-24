@@ -9,6 +9,7 @@ class ServiceError(DocFlowError):
     pass
 
 def text(value, name='Поле', required=False, limit=20000):
+    name={'name':'Название','legal_name':'ФИО / наименование','contact':'Контактное лицо','number':'Номер','model':'Модель','owner_id':'Владелец','number_prefix':'Префикс номера','default_discount':'Начальная скидка','organization_name':'Исполнитель','warranty_terms':'Условия гарантии'}.get(name,name)
     value=str(value or '').strip()
     if required and not value: raise ServiceError(f'{name}: заполните значение')
     if len(value)>limit or BAD_XML_CHARS.search(value): raise ServiceError(f'{name}: недопустимый или слишком длинный текст')

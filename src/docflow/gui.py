@@ -8,6 +8,8 @@ def configure_app(app):
     app.setApplicationName('DocFlow Lite')
     app.setStyle('Fusion')
     app.styleHints().setColorScheme(Qt.ColorScheme.Dark)
+    from .ui.theme import apply_theme
+    apply_theme(app)
 
 def main():
     app=QApplication(sys.argv)

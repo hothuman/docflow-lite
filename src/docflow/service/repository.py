@@ -232,9 +232,9 @@ class ServiceStore:
             c.execute('UPDATE payments SET voided=1,void_reason=? WHERE id=?',(reason,key))
             if totals(c,r['repair_id'])['paid']<0:raise ServiceError('Сначала исправьте связанный возврат')
             self._touch(c,r['repair_id']);self.audit(c,'payment',key,'void',reason)
-    def dashboard(self):
-        rows=self.repairs()
+    def dashboard(self,rows=None):
+        if rows is None:rows=self.repairs()
         with self.db.connection() as c:
             eq=c.execute('SELECT COUNT(*) FROM equipment WHERE archived=0').fetchone()[0]
             recent=[dict(r) for r in c.execute('SELECT * FROM operations ORDER BY id DESC LIMIT 20')]
-        return {'equipment':eq,'active':sum(r['status'] not in TERMINAL for r in rows),'approval':sum(r['status']=='approval' for r in rows),'parts':sum(r['status']=='parts' for r in rows),'ready':sum(r['status']=='ready' for r in rows),'debt':sum(max(0,r['balance']) for r in rows),'recent':recent}
+        return {'equipment':eq,'active':sum(r['status'] not in TERMINAL for r in rows),'approval':sum(r['status']=='approval' for r in rows),'parts':sum(r['status']=='parts' for r in rows),'ready':sum(r['status']=='ready' for r in rows),'debt':sum(max(0,r['balance']) for r in rows),'recent':recent,'recent_repairs':rows[:8]}

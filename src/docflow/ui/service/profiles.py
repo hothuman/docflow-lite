@@ -1,20 +1,27 @@
 """Local organization profile management; selected files stay in the local project."""
 from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLabel,QFileDialog,QCheckBox,QComboBox
-from ...service.profiles import profiles,save_profile,activate_profile,NEUTRAL
+from ...service.profiles import profiles,save_profile,activate_profile,NEUTRAL,profile
 from ...service.documents import KINDS
 from ...service.statuses import STATUSES
 from .forms import FieldsDialog
+from ..flow import FlowLayout
+from .forms import fit_dialog
 from .widgets import Grid,button
 
 class ProfileDialog(QDialog):
     def __init__(self,workspace):
-        super().__init__(workspace);self.workspace=workspace;self.setWindowTitle('Локальные профили организаций');self.resize(850,560)
+        super().__init__(workspace);self.workspace=workspace;self.setWindowTitle('Локальные профили организаций');fit_dialog(self,900,600)
         layout=QVBoxLayout(self);label=QLabel('Активный профиль применяется к новым ремонтам. Старые ремонты сохраняют связь со своим профилем, сохранённые сметы — снимок реквизитов. Пустые реквизиты не заполняются автоматически.');label.setWordWrap(True);layout.addWidget(label)
-        self.grid=Grid([('name','Профиль'),('organization_name','Исполнитель'),('number_prefix','Префикс'),('contact','Контакт'),('logo_path','Логотип')]);layout.addWidget(self.grid)
-        bar=QHBoxLayout();layout.addLayout(bar)
+        self.grid=Grid([('name','Профиль'),('active_label','Состояние'),('organization_name','Исполнитель'),('number_prefix','Префикс'),('contact','Контакт'),('logo_path','Логотип')]);layout.addWidget(self.grid)
+        bar=FlowLayout();layout.addLayout(bar)
         for title,fn in [('Добавить',lambda:self.edit(False)),('Изменить',lambda:self.edit(True)),('Сделать активным',self.activate),('Нейтральный профиль',lambda:self.activate(True)),('Выбрать шаблон',self.template),('Логотип',self.logo)]:button(bar,title,fn)
         button(layout,'Закрыть',self.accept);self.refresh()
-    def refresh(self):self.workspace.run(lambda:profiles(self.workspace.store),self.grid.install)
+    def refresh(self):
+        store=self.workspace.store
+        def query():
+            with store.db.connection() as c:active=profile(c,active=True)['id']
+            return [{**p,'active_label':'Активный' if p['id']==active else 'Сохранённый'} for p in profiles(store)]
+        self.workspace.run(query,self.grid.install)
     def edit(self,existing=False):
         row=self.grid.selected() if existing else None
         if existing and not row:return
@@ -41,7 +48,9 @@ class ProfileDialog(QDialog):
         path,_=QFileDialog.getOpenFileName(self,'Логотип PNG / JPEG','','Изображения (*.png *.jpg *.jpeg)')
         if not path:return
         d=QDialog(self);d.setWindowTitle('Право использования логотипа');layout=QVBoxLayout(d);check=QCheckBox('Подтверждаю право использовать выбранный логотип в документах');layout.addWidget(check);ok=button(layout,'Сохранить',d.accept);ok.setEnabled(False);check.toggled.connect(ok.setEnabled);button(layout,'Отмена',d.reject)
-        if d.exec()==QDialog.DialogCode.Accepted:self.workspace.run(lambda:save_profile(self.workspace.store,row,row['id'],assets={'logo':path},logo_rights_confirmed=check.isChecked()),lambda _:self.refresh())
+        if d.exec()==QDialog.DialogCode.Accepted:
+            confirmed=check.isChecked();store=self.workspace.store
+            self.workspace.run(lambda:save_profile(store,row,row['id'],assets={'logo':path},logo_rights_confirmed=confirmed),lambda _:self.refresh())
     def closeEvent(self,event):
         if self.workspace.worker:event.ignore()
         else:event.accept()

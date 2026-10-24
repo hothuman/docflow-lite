@@ -20,6 +20,7 @@ from ..errors import DocFlowError
 from ..profile import Profile
 from ..templates import Template
 from ..validation import Rule, values_for, validate_mapping
+from .diagnostics import record_exception,friendly_error
 from .widgets import DataModel, DataView, RecordModel, card, icon, text
 
 KINDS = {"Текст":"text", "Число ≥ 0":"number", "Email":"email", "Дата ГГГГ-ММ-ДД":"date"}
@@ -34,8 +35,8 @@ class TaskWorker(QThread):
 
     def run(self):
         try:self.completed.emit(self.function())
-        except (DocFlowError,OSError) as exc:self.failed.emit(str(exc))
-        except Exception:self.failed.emit('Не удалось обработать файл. Исходные файлы не изменены')
+        except (DocFlowError,OSError) as exc:record_exception('Core operation',exc);self.failed.emit(friendly_error(exc))
+        except Exception as exc:record_exception('Core task',exc);self.failed.emit(friendly_error(exc))
         finally:self.function=None
 
 
@@ -55,8 +56,8 @@ class GenerationWorker(QThread):
             if current==total or now-last>=.05:
                 self.advanced.emit(current,total);last=now
         try:self.completed.emit(generate(self.prepared,self.output,progress))
-        except (DocFlowError,OSError) as exc:self.failed.emit(str(exc))
-        except Exception:self.failed.emit('Неожиданная ошибка генерации. Исходные файлы не изменены')
+        except (DocFlowError,OSError) as exc:record_exception('Core operation',exc);self.failed.emit(friendly_error(exc))
+        except Exception as exc:record_exception('Core generation',exc);self.failed.emit(friendly_error(exc))
 
 
 class MainWindow(QMainWindow):
@@ -75,7 +76,8 @@ class MainWindow(QMainWindow):
         self._preview_revision=0;self._pending_preview=None;self._preview_job=None
         self._preview_timer=QTimer(self);self._preview_timer.setSingleShot(True)
         self._preview_timer.timeout.connect(self._start_preview)
-        self.setStyleSheet((Path(__file__).with_name('theme.qss')).read_text(encoding='utf-8'))
+        from .theme import apply_theme
+        apply_theme()
         root=QWidget();root.setObjectName('root');self.setCentralWidget(root)
         outer=QHBoxLayout(root);outer.setContentsMargins(0,0,0,0);outer.setSpacing(0)
         self.rail=QFrame();self.rail.setObjectName('rail');self.rail.setFixedWidth(202)
@@ -220,7 +222,7 @@ class MainWindow(QMainWindow):
         body.addWidget(text('Локальная генерация Word-документов из XLSX/CSV. Данные и шаблоны не отправляются на сервер.'))
         body.addWidget(text('До 5 000 записей, 100 столбцов и 20 DOCX-шаблонов за запуск. Исходники не перезаписываются.'))
         body.addWidget(text('Поддерживаются простые переменные {{поле}}. В Core нет PDF-экспорта, циклов и истории. Service отдельно ведёт ремонты и поддерживает ограниченное повторение строк. Текстовый предпросмотр не заменяет проверку оформления в Word/LibreOffice.','muted'))
-        body.addWidget(text('Release Candidate требует ручной приёмки на Windows 10/11. Старый опубликованный выпуск 0.1.1 остаётся отдельным.','muted'))
+        body.addWidget(text('Подготовительная alpha требует ручной приёмки на Windows 10/11 и проверки DOCX в Word. Опубликованный выпуск 0.1.1 остаётся отдельным.','muted'))
         layout.addStretch()
 
     def navigate(self,index):
@@ -238,12 +240,16 @@ class MainWindow(QMainWindow):
             self.status.setText(self._core_status);del self._core_status
         self.subtitle.setText('Локальный журнал · база SQLite · Service alpha' if index==5 else 'Таблица → ваши шаблоны Word → комплект документов')
         for i,button in enumerate(self.nav_buttons):button.setChecked(i==index)
+        self._responsive()
 
     def resizeEvent(self,event):
         super().resizeEvent(event)
         if hasattr(self,'create_grid'):self._responsive()
 
     def _responsive(self):
+        service=self.pages.currentIndex()==5
+        self.status.setVisible(not service);self.subtitle.setVisible(not(service and self.height()<600))
+        if self.service_workspace:self.service_workspace.location.setVisible(self.height()>=600)
         compact=self.width()<1050
         self.rail.layout().setContentsMargins(9 if compact else 14,12 if compact else 22,9 if compact else 14,12 if compact else 18)
         self.rail.layout().setSpacing(5 if compact else 8)

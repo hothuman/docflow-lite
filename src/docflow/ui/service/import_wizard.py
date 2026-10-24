@@ -5,34 +5,38 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QWizard,QWizardPage,QVBoxLayout,QHBoxLayout,QFormLayout,QLineEdit,QComboBox,QLabel,QFileDialog,QScrollArea,QWidget,QTableWidget,QTableWidgetItem,QCheckBox,QPlainTextEdit,QDialog,QMessageBox)
 from ...service.history_import import HISTORY_FIELDS,workbook_sheets,_load,preview_history,import_history
 from ...service.statuses import STATUSES
-from .forms import FieldsDialog
+from .forms import FieldsDialog,fit_dialog
+from ..flow import FlowLayout
+from .presentation import IMPORT_STATES
 from .widgets import Grid,button
 
 class HistoryWizard(QWizard):
     def __init__(self,workspace):
-        super().__init__(workspace);self.workspace=workspace;self.store=workspace.store;self.setWindowTitle('Исторический импорт XLSX / CSV');self.resize(1020,720)
+        super().__init__(workspace);self.workspace=workspace;self.store=workspace.store;self.setWindowTitle('Исторический импорт XLSX / CSV');fit_dialog(self,1020,720)
         self.plan=None;self.table=None;self.ready_page=-1;self.applied=False;self.decisions={'equipment_decisions':{},'client_decisions':{},'current_owners':{}};self.mappings={};self.statuses={}
         self.clients=workspace.cache.get('active_clients',[]);self.equipment=workspace.cache.get('active_equipment',[])
+        self._layouts=[]
+        for role,label in [(QWizard.WizardButton.BackButton,'Назад'),(QWizard.WizardButton.NextButton,'Далее'),(QWizard.WizardButton.CancelButton,'Отмена'),(QWizard.WizardButton.FinishButton,'Закрыть')]:self.setButtonText(role,label)
         for title in ('Источник и лист','Колонки и исходные строки','Аппараты и клиенты','Проверка и подтверждение','Отчёт'):
-            p=QWizardPage();p.setTitle(title);p.setLayout(QVBoxLayout());self.addPage(p)
-        l=self.page(0).layout();note=QLabel('Старый номер ремонта не определяет аппарат. Программа не угадывает связи по модели или фамилии. Рабочая база изменится только после последнего подтверждения.');note.setWordWrap(True);l.addWidget(note)
+            p=QWizardPage();p.setTitle(title);outer=QVBoxLayout(p);scroll=QScrollArea();scroll.setWidgetResizable(True);body=QWidget();inner=QVBoxLayout(body);scroll.setWidget(body);outer.addWidget(scroll);self._layouts.append(inner);self.addPage(p)
+        l=self._layouts[0];note=QLabel('Старый номер ремонта не определяет аппарат. Программа не угадывает связи по модели или фамилии. Рабочая база изменится только после последнего подтверждения.');note.setWordWrap(True);l.addWidget(note)
         self.path=QLineEdit();self.path.setAccessibleName('Файл исторического журнала');l.addWidget(self.path);button(l,'Выбрать XLSX / CSV',self.choose)
         self.sheet=QComboBox();self.sheet.setAccessibleName('Лист Excel');l.addWidget(self.sheet);button(l,'Прочитать список листов',self.inspect)
         self.source_label=QLineEdit();self.source_label.setPlaceholderText('Необязательный постоянный ID источника для сверки обновлённого журнала');l.addWidget(self.source_label)
         self.copy_documents=QCheckBox('Скопировать указанные локальные документы в проект');l.addWidget(self.copy_documents);self.document_root=QLineEdit();self.document_root.setReadOnly(True);l.addWidget(self.document_root);button(l,'Разрешённая папка исходных документов',self.choose_root)
-        l=self.page(1).layout();self.count=QLabel();l.addWidget(self.count);self.preview=Grid([]);l.addWidget(self.preview,1)
+        l=self._layouts[1];self.count=QLabel();l.addWidget(self.count);self.preview=Grid([]);l.addWidget(self.preview,1)
         scroll=QScrollArea();scroll.setWidgetResizable(True);body=QWidget();self.mapping_form=QFormLayout(body);scroll.setWidget(body);l.addWidget(scroll,2)
         self.default_status=QComboBox();self.default_status.addItem('Выберите статус пустых значений',None)
         for k,v in STATUSES.items():self.default_status.addItem(v[0],k)
         self.mapping_form.addRow('Пустой производственный статус',self.default_status)
-        l=self.page(2).layout();note=QLabel('Выберите строку и задайте решения. Для нового аппарата с разными заказчиками отдельно выберите текущего владельца. Одноимённых клиентов проверяйте вручную.');note.setWordWrap(True);l.addWidget(note)
+        l=self._layouts[2];note=QLabel('Выберите строку и задайте решения. Для нового аппарата с разными заказчиками отдельно выберите текущего владельца. Одноимённых клиентов проверяйте вручную.');note.setWordWrap(True);l.addWidget(note)
         self.identity=Grid([('number','Ремонт'),('equipment','Постоянный №'),('model','Модель'),('client','Исторический клиент'),('equipment_decision','Решение по аппарату'),('client_decision','Решение по клиенту'),('status','Результат'),('issues','Проблемы / предупреждения')]);l.addWidget(self.identity)
-        bar=QHBoxLayout();l.addLayout(bar);button(bar,'Связать / создать / отложить выбранную строку',self.decide);button(bar,'Подтвердить создание новых записей',self.confirm_new);button(bar,'Проверить повторно',self.refresh_plan)
+        bar=FlowLayout();l.addLayout(bar);button(bar,'Связать / создать / отложить выбранную строку',self.decide);button(bar,'Подтвердить создание новых записей',self.confirm_new);button(bar,'Проверить повторно',self.refresh_plan)
         self.identity.doubleClicked.connect(self.decide)
-        self.status_container=QWidget();self.status_form=QFormLayout(self.status_container);l.addWidget(self.status_container)
-        l=self.page(3).layout();self.selection=QTableWidget(0,4);self.selection.setHorizontalHeaderLabels(['Выбрать','Ремонт / строки','Результат','Проблемы и предупреждения']);self.selection.horizontalHeader().setStretchLastSection(True);l.addWidget(self.selection)
+        self.status_container=QWidget();self.status_form=QFormLayout(self.status_container);self.status_scroll=QScrollArea();self.status_scroll.setWidgetResizable(True);self.status_scroll.setMaximumHeight(160);self.status_scroll.setWidget(self.status_container);l.addWidget(self.status_scroll)
+        l=self._layouts[3];self.selection=QTableWidget(0,4);self.selection.setHorizontalHeaderLabels(['Выбрать','Ремонт / строки','Результат','Проблемы и предупреждения']);self.selection.horizontalHeader().setStretchLastSection(True);l.addWidget(self.selection)
         self.confirmed=QCheckBox('Я проверил аппарат, заказчика, даты, статусы, позиции и суммы.\nПрименить выбранные ремонты одной транзакцией; остальные строки отложить.');l.addWidget(self.confirmed)
-        l=self.page(4).layout();self.report=QPlainTextEdit();self.report.setReadOnly(True);l.addWidget(self.report);button(l,'Сохранить отчёт JSON',self.save_report)
+        l=self._layouts[4];self.report=QPlainTextEdit();self.report.setReadOnly(True);l.addWidget(self.report);button(l,'Сохранить отчёт JSON',self.save_report)
         for label in self.findChildren(QLabel):label.setTextFormat(Qt.TextFormat.PlainText)
     def choose(self):
         p,_=QFileDialog.getOpenFileName(self,'Исторический журнал','','Таблицы (*.xlsx *.csv)')
@@ -112,7 +116,7 @@ class HistoryWizard(QWizard):
             item=QTableWidgetItem();item.setData(Qt.ItemDataRole.UserRole,g['key']);item.setFlags(Qt.ItemFlag.ItemIsEnabled|Qt.ItemFlag.ItemIsUserCheckable);item.setCheckState(Qt.CheckState.Checked if g['status'] in ('ready','already_imported') else Qt.CheckState.Unchecked)
             if g['status'] not in ('ready','already_imported'):item.setFlags(Qt.ItemFlag.NoItemFlags)
             self.selection.setItem(i,0,item)
-            for j,value in enumerate([g['data'].get('repair_number','')+' / '+','.join(str(r['row']) for r in g['rows']),g['status'],'; '.join(g['errors']+g['warnings'])],1):
+            for j,value in enumerate([g['data'].get('repair_number','')+' / '+','.join(str(r['row']) for r in g['rows']),IMPORT_STATES.get(g['status'],g['status']),'; '.join(g['errors']+g['warnings'])],1):
                 cell=QTableWidgetItem(value);cell.setFlags(Qt.ItemFlag.ItemIsEnabled|Qt.ItemFlag.ItemIsSelectable);self.selection.setItem(i,j,cell)
         self.ready_page=2;self.next()
     def validateCurrentPage(self):
@@ -130,13 +134,19 @@ class HistoryWizard(QWizard):
             keys=[self.selection.item(i,0).data(Qt.ItemDataRole.UserRole) for i in range(self.selection.rowCount()) if self.selection.item(i,0).checkState()==Qt.CheckState.Checked]
             if not self.confirmed.isChecked() or not keys:QMessageBox.information(self,'Импорт','Выберите проверенные строки и подтвердите изменения');return False
             plan=self.plan
-            def applied(report):self.result_report=report;self.report.setPlainText(json.dumps(report,ensure_ascii=False,indent=2));self.applied=True;self.next();self.button(QWizard.WizardButton.BackButton).setEnabled(False)
+            def applied(report):
+                self.result_report=report
+                lines=['Импорт завершён. Изменения выбранных ремонтов сохранены одной транзакцией.',f"Импортировано: {report['imported']} · Уже было: {report['already_imported']} · Отложено: {report['deferred']}",'']
+                for row in report['rows'][:200]:
+                    lines.append('Исходные строки '+', '.join(str(x['row']) for x in row['rows'])+': '+{'imported':'импортировано','already_imported':'уже импортировано','deferred':'отложено'}[row['result']]);lines.extend(row.get('warnings',[])+row.get('issues',[]))
+                if len(report['rows'])>200:lines.append('Остальные записи доступны в полном отчёте JSON.')
+                self.report.setPlainText('\n'.join(lines));self.applied=True;self.next();self.button(QWizard.WizardButton.BackButton).setEnabled(False)
             self.workspace.run(lambda:import_history(self.store,plan,confirmed=True,selected_keys=keys),applied,'Атомарно импортирую выбранные ремонты…');return False
         return True
     def save_report(self):
         path,_=QFileDialog.getSaveFileName(self,'Новый отчёт JSON','history-import-report.json','JSON (*.json)')
         if path:
-            content=self.report.toPlainText()
+            content=json.dumps(self.result_report,ensure_ascii=False,indent=2)
             def save():
                 with Path(path).open('x',encoding='utf-8') as f:f.write(content+'\n')
             self.workspace.run(save)

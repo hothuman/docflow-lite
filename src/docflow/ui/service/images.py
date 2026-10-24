@@ -1,11 +1,13 @@
 """Per-document image selection, order, stage groups and captions."""
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QTableWidget,QTableWidgetItem,QMessageBox
+from ..flow import FlowLayout
+from .forms import fit_dialog
 from .widgets import button
 
 class ImagesDialog(QDialog):
     def __init__(self,attachments,parent=None,choices=()):
-        super().__init__(parent);self.setWindowTitle('Изображения именно для этого документа');self.resize(850,500);layout=QVBoxLayout(self)
+        super().__init__(parent);self.setWindowTitle('Изображения именно для этого документа');fit_dialog(self,900,540);layout=QVBoxLayout(self)
         self.rows=[x for x in attachments if x['kind']=='image'];selected={x['id']:x for x in choices}
         order={x['id']:i for i,x in enumerate(choices)};self.rows.sort(key=lambda x:order.get(x['id'],len(order)))
         self.table=QTableWidget(len(self.rows),4);self.table.setHorizontalHeaderLabels(['Включить','Изображение','Подпись','Группа / этап']);self.table.horizontalHeader().setStretchLastSection(True);layout.addWidget(self.table)
@@ -15,7 +17,7 @@ class ImagesDialog(QDialog):
                 cell=QTableWidgetItem(value)
                 if j==1:cell.setFlags(Qt.ItemFlag.ItemIsEnabled|Qt.ItemFlag.ItemIsSelectable)
                 self.table.setItem(i,j,cell)
-        bar=QHBoxLayout();layout.addLayout(bar);button(bar,'Выше',lambda:self.move(-1));button(bar,'Ниже',lambda:self.move(1));button(bar,'Применить',self.accept);button(bar,'Отмена',self.reject)
+        bar=FlowLayout();layout.addLayout(bar);button(bar,'Выше',lambda:self.move(-1));button(bar,'Ниже',lambda:self.move(1));button(bar,'Применить',self.accept);button(bar,'Отмена',self.reject)
     def move(self,direction):
         i=self.table.currentRow();j=i+direction
         if i<0 or not 0<=j<len(self.rows):return
