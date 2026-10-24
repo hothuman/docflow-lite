@@ -5,7 +5,7 @@
 | CP | Статус и доказательство |
 |---|---|
 | CP1 Synchronize + Audit | DONE: HEAD/PR сверены; чистая отдельная копия существующей ветки, без перезаписи прежних файлов. Локально 216 passed +16 subtests, 32,26 с; `pytest tests site/tests --junitxml=...`. Три настоящих Qt-снимка до изменений, обзор и карточка просмотрены. Матрица — `20_REFINEMENT_AUDIT.md`. |
-| CP2 Core | NOT DONE |
+| CP2 Core | DONE: `test_engine`, `test_gui`, `test_modernization`, `test_refinement_core`, `test_windows_compat`: 106 passed, 10,71 с. Кнопка сохранения профиля использует worker; синхронный API сохранён. Новый неудачный запуск не показывает прежний успех. Реальные XLSX/CSV по одной записи → 2 DOCX, heartbeat при записи профиля. |
 | CP3 Service | NOT DONE |
 | CP4 Reliability | NOT DONE |
 | CP5 UI/UX | NOT DONE |

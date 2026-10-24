@@ -195,7 +195,7 @@ class MainWindow(QMainWindow):
         self.mapping_table.horizontalHeader().setMinimumSectionSize(100);self.mapping_table.verticalHeader().hide();body.addWidget(self.mapping_table,1)
         self.mapping_feedback=text('Сначала загрузите файлы','muted');body.addWidget(self.mapping_feedback)
         row=QHBoxLayout();self.open_profile_btn=self.button('Открыть JSON-профиль',self.open_profile,'folder')
-        self.save_profile_btn=self.button('Сохранить JSON-профиль',self.save_profile)
+        self.save_profile_btn=self.button('Сохранить JSON-профиль',lambda:self.save_profile(background=True))
         row.addWidget(self.open_profile_btn);row.addWidget(self.save_profile_btn);body.addLayout(row)
         formatbox,settings=card('Чтение таблицы','CSV: auto определяет UTF-8 или Windows-1251. Для XLSX можно указать имя листа; пустое поле означает активный лист.')
         layout.addWidget(formatbox)
@@ -498,13 +498,17 @@ class MainWindow(QMainWindow):
         path,_=QFileDialog.getOpenFileName(self,'Открыть настройки','','Настройки (*.json)')
         if path:self._task(lambda:prepare(Profile.load(path)),self._install_prepared,'Читаю JSON-профиль и файлы…')
 
-    def save_profile(self):
+    def save_profile(self,background=False):
         if self._busy:return
         try:
             profile=self.snapshot().profile
             path,_=QFileDialog.getSaveFileName(self,'Сохранить настройки','docflow-profile.json','Настройки (*.json)')
             if path:
-                profile.save(path);self.status.setText('JSON-профиль сохранён')
+                if background:
+                    self._task(lambda:profile.save(path),lambda _:self.status.setText('JSON-профиль сохранён'),'Сохраняю JSON-профиль…')
+                else:
+                    # Keep the synchronous automation API; interactive buttons use a worker.
+                    profile.save(path);self.status.setText('JSON-профиль сохранён')
         except (DocFlowError,OSError) as exc:self.error(exc)
 
     def select_output(self):
@@ -517,6 +521,11 @@ class MainWindow(QMainWindow):
         try:
             prepared=self.snapshot()
             if not self.output_path.text().strip():raise DocFlowError('Выберите папку результата')
+            self.last_result=None
+            for control in (self.folder_btn,self.result_open_btn,self.report_btn):control.setEnabled(False)
+            self.result_summary.setText('Новый запуск: документы ещё не созданы')
+            self.result_path.setText('Предыдущие файлы остаются в своих папках. Здесь появится результат нового запуска.')
+            self.result_report.clear()
             self.set_busy(True);self.progress.setValue(0);self.progress_label.setText('Подготовка пакета…')
             self.status.setText('Создаю документы из загруженного снимка данных…')
             if self.worker:self.worker.deleteLater()

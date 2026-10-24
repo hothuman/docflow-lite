@@ -4,7 +4,7 @@
 
 | Функция | Исходное состояние / доказательство | Дефект или граница | Исправление / регрессия |
 |---|---|---|---|
-| Core | DONE базовые регрессии, `test_engine`, `test_modernization`, реальная генерация | PARTIAL: `save_profile` пишет файл в GUI-потоке; generic exception без диагностики; открытие папок без проверки результата | CP2 |
+| Core | DONE базовые регрессии, `test_engine`, `test_modernization`, реальная генерация | PARTIAL: `save_profile` пишет файл в GUI-потоке; generic exception без диагностики; открытие папок без проверки результата | DONE CP2: worker кнопки сохранения, current-run truthfulness; 4 новых GUI-регрессии, весь Core 106 passed |
 | Импорт истории | DONE базовый мастер, XLSX/CSV, explicit identity, reimport | Проверить отрицательные данные и row report; заказчик BLOCKED | CP3 |
 | Сметы | DONE backend, immutable snapshots, ручные события | PARTIAL UX: нет суммы строки/итога в редакторе, слабо отделены черновик/версии; ручной 0/7500/9670/2170 ещё не регрессия | CP3/CP5 |
 | SQLite, backup | DONE миграции/rollback/FK/disk-full/CRC в существующих тестах | Проверить повреждённый манифест, конкурентное изменение, ссылки/повтор открытия; не заявлять шифрование | CP4 |
