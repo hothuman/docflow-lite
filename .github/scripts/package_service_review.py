@@ -212,10 +212,12 @@ def main():
         )
         if (INPUT/'local').is_dir():shutil.copytree(INPUT/'local',qa/'local')
         if (INPUT/'document-examples').is_dir():archive(INPUT/'document-examples',OUT/'DocFlow-Lite-Document-Examples.zip')
+        if (INPUT/'screenshots').is_dir():archive(INPUT/'screenshots',OUT/'DocFlow-Lite-Review-Screenshots.zip')
         shutil.copy2(INPUT/'ci-provenance.json',qa/'ci-provenance.json')
         archive(qa, OUT / "DocFlow-Lite-Service-QA-and-Docs.zip")
         print("HANDOFF_PROOF " + json.dumps(proof, ensure_ascii=False))
     shutil.copy2(ROOT / "docs/service/25_REFINEMENT_HANDOFF.md", OUT / "DocFlow-Lite-Service-Report-2026-10-24.md")
+    shutil.copy2(ROOT / "docs/service/26_MANUAL_ACCEPTANCE.md", OUT / "DocFlow-Lite-Manual-Acceptance.md")
     for p in OUT.glob("*.zip"):
         with zipfile.ZipFile(p) as z:
             assert z.testzip() is None

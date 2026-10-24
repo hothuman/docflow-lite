@@ -1,6 +1,6 @@
 # DocFlow Lite — Core и Service alpha
 
-В этой рабочей ветке подготовлена **0.3.0a3 Core + Service**: генератор документов и локальный журнал ремонтов с историческим импортом, версиями смет, профилями и восемью формами DOCX. Это alpha для ручной приёмки; публичный Release v0.1.1 не заменён. [Текущие CP1–CP10](docs/service/19_REFINEMENT_CHECKPOINTS.md) · [UI/UX](docs/service/21_UI_UX_REFINEMENT.md). Отчёт a2 в `17_COMPLETION_REPORT.md` является историческим; новые CI и Portable отмечаются отдельно.
+В этой рабочей ветке подготовлена **0.3.0a3 Core + Service**: генератор документов и локальный журнал ремонтов с историческим импортом, версиями смет, профилями и восемью формами DOCX. Это alpha для ручной приёмки; публичный Release v0.1.1 не заменён. [Итоговая передача a3](docs/service/25_REFINEMENT_HANDOFF.md) · [Ручная приёмка](docs/service/26_MANUAL_ACCEPTANCE.md) · [Текущие CP1–CP10](docs/service/19_REFINEMENT_CHECKPOINTS.md) · [UI/UX](docs/service/21_UI_UX_REFINEMENT.md). Отчёт a2 в `17_COMPLETION_REPORT.md` является историческим; новые CI и Portable отмечаются отдельно.
 
 Основной сайт (Cloudflare Pages): https://docflow-lite.pages.dev/ . Демо-ZIP и видео доступны и проверены по SHA256. GitHub: https://github.com/hothuman/docflow-lite . Инфраструктура публикации описана в `docs/LAUNCH.md`.
 
