@@ -10,8 +10,8 @@
 | CP4 Reliability | DONE: 54 passed, 12,00 с. Экспорт exclusive/bounded/SHA, очистка недописанной копии; restore atomic no-replace (Windows rename, Linux renameat2). Негативные проверки malformed/изменённого архива, конкурентной новой папки и disk-full; прежние миграции/FK/commit-failure зелёные. |
 | CP5 UI/UX | DONE локальная реализация: общая тема, Dashboard, таблицы, три группы ремонта, сметы, даты, состояния сохранения и ошибки. 22 Service GUI +29 Core GUI passed; 450 Service/150 Core virtual layout cases, контрольные типы окон просмотрены; после финальных правок 90 Service cases повторены. Отчёт `21_UI_UX_REFINEMENT.md`; Windows/Website gates остаются CP7–9. |
 | CP6 DOCX | DONE локально: 23 DOCX /58 страниц отрендерены и все страницы просмотрены; обе сметы, гарантийный прототип, сложный альбомный шаблон, 103 позиции. Caption/PDF geometry regression passed; 5 DOCX +15 history/UI tests passed. Нагрузка 100/1000 аппаратов, 624/6024 ремонтов; найден и исправлен лишний sort при открытии/порядок истории. `22_DOCX_PERFORMANCE.md`. Word NOT VERIFIED. |
-| CP7 Website | NOT DONE |
-| CP8 CI | NOT DONE |
+| CP7 Website | DONE подготовка: Service a3 и два настоящих Qt-снимка, Core v0.1.1 и цены сохранены. 20 offline tests passed; production-сайт 49 реальных HTTPS/headers/404/PDF/demo SHA проверок passed, production не изменён. Новая браузерная приёмка CP8. |
+| CP8 CI | IN PROGRESS: локально 244 passed +16 subtests, 43,92 с, без skip. В native verifier обязательны 3 новых сценария и 90 layout cases; Linux CI проверяет 450 Service +150 Core cases. Новый source Service self-test 9+5+3 passed. Реальные GitHub runs ещё не завершены. |
 | CP9 Portable | NOT DONE |
 | CP10 Handoff | NOT DONE |
 

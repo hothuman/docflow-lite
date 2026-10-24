@@ -130,6 +130,11 @@ def verify(archive,evidence,release):
         assert service['frozen'] and service['qt_platform']=='windows'
         assert service['completion']['status']=='passed'
         assert len(service['completion']['checks'])==5 and all(c['passed'] for c in service['completion']['checks'])
+        assert service['refinement']['status']=='passed'
+        assert len(service['refinement']['checks'])==3 and all(c['passed'] for c in service['refinement']['checks'])
+        layout=service['refinement']['layout']
+        assert layout['status']=='passed' and len(layout['cases'])==90
+        assert all(not case['failures'] for case in layout['cases'])
         result['service']=service
     result['status']='passed'
     result['limits']=['Automated native Windows runner, not manual Windows 10/11 acceptance',

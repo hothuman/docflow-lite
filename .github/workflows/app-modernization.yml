@@ -1,4 +1,4 @@
-name: DocFlow application RC
+name: DocFlow application review
 
 on:
   pull_request:
@@ -34,10 +34,11 @@ jobs:
           python -m pip install -e ".[gui,dev]"
       - name: Engine, GUI, security and existing website regressions
         run: python -m pytest -q tests site/tests --junitxml=artifacts/linux-tests.xml
-      - name: Virtual layouts at all six sizes and five scale factors
+      - name: Core and Service virtual layouts at all five scale factors
         run: |
           for scale in 1 1.25 1.5 1.75 2; do
             QT_SCALE_FACTOR=$scale python tools/qa_layout.py --output artifacts/layout-$scale
+            QT_SCALE_FACTOR=$scale python tools/qa_refinement_ui.py --output artifacts/service-layout-$scale
           done
       - name: Synthetic Service scale probes
         run: python tools/qa_service_performance.py --output artifacts/service-performance
