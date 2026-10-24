@@ -114,7 +114,7 @@ class WebsiteV2Tests(unittest.TestCase):
             self.assertNotIn(call,script)
     def test_service_review_is_current_and_not_an_unpublished_download(self):
         html=(SITE/'dist/service.html').read_text()
-        self.assertIn('0.3.0a3',html)
+        self.assertIn('0.3.0a4',html)
         self.assertNotIn('0.3.0a2',html)
         for name in ('service.png','service-repair.png'):
             self.assertIn('assets/'+name,html)

@@ -120,3 +120,28 @@ def test_history_wizard_footer_uses_shared_dark_theme(ui):
  capture=d.grab();ratio=capture.devicePixelRatio();color=capture.toImage().pixelColor(round(8*ratio),round((d.height()-8)*ratio))
  assert max(color.red(),color.green(),color.blue())<70,color.name()
  d.reject();sui.dialogs.remove(d)
+
+
+def test_context_navigation_preserves_core_and_service_state(ui):
+ app,w,sui,ids,_=ui
+ assert w.mode_picker.currentIndex()==1 and all(b.isHidden() for b in w.nav_buttons)
+ assert not sui.tabs.tabBar().isVisible() and not sui.section_picker.isVisible()
+ for i,b in enumerate(w.service_nav):
+  b.click();app.processEvents();assert sui.tabs.currentIndex()==i and b.isChecked()
+ assert 'Настройки' in w.title.text()
+ w.mode_picker.setCurrentIndex(0);w.load_demo()
+ from docflow.release_check import wait_idle
+ wait_idle(w);table=w.table
+ w.mode_picker.setCurrentIndex(1);app.processEvents();assert w.service_workspace is sui and sui.tabs.currentIndex()==7
+ w.mode_picker.setCurrentIndex(0);assert w.table is table
+
+
+def test_preferences_failure_keeps_session_width_and_explains(ui,monkeypatch):
+ from docflow.ui.service import widgets
+ app,*_=ui
+ monkeypatch.setattr(widgets,'save_widths',lambda *args:False)
+ grid=Grid([('name','Название'),('total','Стоимость')],settings_key='failure-case')
+ grid.resize(800,300);grid.show();app.processEvents();grid.horizontalHeader().resizeSection(1,180)
+ assert grid._user_widths[1]==180 and grid.preferences_saved is False
+ assert 'Не удалось сохранить' in grid.horizontalHeader().toolTip()
+ grid.close()

@@ -61,7 +61,7 @@ class GenerationWorker(QThread):
 
 
 class MainWindow(QMainWindow):
-    PAGE_NAMES=('Создание документов','Управление шаблонами','Поля и проверки','Результат работы','О программе','DocFlow Lite Service')
+    PAGE_NAMES=('Создание документов','Управление шаблонами','Поля и проверки','Результат работы','О программе','Обзор мастерской')
     NAV_NAMES=('Создать DOCX','Шаблоны','Поля и проверки','Результат','О программе','Service · Ремонты')
 
     def __init__(self,service_root=None):
@@ -80,17 +80,26 @@ class MainWindow(QMainWindow):
         apply_theme()
         root=QWidget();root.setObjectName('root');self.setCentralWidget(root)
         outer=QHBoxLayout(root);outer.setContentsMargins(0,0,0,0);outer.setSpacing(0)
-        self.rail=QFrame();self.rail.setObjectName('rail');self.rail.setFixedWidth(202)
+        self.rail=QFrame();self.rail.setObjectName('rail');self.rail.setFixedWidth(224)
         nav=QVBoxLayout(self.rail);nav.setContentsMargins(14,22,14,18);nav.setSpacing(8)
-        self.brand=text('DocFlow Lite','brand');nav.addWidget(self.brand)
+        self.brand=text('DocFlow','brand');nav.addWidget(self.brand)
         self.version_label=text(f'v{__version__} · alpha','version');nav.addWidget(self.version_label)
-        nav.addSpacing(20);self.nav_buttons=[]
+        self.mode_picker=QComboBox();self.mode_picker.addItems(['Core · Документы','Service · Мастерская'])
+        self.mode_picker.setAccessibleName('Направление DocFlow');nav.addWidget(self.mode_picker)
+        self.mode_picker.currentIndexChanged.connect(lambda i:self.navigate(5 if i else getattr(self,'_last_core_page',0)))
+        self.nav_caption=text('ДОКУМЕНТЫ','eyebrow');nav.addWidget(self.nav_caption)
+        nav.addSpacing(8);self.nav_buttons=[]
         for index,kind in enumerate(('document','templates','fields','check','info','templates')):
             button=QPushButton(self.NAV_NAMES[index]);button.setObjectName('nav')
             button.setCheckable(True);button.setIcon(icon(kind));button.setIconSize(QSize(21,21))
             button.setToolTip(self.NAV_NAMES[index]);button.setAccessibleName(self.NAV_NAMES[index])
             button.clicked.connect(lambda checked=False,i=index:self.navigate(i))
             nav.addWidget(button);self.nav_buttons.append(button)
+        self.service_nav=[]
+        for i,(label,kind) in enumerate(zip(('Обзор','Оборудование','Ремонты','Клиенты','Финансы','Документы','Сметы','Настройки'),('check','templates','fields','info','fields','document','document','folder'))):
+            button=QPushButton(label);button.setObjectName('nav');button.setCheckable(True);button.setIcon(icon(kind));button.setToolTip(label);button.setAccessibleName('Service: '+label)
+            button.clicked.connect(lambda checked=False,index=i:self._navigate_service(index))
+            button.hide();nav.addWidget(button);self.service_nav.append(button)
         nav.addStretch()
         self.local_note=text('Локальная обработка\nБез сети и телеметрии','muted');nav.addWidget(self.local_note)
         outer.addWidget(self.rail)
@@ -228,9 +237,16 @@ class MainWindow(QMainWindow):
     def navigate(self,index):
         if index==5 and self.service_workspace is None:
             from .service.workspace import ServiceWorkspace
-            self.service_workspace=ServiceWorkspace(self,self._service_root)
+            self.service_workspace=ServiceWorkspace(self,self._service_root,shell_navigation=True)
+            self.service_workspace.tabs.currentChanged.connect(self._service_section_changed)
             old=self.pages.widget(5);self.pages.removeWidget(old);old.deleteLater();self.pages.addWidget(self.service_workspace)
         self.pages.setCurrentIndex(index);self.title.setText(self.PAGE_NAMES[index])
+        if index!=5:self._last_core_page=index
+        self.mode_picker.blockSignals(True);self.mode_picker.setCurrentIndex(1 if index==5 else 0);self.mode_picker.blockSignals(False)
+        self.nav_caption.setText('МАСТЕРСКАЯ' if index==5 else 'ДОКУМЕНТЫ')
+        for i,b in enumerate(self.nav_buttons):b.setVisible(index!=5 and i<5)
+        for b in self.service_nav:b.setVisible(index==5)
+        if index==5:self._service_section_changed(self.service_workspace.tabs.currentIndex())
         self.demo_btn.setVisible(index!=5);self.folder_btn.setVisible(index!=5)
         self.generate_btn.setVisible(index!=5)
         if index==5:
@@ -238,9 +254,22 @@ class MainWindow(QMainWindow):
             self.status.setText('Service · выберите оборудование или зарегистрируйте новое обращение')
         elif hasattr(self,'_core_status'):
             self.status.setText(self._core_status);del self._core_status
-        self.subtitle.setText('Локальный журнал · база SQLite · Service alpha' if index==5 else 'Таблица → ваши шаблоны Word → комплект документов')
+        self.subtitle.setText(self._service_subtitle(self.service_workspace.tabs.currentIndex()) if index==5 else 'Из таблицы — в готовый комплект документов')
         for i,button in enumerate(self.nav_buttons):button.setChecked(i==index)
         self._responsive()
+
+    def _navigate_service(self,index):
+        self.service_workspace.tabs.setCurrentIndex(index)
+        self._service_section_changed(index)
+
+    def _service_subtitle(self,index):
+        return ('Всё, что нужно для работы мастерской','Каждый аппарат и вся история обращений','Текущие обращения и этапы выполнения','Контакты и история работы с заказчиками','Стоимость, учтённые оплаты и остатки','Созданные формы и версии документов','Предварительные и окончательные расчёты','Проект, импорт и сохранность данных')[index]
+
+    def _service_section_changed(self,index):
+        for i,b in enumerate(self.service_nav):b.setChecked(i==index)
+        if self.pages.currentIndex()==5:
+            self.title.setText(('Обзор мастерской','Оборудование','Журнал ремонтов','Клиенты','Финансы','Документы','Сметы','Настройки мастерской')[index])
+            self.subtitle.setText(self._service_subtitle(index))
 
     def resizeEvent(self,event):
         super().resizeEvent(event)
@@ -252,10 +281,16 @@ class MainWindow(QMainWindow):
         if self.service_workspace:self.service_workspace.location.setVisible(self.height()>=600)
         compact=self.width()<1050
         self.rail.layout().setContentsMargins(9 if compact else 14,12 if compact else 22,9 if compact else 14,12 if compact else 18)
-        self.rail.layout().setSpacing(5 if compact else 8)
-        self.brand.setText('DF' if compact else 'DocFlow Lite');self.version_label.setVisible(not compact);self.local_note.setVisible(not compact)
+        self.rail.layout().setSpacing(2 if compact else 8)
+        if self.rail.property('compact')!=compact:
+            self.rail.setProperty('compact',compact)
+            for widget in [self.rail,*self.rail.findChildren(QWidget)]:widget.style().unpolish(widget);widget.style().polish(widget)
+        self.brand.setText('DF' if compact else 'DocFlow');self.version_label.setVisible(not compact);self.local_note.setVisible(not compact)
         for i,button in enumerate(self.nav_buttons):button.setText('' if compact else self.NAV_NAMES[i])
-        self.rail.setFixedWidth(64 if compact else max(202,max(button.sizeHint().width() for button in self.nav_buttons)+28))
+        for i,button in enumerate(self.service_nav):button.setText('' if compact else ('Обзор','Оборудование','Ремонты','Клиенты','Финансы','Документы','Сметы','Настройки')[i])
+        self.nav_caption.setVisible(not compact)
+        self.mode_picker.setItemText(0,'Core' if compact else 'Core · Документы');self.mode_picker.setItemText(1,'Service' if compact else 'Service · Мастерская')
+        self.rail.setFixedWidth(94 if compact else max(224,max(button.sizeHint().width() for button in self.nav_buttons)+28))
         self.demo_btn.setText('Демо' if compact else 'Открыть демопример');self.folder_btn.setText('Папка' if compact else 'Открыть папку')
         width=self.width()-self.rail.width()-48
         mode=3 if width>=1120 else 2 if width>=760 else 1

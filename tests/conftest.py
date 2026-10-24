@@ -17,3 +17,8 @@ def release_closed_qt_windows(qt_application_lifetime):
   if isinstance(widget,(QDialog,QMainWindow)) and not widget.isVisible():
    if not any(thread.isRunning() for thread in widget.findChildren(QThread)):widget.deleteLater()
  QCoreApplication.sendPostedEvents(None,QEvent.Type.DeferredDelete);qt_application_lifetime.processEvents()
+
+@pytest.fixture(autouse=True)
+def isolate_interface_preferences(tmp_path,monkeypatch):
+ """Never write a developer's settings or require registry access for tests."""
+ monkeypatch.setenv('DOCFLOW_SETTINGS_DIR',str(tmp_path/'interface-preferences'))

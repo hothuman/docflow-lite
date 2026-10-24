@@ -75,3 +75,24 @@ QMenu::item:selected {background:@selection@;}
 
 QAbstractItemView::indicator {width:16px;height:16px;border:1px solid #626A79;border-radius:3px;background:@input@;}
 QAbstractItemView::indicator:checked {background:@accent@;border:2px solid #DB6D7E;}
+/* Product refresh a4: quieter surfaces, deliberate spacing and persistent navigation. */
+QFrame#rail {background:#12151C;border-right:1px solid #282E3A;}
+QLabel#brand {font-size:25px;font-weight:700;letter-spacing:0px;}
+QLabel#version {font-size:11px;}
+QLabel#title {font-size:28px;font-weight:650;}
+QPushButton#nav {padding:9px 10px;min-height:19px;border-radius:8px;}
+QPushButton#nav:checked {background:#3A202C;border-color:#733447;color:#FFFFFF;}
+QFrame#card {border-radius:12px;background:#161B24;border-color:#2B3341;}
+QFrame#metricCard {background:#171D27;border:1px solid #303A49;border-radius:10px;}
+QLabel#metricValue {font-size:25px;font-weight:650;color:#F5F3F5;}
+QLabel#projectLocation {color:#909BAC;font-size:11px;padding:0 0 4px 0;}
+QTableView {border-radius:8px;gridline-color:#242C38;}
+QHeaderView::section {background:#1D2531;padding:11px 9px;color:#C1CAD8;border-bottom:1px solid #343E4D;}
+QPushButton {border-radius:7px;padding:9px 13px;}
+QTabBar::tab {border-radius:5px;padding:10px 15px;}
+QComboBox,QLineEdit {border-radius:7px;}
+QPushButton:focus,QComboBox:focus,QLineEdit:focus,QTableView:focus,QListWidget:focus {border:1px solid @focus@;}
+
+QFrame#rail[compact="true"] QPushButton#nav {padding:4px 7px;min-height:14px;}
+QFrame#rail[compact="true"] QLabel#brand {font-size:19px;}
+QFrame#rail[compact="true"] QComboBox {padding:5px 3px;font-size:11px;}

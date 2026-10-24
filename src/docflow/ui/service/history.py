@@ -1,6 +1,6 @@
 """Equipment chronology and explicit side-by-side repair comparison."""
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLabel,QLineEdit,QComboBox,QTabWidget,QPlainTextEdit,QAbstractItemView,QMessageBox
+from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLabel,QLineEdit,QComboBox,QTabWidget,QPlainTextEdit,QAbstractItemView,QMessageBox,QScrollArea,QWidget
 from ...service.validation import rub
 from .presentation import date_text,KINDS_DISPLAY
 from ..widgets import text
@@ -11,7 +11,7 @@ from .widgets import Grid,button
 class HistoryDialog(QDialog):
     def __init__(self,workspace,equipment):
         super().__init__(workspace);self.workspace=workspace;self.equipment=equipment;self.setWindowTitle('История оборудования '+equipment['number']);fit_dialog(self,1050,650)
-        layout=QVBoxLayout(self);self.identity=text(equipment['number']+' · '+equipment['model']+'\nСерийный №: '+(equipment['serial'] or '—')+' · Текущий владелец: '+equipment['owner']);layout.addWidget(self.identity)
+        outer=QVBoxLayout(self);scroll=QScrollArea();scroll.setWidgetResizable(True);body=QWidget();scroll.setWidget(body);outer.addWidget(scroll,1);layout=QVBoxLayout(body);self.identity=text(equipment['number']+' · '+equipment['model']+'\nСерийный №: '+(equipment['serial'] or '—')+' · Текущий владелец: '+equipment['owner']);layout.addWidget(self.identity)
         bar=FlowLayout();layout.addLayout(bar);self.search=QLineEdit();self.search.setPlaceholderText('Жалоба, дефект, производитель, работа или деталь');bar.addWidget(self.search)
         self.since=DateField();self.since.setPlaceholderText('С даты ДД.ММ.ГГГГ');bar.addWidget(self.since);self.until=DateField();self.until.setPlaceholderText('По дату ДД.ММ.ГГГГ');bar.addWidget(self.until)
         self.order=QComboBox();self.order.addItem('От старых к новым',True);self.order.addItem('От новых к старым',False);bar.addWidget(self.order);button(bar,'Применить даты',self.refresh)
@@ -19,7 +19,7 @@ class HistoryDialog(QDialog):
         self.detail=QPlainTextEdit();self.detail.setReadOnly(True);self.detail.setMaximumHeight(160);self.detail.setPlaceholderText('Выберите ремонт: здесь появятся жалоба, дефектовка и выполненные позиции.');layout.addWidget(self.detail)
         self.grid.selectionModel().currentRowChanged.connect(self.selected_detail);self.grid.openRequested.connect(self.open)
         self.search.textChanged.connect(self.grid.proxy.setFilterFixedString);self.order.currentIndexChanged.connect(self.refresh)
-        bar=FlowLayout();layout.addLayout(bar);button(bar,'Открыть ремонт и материалы',self.open);button(bar,'Сравнить выбранные ремонты (2–6)',self.compare);button(bar,'Новое обращение',self.new);button(bar,'Закрыть',self.accept);self.refresh()
+        bar=FlowLayout();outer.addLayout(bar);button(bar,'Открыть ремонт и материалы',self.open);button(bar,'Сравнить выбранные ремонты (2–6)',self.compare);button(bar,'Новое обращение',self.new);button(bar,'Закрыть',self.accept);self.refresh()
     def selected_detail(self,*args):
         row=self.grid.selected()
         if row:self.detail.setPlainText('Приёмка: '+date_text(row['received_at'])+'\nЖалоба: '+row['complaint']+'\nДефекты: '+row['defects']+'\nРаботы и материалы: '+row['item_text']+'\nОткройте ремонт для прежних DOCX, фото и подробностей.')

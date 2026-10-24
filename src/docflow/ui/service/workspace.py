@@ -25,10 +25,10 @@ class Job(QThread):
         finally:self.function=None
 
 class ServiceWorkspace(QWidget):
-    def __init__(self,parent=None,root=None):
-        super().__init__(parent);self.store=None;self.worker=None;self.project_lock=None;self.cache={};self._pending_refresh=False;self.dialogs=[]
+    def __init__(self,parent=None,root=None,shell_navigation=False):
+        super().__init__(parent);self.shell_navigation=shell_navigation;self.store=None;self.worker=None;self.project_lock=None;self.cache={};self._pending_refresh=False;self.dialogs=[]
         out=QVBoxLayout(self);out.setContentsMargins(0,0,0,0)
-        self.location=QLabel('Service · один локальный пользователь · подготовительная версия');self.location.setWordWrap(True);out.addWidget(self.location)
+        self.location=QLabel('Открываю проект…');self.location.setObjectName('projectLocation');self.location.setWordWrap(True);out.addWidget(self.location)
         self.section_picker=QComboBox();self.section_picker.setAccessibleName('Раздел Service');out.addWidget(self.section_picker)
         self.tabs=QTabWidget();self.tabs.setUsesScrollButtons(False);out.addWidget(self.tabs,1)
         self.section_picker.currentIndexChanged.connect(self.tabs.setCurrentIndex);self.tabs.currentChanged.connect(self.section_picker.setCurrentIndex)
@@ -44,7 +44,7 @@ class ServiceWorkspace(QWidget):
         'documents':('Документы',[('number','Ремонт №'),('kind','Тип'),('version','Версия'),('created_at','Создано'),('path','Файл')]),
         'estimates':('Сметы',[('number','Ремонт №'),('client','Клиент'),('kind','Смета'),('version','Версия'),('state','Ручная отметка'),('total','Итог')])}
         for key,(name,cols) in definitions.items():
-            page=QWidget();layout=QVBoxLayout(page);bar=ActionBar();layout.addWidget(bar);self.toolbars[key]=bar
+            page=QWidget();layout=QVBoxLayout(page);layout.setContentsMargins(0,8,0,0);layout.setSpacing(12);bar=ActionBar();layout.addWidget(bar);self.toolbars[key]=bar
             search=QLineEdit();search.setPlaceholderText('Поиск по всем столбцам');search.setAccessibleName('Поиск '+name);layout.addWidget(search)
             self.searches[key]=search
             empty=QLabel({'equipment':'Пока нет оборудования. Добавьте первый аппарат или импортируйте журнал.','repairs':'Ремонтов пока нет. Создайте первое обращение.','clients':'Клиентов пока нет. Добавьте первого клиента.','finance':'Финансовых записей пока нет. Откройте ремонт для учёта расчётов.','documents':'Документы ещё не создавались.','estimates':'Нет сохранённых смет. Откройте ремонт и подготовьте расчёт.'}[key]);empty.setObjectName('empty');empty.setWordWrap(True);layout.addWidget(empty);self.empty_labels[key]=empty
@@ -67,16 +67,27 @@ class ServiceWorkspace(QWidget):
         self.views['equipment'].openRequested.connect(self.equipment_card)
         for key in ('repairs','finance','estimates'):self.views[key].openRequested.connect(lambda k=key:self.open_selected(k))
         self.views['documents'].openRequested.connect(lambda:self.open_file(True))
-        settings=QWidget();sl=QVBoxLayout(settings);note=QLabel('Рабочая база находится в пользовательском каталоге, отдельно от EXE. Резервные копии не зашифрованы. Восстановление выполняется в новую папку; действующий проект не заменяется.');note.setWordWrap(True);sl.addWidget(note)
-        for label,fn in [('Открыть другой локальный проект',self.choose_project),('Открыть папку проекта',self.open_folder),('Создать отдельное синтетическое демо',self.demo),('Резервная копия',self.backup),('Восстановить в новую папку',self.restore),('Импорт оборудования XLSX / CSV',self.import_equipment),('Исторический импорт XLSX / CSV',self.import_history),('Word → проверочный CSV',self.review_docx),('Профили организаций',self.organization_profiles)]:button(sl,label,fn)
+        from ..widgets import card
+        settings=QWidget();sl=QVBoxLayout(settings);sl.setContentsMargins(0,8,0,0);sl.setSpacing(16)
+        groups=[('Рабочий проект','Данные хранятся отдельно от программы. Переключение не удаляет текущий проект.',[
+            ('Открыть другой проект',self.choose_project),('Открыть папку проекта',self.open_folder),('Профили организаций',self.organization_profiles)]),
+            ('Импорт и начало работы','Связи оборудования и обращений подтверждаются перед импортом.',[
+            ('Исторический импорт XLSX / CSV',self.import_history),('Импорт оборудования XLSX / CSV',self.import_equipment),('Word → проверочный CSV',self.review_docx),('Создать отдельное демо',self.demo)]),
+            ('Резервное копирование','Копия включает базу и связанные файлы. Восстановление — в новую папку. Архив не зашифрован.',[
+            ('Создать резервную копию',self.backup),('Восстановить в новую папку',self.restore)])]
+        for title,note,actions in groups:
+            frame,body=card(title,note);bar=ActionBar();body.addWidget(bar)
+            for label,fn in actions:button(bar,label,fn)
+            sl.addWidget(frame)
         sl.addStretch();settings_scroll=QScrollArea();settings_scroll.setWidgetResizable(True);settings_scroll.setWidget(settings);self.tabs.addTab(settings_scroll,'Настройки')
         self.section_picker.addItems([self.tabs.tabText(i) for i in range(self.tabs.count())]);self.section_picker.setCurrentIndex(0)
+        if self.shell_navigation:self.tabs.tabBar().hide();self.section_picker.hide()
         self.message=QLabel('');self.message.setWordWrap(True);out.addWidget(self.message)
         for label in self.findChildren(QLabel):label.setTextFormat(Qt.TextFormat.PlainText)
         self.open_project(root or default_root())
     def resizeEvent(self,event):
         super().resizeEvent(event)
-        compact=self.width()<920;self.tabs.tabBar().setVisible(not compact);self.section_picker.setVisible(compact)
+        compact=self.width()<920;self.tabs.tabBar().setVisible(not compact and not self.shell_navigation);self.section_picker.setVisible(compact and not self.shell_navigation)
     def run(self,fn,callback=None,message='Выполняю операцию…',on_error=None):
         if self.worker:return False
         self.tabs.setEnabled(False)
@@ -108,7 +119,7 @@ class ServiceWorkspace(QWidget):
         if not lock.tryLock(0):QMessageBox.warning(self,'Service','Этот проект уже открыт другим экземпляром приложения');return
         def installed(store):
             if self.project_lock:self.project_lock.unlock()
-            self.project_lock=lock;self.store=store;self.location.setText('Локальный проект · '+root.name+' · один пользователь');self.location.setToolTip(str(root));self.refresh()
+            self.project_lock=lock;self.store=store;self.location.setText('Проект: '+root.name);self.location.setToolTip(str(root));self.refresh()
         def open_store():
             try:return ServiceStore(root)
             except Exception:lock.unlock();raise

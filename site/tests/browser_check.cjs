@@ -18,7 +18,7 @@ const widths=[320,360,390,620,768,860,1024,1280];
  });await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const base=`http://127.0.0.1:${server.address().port}`;
  let browser;const results=[];const errors=[];const foreign=[];const writes=[];
  try{
-  browser=await chromium.launch({headless:true,channel:'chromium'});
+  browser=await chromium.launch({headless:true,channel:process.env.DOCFLOW_BROWSER_CHANNEL||'chromium'});
   for(const width of widths){
    const context=await browser.newContext({viewport:{width,height:900},acceptDownloads:true});const page=await context.newPage();
    page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(!r.url().startsWith(base))foreign.push(r.url());if(!['GET','HEAD'].includes(r.method()))writes.push(r.method());});

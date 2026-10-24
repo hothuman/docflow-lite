@@ -1,3 +1,5 @@
+> Исторический срез предыдущей итерации. Текущее состояние и приёмка изменений a4: [единый трекер](27_PRODUCT_TRACKER.md) и [краткое руководство](28_QUICK_START.md). Результаты прошлых сборок не переносятся автоматически на a4.
+
 # CP8: фактические CI, 24.10.2026
 
 Первый новый запуск: https://github.com/hothuman/docflow-lite/actions/runs/40089019878 , исходный HEAD 3c86b51b64eff2abf00195a5bde1c2b4ee5bbaa8. Linux success. Website: https://github.com/hothuman/docflow-lite/actions/runs/40089019867 — success; Chromium 156.0.8078.4, восемь ширин 320–1280, две страницы, FAQ, меню/клавиатура, no-JS, реальное браузерное скачивание demo ZIP с SHA256, ноль внешних запросов/записей/JS errors. Шесть новых browser PNG просмотрены.

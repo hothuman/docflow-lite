@@ -3,6 +3,7 @@ from PySide6.QtCore import Qt,QSortFilterProxyModel,Signal,QSettings
 from PySide6.QtWidgets import QTableView,QPushButton,QMessageBox,QHeaderView,QAbstractItemView
 from .models import RowsModel
 from .presentation import MONEY,display
+from ..settings import load_widths,save_widths
 class Grid(QTableView):
  openRequested=Signal()
  def __init__(self,columns,parent=None,settings_key=None):
@@ -11,13 +12,14 @@ class Grid(QTableView):
   self.verticalHeader().hide();self.verticalHeader().setDefaultSectionSize(38);header=self.horizontalHeader();header.setMinimumSectionSize(48);header.setStretchLastSection(False);header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
   self._sizing=False;self._preferred={};self._user_widths={};self.settings_key=settings_key
   if settings_key:
-   saved=QSettings('DocFlowLite','Interface').value('columns/'+settings_key,{})
-   if isinstance(saved,dict):self._user_widths={int(k):int(v) for k,v in saved.items() if str(k).isdigit() and str(v).isdigit()}
+   self._user_widths=load_widths(settings_key)
   header.sectionResized.connect(self._remember);self.cache_widths();self.fit_columns()
  def _remember(self,index,old,new):
   if self._sizing:return
   self._user_widths[index]=max(48,new)
-  if self.settings_key:QSettings('DocFlowLite','Interface').setValue('columns/'+self.settings_key,{str(k):v for k,v in self._user_widths.items()})
+  if self.settings_key:
+   self.preferences_saved=save_widths(self.settings_key,self._user_widths)
+   if not self.preferences_saved:self.horizontalHeader().setToolTip('Ширина изменена для текущего окна. Не удалось сохранить настройки: проверьте доступ к папке конфигурации.')
  def cache_widths(self):
   fm=self.fontMetrics();self._preferred={};self._minimum={}
   for i,(key,title) in enumerate(self.records.columns):
