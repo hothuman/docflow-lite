@@ -9,7 +9,7 @@ from ...service.repository import ServiceStore,default_root
 from ...service.validation import ServiceError,rub
 from ...service.statuses import STATUSES,APPROVALS
 from ...service.documents import generate_document,KINDS
-from ...service.attachments import add_attachment,attachment_path,remove_attachment
+from ...service.attachments import add_attachment,attachment_path,remove_attachment,export_file
 from ...service.backup import create_backup,restore_backup
 from ...service.demo import seed_demo
 from .widgets import Grid,button,confirm
@@ -183,12 +183,7 @@ class ServiceWorkspace(QWidget):
         path,_=QFileDialog.getSaveFileName(self,'Копия DOCX',Path(row['path']).name,'Word (*.docx)')
         if not path:return
         s=self.store
-        def copy():
-            import shutil
-            source=attachment_path(s,row['id'],True)
-            with source.open('rb') as a,Path(path).open('xb') as b:shutil.copyfileobj(a,b)
-            return path
-        self.run(copy,lambda _:self.message.setText('Копия сохранена: '+path))
+        self.run(lambda:export_file(s,row['id'],path,True),lambda _:self.message.setText('Копия сохранена: '+path))
     def choose_project(self):
         p=QFileDialog.getExistingDirectory(self,'Локальная папка проекта')
         if p:self.open_project(p)

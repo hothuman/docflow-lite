@@ -7,7 +7,7 @@
 | CP1 Synchronize + Audit | DONE: HEAD/PR сверены; чистая отдельная копия существующей ветки, без перезаписи прежних файлов. Локально 216 passed +16 subtests, 32,26 с; `pytest tests site/tests --junitxml=...`. Три настоящих Qt-снимка до изменений, обзор и карточка просмотрены. Матрица — `20_REFINEMENT_AUDIT.md`. |
 | CP2 Core | DONE: `test_engine`, `test_gui`, `test_modernization`, `test_refinement_core`, `test_windows_compat`: 106 passed, 10,71 с. Кнопка сохранения профиля использует worker; синхронный API сохранён. Новый неудачный запуск не показывает прежний успех. Реальные XLSX/CSV по одной записи → 2 DOCX, heartbeat при записи профиля. |
 | CP3 Service | DONE: 91 passed, 22,37 с. Регрессия 0/7500/9670/2170, обе DOCX/CSV, долг/переплата/возврат, повторное открытие. Исправлена идентичность повторной внутренней оплаты: изменённые способ/основание/дата отклоняются без мутации. Мастер истории, профили, сохранённая принадлежность старых ремонтов остаются зелёными. |
-| CP4 Reliability | NOT DONE |
+| CP4 Reliability | DONE: 54 passed, 12,00 с. Экспорт exclusive/bounded/SHA, очистка недописанной копии; restore atomic no-replace (Windows rename, Linux renameat2). Негативные проверки malformed/изменённого архива, конкурентной новой папки и disk-full; прежние миграции/FK/commit-failure зелёные. |
 | CP5 UI/UX | NOT DONE |
 | CP6 DOCX | NOT DONE |
 | CP7 Website | NOT DONE |

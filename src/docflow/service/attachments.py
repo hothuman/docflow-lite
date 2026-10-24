@@ -122,6 +122,21 @@ def attachment_path(store,key,document=False):
     if digest(path)!=item['sha256']:raise ServiceError('Контрольная сумма файла изменилась. Открытие отменено')
     return path
 
+def export_file(store,key,destination,document=False):
+    """Exclusive, bounded export; a failed write leaves no partial user copy."""
+    record=store.get('generated_documents' if document else 'attachments',key)
+    source=attachment_path(store,key,document)
+    destination=Path(destination);created=False
+    try:
+        copy_bounded(source,destination)
+        created=True
+        if digest(destination)!=record['sha256']:
+            raise ServiceError('Файл изменился во время копирования; копия отменена')
+        return destination
+    except Exception:
+        if created:destination.unlink(missing_ok=True)
+        raise
+
 def remove_attachment(store,key):
     with store.lock:
         item=store.get('attachments',key);path=safe_path(store.root,item['path'])

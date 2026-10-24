@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QFormLayout,QLabe
 from ...service.validation import rub
 from ...service.statuses import STATUSES,APPROVALS
 from ...service.documents import KINDS,generate_document
-from ...service.attachments import add_attachment,attachment_path,remove_attachment
+from ...service.attachments import add_attachment,attachment_path,remove_attachment,export_file
 from .forms import FieldsDialog
 from .widgets import Grid,button,confirm
 
@@ -171,11 +171,7 @@ class RepairDialog(QDialog):
         path,_=QFileDialog.getSaveFileName(self,'Копия документа',Path(row['path']).name,'Word (*.docx)')
         if not path:return
         s=self.store
-        def copy():
-            import shutil
-            source=attachment_path(s,row['id'],True)
-            with source.open('rb') as a,Path(path).open('xb') as b:shutil.copyfileobj(a,b)
-        self.workspace.run(copy,lambda _:QMessageBox.information(self,'Документ','Копия сохранена'))
+        self.workspace.run(lambda:export_file(s,row['id'],path,True),lambda _:QMessageBox.information(self,'Документ','Копия сохранена'))
     def reject(self):self.close()
     def closeEvent(self,event):
         if self.workspace.worker:event.ignore();return

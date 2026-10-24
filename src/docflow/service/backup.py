@@ -5,12 +5,33 @@ No encryption or signatures are claimed. Restore only into a new empty folder.
 from pathlib import Path
 from contextlib import closing
 import hashlib, json, os, sqlite3, tempfile, zipfile, shutil
+import sys
 from uuid import uuid4
 from .attachments import safe_path,digest,MAX_ATTACHMENT
 from .database import Database,SCHEMA_VERSION
 from .validation import ServiceError,now
 
 MAX_BACKUP=5*1024**3
+
+def _publish_new_tree(stage,destination):
+    """Atomic directory publication without replacing a concurrently created target.
+
+    Windows rename refuses existing targets. Linux renameat2(NOREPLACE) supplies
+    the same guarantee; ordinary POSIX rename could replace an empty directory.
+    Unsupported platforms fail safely before touching the target.
+    """
+    if os.name=='nt':
+        os.rename(stage,destination)
+    elif sys.platform.startswith('linux'):
+        import ctypes
+        libc=ctypes.CDLL(None,use_errno=True)
+        rename=getattr(libc,'renameat2',None)
+        if rename is None:raise ServiceError('Система не поддерживает безопасное восстановление в новую папку')
+        rename.argtypes=[ctypes.c_int,ctypes.c_char_p,ctypes.c_int,ctypes.c_char_p,ctypes.c_uint]
+        rename.restype=ctypes.c_int
+        if rename(-100,os.fsencode(stage),-100,os.fsencode(destination),1)!=0:
+            code=ctypes.get_errno();raise OSError(code,os.strerror(code),str(destination))
+    else:raise ServiceError('Система не поддерживает безопасное восстановление в новую папку')
 
 def _check_tree(folder):
     db=Database(folder/'service.db')
@@ -99,7 +120,7 @@ def restore_backup(archive,destination):
                     if size!=files[name]['size'] or h.hexdigest()!=files[name]['sha256']:raise ServiceError('Контрольная сумма резервной копии не совпала')
             _check_tree(stage)
             # Materialize only after all files and references have passed.
-            os.rename(stage,destination)
+            _publish_new_tree(stage,destination)
             # TemporaryDirectory may clean a now absent directory; this is supported.
             return destination
         except ServiceError:raise
