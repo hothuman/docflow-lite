@@ -13,7 +13,7 @@
 | CP7 Website | DONE подготовка: Service a3 и два настоящих Qt-снимка, Core v0.1.1 и цены сохранены. 20 offline tests passed; production-сайт 49 реальных HTTPS/headers/404/PDF/demo SHA проверок passed, production не изменён. Новая браузерная приёмка CP8. |
 | CP8 CI | DONE: [application 40089632829](https://github.com/hothuman/docflow-lite/actions/runs/40089632829), [Chromium 40089632847](https://github.com/hothuman/docflow-lite/actions/runs/40089632847), HEAD31a70cd. Windows/Linux по 244 passed +16 subtests, 0 skipped/failed; 91,021 /50,261 с. 450 Service +150 Core virtual cases; Chromium 8 ширин. Первый Windows source run имел 1 failed, сохранён и разобран — см. 24_CI_ACCEPTANCE.md. |
 | CP9 Portable | DONE автоматическая Windows-проверка: a3 реально собран; новый EXE запущен, окно открыто/закрыто дважды, Core24 DOCX, Service17 сценариев и90 native virtual cases. Без Python в PATH/вне checkout, пути с кириллицей/пробелами. ZIP скачан, SHA/CRC проверены; `refinement-native-provenance.json`. Физические Windows10/11 и Word NOT VERIFIED. |
-| CP10 Handoff | NOT DONE |
+| CP10 Handoff | PARTIAL: CI ZIP/Portable/source скачаны и SHA/CRC сверены; утилита передачи требует реальные успешные run IDs, точную версию и runtime-сравнение, а не старые константы a2. Финальная упаковка/сохранение результатов ещё не завершены. |
 
 Предыдущий CI повторно прочитан: application `40039598809`, Chromium `40039598815` — success. Это исходное состояние a2, за новый результат не засчитывается. Владелец сообщил об открытии a2 на Windows и ручном сценарии 0/7500/9670/2170; остальные сценарии не считаются пройденными вручную.
 

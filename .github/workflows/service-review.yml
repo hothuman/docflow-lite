@@ -1,10 +1,16 @@
 name: Service review handoff
 
 on:
-  push:
-    branches: [feature/docflow-lite-service]
-    paths: ['.github/scripts/package_service_review.py', '.github/workflows/service-review.yml', 'docs/service/17_COMPLETION_REPORT.md']
   workflow_dispatch:
+    inputs:
+      application_run:
+        description: Successful application review run ID
+        required: true
+        type: string
+      browser_run:
+        description: Successful Website checks run ID with the same source HEAD
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -18,35 +24,55 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+      - name: Read completed CI provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPLICATION_RUN: ${{ inputs.application_run }}
+          BROWSER_RUN: ${{ inputs.browser_run }}
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.request
+          from pathlib import Path
+          runs={}
+          for key,env in [('application_run','APPLICATION_RUN'),('browser_run','BROWSER_RUN')]:
+              number=int(os.environ[env])
+              request=urllib.request.Request(f'https://api.github.com/repos/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{number}',headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
+              with urllib.request.urlopen(request,timeout=30) as response:run=json.load(response)
+              assert run['status']=='completed' and run['conclusion']=='success'
+              runs[key]={k:run[k] for k in ('id','head_sha','head_branch','status','conclusion','html_url')}
+          assert runs['application_run']['head_sha']==runs['browser_run']['head_sha']
+          Path('.handoff-input').mkdir(exist_ok=True)
+          Path('.handoff-input/ci-provenance.json').write_text(json.dumps(runs,indent=2))
+          PY
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
           name: application-windows-rc-files
           path: .handoff-input/release
-          run-id: 40039598809
+          run-id: ${{ inputs.application_run }}
           github-token: ${{ github.token }}
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
           name: application-windows-qa
           path: .handoff-input/windows
-          run-id: 40039598809
+          run-id: ${{ inputs.application_run }}
           github-token: ${{ github.token }}
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
           name: application-linux-qa
           path: .handoff-input/linux
-          run-id: 40039598809
+          run-id: ${{ inputs.application_run }}
           github-token: ${{ github.token }}
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
           name: website-service-qa
           path: .handoff-input/browser
-          run-id: 40039598815
+          run-id: ${{ inputs.browser_run }}
           github-token: ${{ github.token }}
-      - name: Verify exact runtime source and package synthetic handoff
+      - name: Verify runtime source and package synthetic handoff
         run: python3 .github/scripts/package_service_review.py
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: DocFlow-Lite-Service-Review-0.3.0a2
+          name: DocFlow-Lite-Service-Review
           path: handoff/*
           compression-level: 0
           if-no-files-found: error
