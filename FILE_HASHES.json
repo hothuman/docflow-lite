@@ -50,6 +50,8 @@
   "docs/service/16_COMPLETION_AUDIT.md": "5f7cd9196180c3067e2736a35eaf65f5a96859c921816a9ca021a159432afda6",
   "docs/service/17_COMPLETION_REPORT.md": "2d1970186ce98b43378e5684ed9d38331537f2002ff90db19402f2699b81bb0e",
   "docs/service/18_COMPLETION_USER_GUIDE.md": "c80fa3529a2e247ac315d696363b41c2e7a5e63c654a939ed4e3068f70b9259b",
+  "docs/service/19_REFINEMENT_CHECKPOINTS.md": "8e94128e896eb66d9036856107a2b6e2faad0b605354ffe317114884415ac15d",
+  "docs/service/20_REFINEMENT_AUDIT.md": "355d24197fd0c9bae31c5df82d9e304c225539c6f2a0c3c25b8d1dbb5c3365e0",
   "docs/service/evidence/initial-12-failures.txt": "9c092da5379edf425e4f76688ff99bbdc8e6de5fb908296a1f957890479ffb80",
   "docs/test-results.xml": "fb3e8cdcaa3567dedaa3bd4ccd546107391fa8ffb863c9bc02ae02fce68b3af7",
   "docs/tested-dependencies.txt": "b025ff06652253a5e420eea2936f67e3e518180255f9629fc6e3f55da5113689",
