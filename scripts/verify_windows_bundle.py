@@ -123,6 +123,19 @@ def verify(archive,evidence,release):
                                    'ordinary_start_and_close':ordinary,
                                    'frozen':report['frozen'],'qt_platform':report['qt_platform'],
                                    'checks':report['checks'],'generated_docx':len(docs)})
+        service_output=evidence/'Service с пробелами'
+        service_run=subprocess.run([str(exe),'--service-self-test','--require-windows','--output',str(service_output)],cwd=testroot.parent if testroot.exists() else evidence,env=env,capture_output=True,timeout=180)
+        service=json.loads((service_output/'SERVICE-SELF-TEST.json').read_text(encoding='utf-8'))
+        assert service_run.returncode==0 and service['status']=='passed',service
+        assert service['frozen'] and service['qt_platform']=='windows'
+        assert service['completion']['status']=='passed'
+        assert len(service['completion']['checks'])==5 and all(c['passed'] for c in service['completion']['checks'])
+        assert service['refinement']['status']=='passed'
+        assert len(service['refinement']['checks'])==3 and all(c['passed'] for c in service['refinement']['checks'])
+        layout=service['refinement']['layout']
+        assert layout['status']=='passed' and len(layout['cases'])==90
+        assert all(not case['failures'] for case in layout['cases'])
+        result['service']=service
     result['status']='passed'
     result['limits']=['Automated native Windows runner, not manual Windows 10/11 acceptance',
                       'Native OS file-dialog interaction is not tested; selections supplied by harness',

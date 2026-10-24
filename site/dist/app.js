@@ -27,6 +27,7 @@ const records = document.querySelector('#demo-records');
 const preview = document.querySelector('#demo-preview');
 const status = document.querySelector('#demo-status');
 const selector = document.querySelector('#demo-template');
+if (records && preview && status && selector) {
 let selected = 0;
 function render() {
   if (!rows.length) { status.textContent = 'Демопример недоступен. Скачайте приложение из раздела ниже.'; return; }
@@ -54,3 +55,5 @@ rows.forEach((row, i) => {
 });
 selector.addEventListener('change', render); render();
 
+
+}

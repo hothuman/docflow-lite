@@ -1,0 +1,53 @@
+name: Service review handoff
+
+on:
+  push:
+    branches: [feature/docflow-lite-service]
+    paths: ['.github/scripts/package_service_review.py', '.github/workflows/service-review.yml', 'docs/service/17_COMPLETION_REPORT.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  package-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: application-windows-rc-files
+          path: .handoff-input/release
+          run-id: 40039598809
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: application-windows-qa
+          path: .handoff-input/windows
+          run-id: 40039598809
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: application-linux-qa
+          path: .handoff-input/linux
+          run-id: 40039598809
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: website-service-qa
+          path: .handoff-input/browser
+          run-id: 40039598815
+          github-token: ${{ github.token }}
+      - name: Verify exact runtime source and package synthetic handoff
+        run: python3 .github/scripts/package_service_review.py
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: DocFlow-Lite-Service-Review-0.3.0a2
+          path: handoff/*
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7

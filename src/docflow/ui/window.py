@@ -20,6 +20,7 @@ from ..errors import DocFlowError
 from ..profile import Profile
 from ..templates import Template
 from ..validation import Rule, values_for, validate_mapping
+from .diagnostics import record_exception,friendly_error
 from .widgets import DataModel, DataView, RecordModel, card, icon, text
 
 KINDS = {"Текст":"text", "Число ≥ 0":"number", "Email":"email", "Дата ГГГГ-ММ-ДД":"date"}
@@ -34,8 +35,8 @@ class TaskWorker(QThread):
 
     def run(self):
         try:self.completed.emit(self.function())
-        except (DocFlowError,OSError) as exc:self.failed.emit(str(exc))
-        except Exception:self.failed.emit('Не удалось обработать файл. Исходные файлы не изменены')
+        except (DocFlowError,OSError) as exc:record_exception('Core operation',exc);self.failed.emit(friendly_error(exc))
+        except Exception as exc:record_exception('Core task',exc);self.failed.emit(friendly_error(exc))
         finally:self.function=None
 
 
@@ -55,16 +56,17 @@ class GenerationWorker(QThread):
             if current==total or now-last>=.05:
                 self.advanced.emit(current,total);last=now
         try:self.completed.emit(generate(self.prepared,self.output,progress))
-        except (DocFlowError,OSError) as exc:self.failed.emit(str(exc))
-        except Exception:self.failed.emit('Неожиданная ошибка генерации. Исходные файлы не изменены')
+        except (DocFlowError,OSError) as exc:record_exception('Core operation',exc);self.failed.emit(friendly_error(exc))
+        except Exception as exc:record_exception('Core generation',exc);self.failed.emit(friendly_error(exc))
 
 
 class MainWindow(QMainWindow):
-    PAGE_NAMES=('Создание документов','Управление шаблонами','Поля и проверки','Результат работы','О программе')
-    NAV_NAMES=('Создать DOCX','Шаблоны','Поля и проверки','Результат','О программе')
+    PAGE_NAMES=('Создание документов','Управление шаблонами','Поля и проверки','Результат работы','О программе','DocFlow Lite Service')
+    NAV_NAMES=('Создать DOCX','Шаблоны','Поля и проверки','Результат','О программе','Service · Ремонты')
 
-    def __init__(self):
+    def __init__(self,service_root=None):
         super().__init__()
+        self._service_root=service_root;self.service_workspace=None
         self.setWindowTitle(f'DocFlow Lite {__version__}')
         self.setWindowIcon(icon('document','#A1162C',32))
         self.resize(1400,860);self.setMinimumSize(560,320)
@@ -74,15 +76,16 @@ class MainWindow(QMainWindow):
         self._preview_revision=0;self._pending_preview=None;self._preview_job=None
         self._preview_timer=QTimer(self);self._preview_timer.setSingleShot(True)
         self._preview_timer.timeout.connect(self._start_preview)
-        self.setStyleSheet((Path(__file__).with_name('theme.qss')).read_text(encoding='utf-8'))
+        from .theme import apply_theme
+        apply_theme()
         root=QWidget();root.setObjectName('root');self.setCentralWidget(root)
         outer=QHBoxLayout(root);outer.setContentsMargins(0,0,0,0);outer.setSpacing(0)
         self.rail=QFrame();self.rail.setObjectName('rail');self.rail.setFixedWidth(202)
         nav=QVBoxLayout(self.rail);nav.setContentsMargins(14,22,14,18);nav.setSpacing(8)
         self.brand=text('DocFlow Lite','brand');nav.addWidget(self.brand)
-        self.version_label=text(f'v{__version__} · RC','version');nav.addWidget(self.version_label)
+        self.version_label=text(f'v{__version__} · alpha','version');nav.addWidget(self.version_label)
         nav.addSpacing(20);self.nav_buttons=[]
-        for index,kind in enumerate(('document','templates','fields','check','info')):
+        for index,kind in enumerate(('document','templates','fields','check','info','templates')):
             button=QPushButton(self.NAV_NAMES[index]);button.setObjectName('nav')
             button.setCheckable(True);button.setIcon(icon(kind));button.setIconSize(QSize(21,21))
             button.setToolTip(self.NAV_NAMES[index]);button.setAccessibleName(self.NAV_NAMES[index])
@@ -101,7 +104,7 @@ class MainWindow(QMainWindow):
         self.folder_btn=self.button('Открыть папку',self.open_result,'folder');self.folder_btn.setEnabled(False)
         header.addWidget(self.demo_btn);header.addWidget(self.folder_btn);work.addLayout(header)
         self.pages=QStackedWidget();work.addWidget(self.pages,1)
-        self._build_create();self._build_templates();self._build_mapping();self._build_result();self._build_about()
+        self._build_create();self._build_templates();self._build_mapping();self._build_result();self._build_about();self.pages.addWidget(QWidget())
         self.status=text('Откройте демопример или выберите свои файлы','status');self.status.setAccessibleName('Текущий статус')
         self.footer_layout=QHBoxLayout();self.footer_layout.setSpacing(12);self.footer_layout.addWidget(self.status,1)
         self._pinned_action=None;work.addLayout(self.footer_layout)
@@ -167,7 +170,7 @@ class MainWindow(QMainWindow):
         self.check_btn=self.button('Проверить все записи',self.check_all,'check');options.addWidget(self.check_btn)
         self.progress=QProgressBar();self.progress.setRange(0,100);self.progress.setValue(0);self.progress.setTextVisible(False);options.addWidget(self.progress)
         self.progress_label=text('Генерация ещё не запускалась','muted');options.addWidget(self.progress_label)
-        self.generate_btn=self.button('Сгенерировать документы',self.start_generation,primary=True);options.addWidget(self.generate_btn)
+        self.generate_btn=self.button('Сгенерировать документы',self.start_generation,primary=True);options.addWidget(self.generate_btn);options.addStretch()
         self.ready_card,ready=card('Состояние подготовки')
         self.readiness=text('Нужны таблица и шаблоны','muted');ready.addWidget(self.readiness)
         self.ready_details=text('Откройте встроенный демопример для первого запуска.','muted');ready.addWidget(self.ready_details)
@@ -194,7 +197,7 @@ class MainWindow(QMainWindow):
         self.mapping_table.horizontalHeader().setMinimumSectionSize(100);self.mapping_table.verticalHeader().hide();body.addWidget(self.mapping_table,1)
         self.mapping_feedback=text('Сначала загрузите файлы','muted');body.addWidget(self.mapping_feedback)
         row=QHBoxLayout();self.open_profile_btn=self.button('Открыть JSON-профиль',self.open_profile,'folder')
-        self.save_profile_btn=self.button('Сохранить JSON-профиль',self.save_profile)
+        self.save_profile_btn=self.button('Сохранить JSON-профиль',lambda:self.save_profile(background=True))
         row.addWidget(self.open_profile_btn);row.addWidget(self.save_profile_btn);body.addLayout(row)
         formatbox,settings=card('Чтение таблицы','CSV: auto определяет UTF-8 или Windows-1251. Для XLSX можно указать имя листа; пустое поле означает активный лист.')
         layout.addWidget(formatbox)
@@ -214,23 +217,39 @@ class MainWindow(QMainWindow):
         layout.addStretch()
 
     def _build_about(self):
-        page,layout=self.page();box,body=card('DocFlow Lite',f'Версия {__version__} · Release Candidate')
+        page,layout=self.page();box,body=card('DocFlow Lite',f'Версия {__version__} · Service alpha')
         layout.addWidget(box)
         body.addWidget(text('Локальная генерация Word-документов из XLSX/CSV. Данные и шаблоны не отправляются на сервер.'))
         body.addWidget(text('До 5 000 записей, 100 столбцов и 20 DOCX-шаблонов за запуск. Исходники не перезаписываются.'))
-        body.addWidget(text('Поддерживаются простые переменные {{поле}}. PDF-экспорт, циклы, интеграции и история между запусками не реализованы. Текстовый предпросмотр не заменяет проверку оформления в Word/LibreOffice.','muted'))
-        body.addWidget(text('Release Candidate требует ручной приёмки на Windows 10/11. Старый опубликованный выпуск 0.1.1 остаётся отдельным.','muted'))
+        body.addWidget(text('Поддерживаются простые переменные {{поле}}. В Core нет PDF-экспорта, циклов и истории. Service отдельно ведёт ремонты и поддерживает ограниченное повторение строк. Текстовый предпросмотр не заменяет проверку оформления в Word/LibreOffice.','muted'))
+        body.addWidget(text('Подготовительная alpha требует ручной приёмки на Windows 10/11 и проверки DOCX в Word. Опубликованный выпуск 0.1.1 остаётся отдельным.','muted'))
         layout.addStretch()
 
     def navigate(self,index):
+        if index==5 and self.service_workspace is None:
+            from .service.workspace import ServiceWorkspace
+            self.service_workspace=ServiceWorkspace(self,self._service_root)
+            old=self.pages.widget(5);self.pages.removeWidget(old);old.deleteLater();self.pages.addWidget(self.service_workspace)
         self.pages.setCurrentIndex(index);self.title.setText(self.PAGE_NAMES[index])
+        self.demo_btn.setVisible(index!=5);self.folder_btn.setVisible(index!=5)
+        self.generate_btn.setVisible(index!=5)
+        if index==5:
+            if not hasattr(self,'_core_status'):self._core_status=self.status.text()
+            self.status.setText('Service · выберите оборудование или зарегистрируйте новое обращение')
+        elif hasattr(self,'_core_status'):
+            self.status.setText(self._core_status);del self._core_status
+        self.subtitle.setText('Локальный журнал · база SQLite · Service alpha' if index==5 else 'Таблица → ваши шаблоны Word → комплект документов')
         for i,button in enumerate(self.nav_buttons):button.setChecked(i==index)
+        self._responsive()
 
     def resizeEvent(self,event):
         super().resizeEvent(event)
         if hasattr(self,'create_grid'):self._responsive()
 
     def _responsive(self):
+        service=self.pages.currentIndex()==5
+        self.status.setVisible(not service);self.subtitle.setVisible(not(service and self.height()<600))
+        if self.service_workspace:self.service_workspace.location.setVisible(self.height()>=600)
         compact=self.width()<1050
         self.rail.layout().setContentsMargins(9 if compact else 14,12 if compact else 22,9 if compact else 14,12 if compact else 18)
         self.rail.layout().setSpacing(5 if compact else 8)
@@ -244,7 +263,7 @@ class MainWindow(QMainWindow):
         if hasattr(self,'footer_layout') and self._pinned_action!=pinned:
             self.options_layout.removeWidget(self.generate_btn);self.footer_layout.removeWidget(self.generate_btn)
             (self.footer_layout if pinned else self.options_layout).addWidget(self.generate_btn)
-            self.generate_btn.show();self._pinned_action=pinned
+            self.generate_btn.setVisible(self.pages.currentIndex()!=5);self._pinned_action=pinned
         if getattr(self,'_columns',None)==mode:return
         self._columns=mode
         for item in (self.source_card,self.options_card,self.ready_card):self.create_grid.removeWidget(item)
@@ -485,13 +504,17 @@ class MainWindow(QMainWindow):
         path,_=QFileDialog.getOpenFileName(self,'Открыть настройки','','Настройки (*.json)')
         if path:self._task(lambda:prepare(Profile.load(path)),self._install_prepared,'Читаю JSON-профиль и файлы…')
 
-    def save_profile(self):
+    def save_profile(self,background=False):
         if self._busy:return
         try:
             profile=self.snapshot().profile
             path,_=QFileDialog.getSaveFileName(self,'Сохранить настройки','docflow-profile.json','Настройки (*.json)')
             if path:
-                profile.save(path);self.status.setText('JSON-профиль сохранён')
+                if background:
+                    self._task(lambda:profile.save(path),lambda _:self.status.setText('JSON-профиль сохранён'),'Сохраняю JSON-профиль…')
+                else:
+                    # Keep the synchronous automation API; interactive buttons use a worker.
+                    profile.save(path);self.status.setText('JSON-профиль сохранён')
         except (DocFlowError,OSError) as exc:self.error(exc)
 
     def select_output(self):
@@ -504,6 +527,11 @@ class MainWindow(QMainWindow):
         try:
             prepared=self.snapshot()
             if not self.output_path.text().strip():raise DocFlowError('Выберите папку результата')
+            self.last_result=None
+            for control in (self.folder_btn,self.result_open_btn,self.report_btn):control.setEnabled(False)
+            self.result_summary.setText('Новый запуск: документы ещё не созданы')
+            self.result_path.setText('Предыдущие файлы остаются в своих папках. Здесь появится результат нового запуска.')
+            self.result_report.clear()
             self.set_busy(True);self.progress.setValue(0);self.progress_label.setText('Подготовка пакета…')
             self.status.setText('Создаю документы из загруженного снимка данных…')
             if self.worker:self.worker.deleteLater()
@@ -548,7 +576,9 @@ class MainWindow(QMainWindow):
         if self.last_result and not QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.last_result.directory/'report.json'))):self.error('Система не смогла открыть отчёт. Он сохранён в папке результата')
 
     def closeEvent(self,event):
-        if self._busy or any(w and w.isRunning() for w in (self.worker,self.task_worker,self.preview_worker)):
+        if (self.service_workspace and self.service_workspace.worker) or self._busy or any(w and w.isRunning() for w in (self.worker,self.task_worker,self.preview_worker)):
             QMessageBox.information(self,'Обработка продолжается','Дождитесь завершения текущей операции перед закрытием')
             event.ignore()
-        else:self._preview_timer.stop();event.accept()
+        else:
+            if self.service_workspace and self.service_workspace.project_lock:self.service_workspace.project_lock.unlock()
+            self._preview_timer.stop();event.accept()

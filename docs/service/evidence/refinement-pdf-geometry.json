@@ -1,0 +1,38 @@
+{
+  "status": "passed",
+  "documents": 23,
+  "pages": 58,
+  "checks": [
+    {
+      "document": "combined",
+      "caption_and_picture_same_page": [
+        {
+          "caption": "Вымышленная схема 1",
+          "page": 3,
+          "gap_points": 5.64
+        },
+        {
+          "caption": "Вымышленная схема 2",
+          "page": 4,
+          "gap_points": 5.64
+        }
+      ]
+    },
+    {
+      "document": "complex-landscape-with-images",
+      "caption_and_picture_same_page": [
+        {
+          "caption": "Вымышленная схема 2",
+          "page": 3,
+          "gap_points": 11.83
+        },
+        {
+          "caption": "Вымышленная схема 1",
+          "page": 4,
+          "gap_points": 11.83
+        }
+      ]
+    }
+  ],
+  "scope": "Rendered LibreOffice PDF geometry and text, not Word or human visual review"
+}

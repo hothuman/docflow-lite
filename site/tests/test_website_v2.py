@@ -112,6 +112,22 @@ class WebsiteV2Tests(unittest.TestCase):
         script=(SITE/'dist/app.js').read_text()
         for call in ('fetch(', 'XMLHttpRequest', 'sendBeacon', 'localStorage', 'sessionStorage','indexedDB','document.cookie'):
             self.assertNotIn(call,script)
+    def test_service_review_is_current_and_not_an_unpublished_download(self):
+        html=(SITE/'dist/service.html').read_text()
+        self.assertIn('0.3.0a3',html)
+        self.assertNotIn('0.3.0a2',html)
+        for name in ('service.png','service-repair.png'):
+            self.assertIn('assets/'+name,html)
+            self.assertTrue((SITE/'dist/assets'/name).is_file())
+        self.assertIn('не входит в публичный Release v0.1.1',html)
+        self.assertNotIn('releases/download/v0.3',html)
+        self.assertIn('предварительной и окончательной сметы',html)
+        self.assertIn('мастер',html.lower())
+        out=self.build(public_url='https://docflow-lite.pages.dev/')
+        built=(out/'service.html').read_text()
+        self.assertIn('href="https://docflow-lite.pages.dev/service.html"',built)
+        self.assertIn('noindex',built)
+
     def test_core_palette_contrast(self):
         def luminance(h):
             c=[int(h[i:i+2],16)/255 for i in (0,2,4)]
