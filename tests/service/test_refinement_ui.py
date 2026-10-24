@@ -1,0 +1,86 @@
+"""Real Qt paint, workflow, exact money, search and conflict regressions."""
+import time
+import pytest
+from PySide6.QtCore import Qt,QTimer,QPoint,QSettings
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication,QMessageBox,QPlainTextEdit
+from docflow.gui import MainWindow,configure_app
+from docflow.service.demo import seed_demo
+from docflow.service.estimates import normalize_lines
+from docflow.ui.service.repair_editor import RepairDialog
+from docflow.ui.service.estimates import DraftDialog
+from docflow.ui.service.widgets import Grid
+
+def idle(app,ui):
+ end=time.monotonic()+30
+ while ui.worker or ui._pending_refresh:app.processEvents();time.sleep(.005);assert time.monotonic()<end
+ app.processEvents()
+@pytest.fixture
+def ui(tmp_path,monkeypatch):
+ app=QApplication.instance() or QApplication([]);configure_app(app);messages=[];monkeypatch.setattr(QMessageBox,'warning',lambda parent,title,message:messages.append(message));ids=seed_demo(tmp_path/'Synthetic');w=MainWindow(service_root=tmp_path/'Synthetic');w.resize(1366,768);w.show();w.navigate(5);sui=w.service_workspace;idle(app,sui)
+ yield app,w,sui,ids,messages
+ idle(app,sui);w.close();app.processEvents()
+
+def test_dashboard_values_and_actual_row_open(ui):
+ app,w,sui,ids,messages=ui;d=sui.dashboard;data=sui.store.dashboard();assert d.values['equipment'].text()==str(data['equipment']);assert d.values['active'].text()==str(data['active']);assert d.recent.proxy.rowCount()==len(data['recent_repairs']);assert not d.findChildren(QPlainTextEdit)
+ captured=[];timer=QTimer()
+ def capture():
+  dialog=app.activeModalWidget()
+  if isinstance(dialog,RepairDialog):captured.append(dialog.key);dialog.accept()
+ timer.timeout.connect(capture);timer.start(2);index=d.recent.proxy.index(0,0);target=d.recent.records.rows[d.recent.proxy.mapToSource(index).row()]['id']
+ QTest.mouseClick(d.recent.viewport(),Qt.MouseButton.LeftButton,pos=d.recent.visualRect(index).center());idle(app,sui);timer.stop();assert captured and captured[0]==target
+ sui.find_equipment();app.processEvents();assert sui.searches['equipment'].hasFocus();QTest.keyClicks(sui.searches['equipment'],'DEMO-001');assert sui.views['equipment'].proxy.rowCount()==1;assert not messages
+
+def test_real_dialog_dark_paint_and_three_groups(ui):
+ app,w,sui,ids,_=ui;d=RepairDialog(sui,sui.store.snapshot(ids['repair']));d.show();app.processEvents();image=d.grab().toImage()
+ for widget in (d.fields['complaint'],d.tabs.sections['Приёмка'][2].widget()):
+  color=image.pixelColor(widget.mapTo(d,QPoint(8,8)));assert max(color.red(),color.green(),color.blue())<70
+ assert d.tabs.count()==3 and not d.tabs.usesScrollButtons();assert set(d.tabs.sections)==set(d.tabs.GROUPS);d.accept()
+
+def test_localized_exact_price_sort_and_visible_money(ui):
+ app,w,sui,ids,_=ui;g=Grid([('name','Наименование'),('price','Цена'),('total','Сумма'),('created_at','Создано')]);g.resize(640,300);g.show();g.install([{'id':'a','name':'Б','price_cents':10000,'total':10000,'created_at':'2026-10-24T12:34:56+03:00'},{'id':'b','name':'А','price_cents':900,'total':900,'created_at':'2026-10-23'}]);app.processEvents();assert g.records.index(0,1).data()=='100,00 ₽';assert g.records.index(0,3).data()=='24.10.2026';g.sortByColumn(1,Qt.SortOrder.AscendingOrder);assert g.proxy.index(0,0).data()=='А'
+ for col in (1,2):assert not g.isColumnHidden(col) and g.columnViewportPosition(col)+g.columnWidth(col)<=g.viewport().width()
+ assert '24.10.2026' in g.records.index(0,0).data(Qt.ItemDataRole.ToolTipRole);g.close()
+
+def test_draft_total_order_and_cancel_keep_saved_data(ui,monkeypatch):
+ app,w,sui,ids,_=ui;r=ids['repair'];before=sui.store.snapshot(r)['preliminary_draft'];e=RepairDialog(sui,sui.store.snapshot(r));d=DraftDialog(e);d.show();d.lines=normalize_lines([{'kind':'work','name':'Первая','price':'7000'},{'kind':'delivery','name':'Вторая','price':'500'}]);d.changed();d.install();d.grid.selectRow(1);d.move(-1);assert [x['name'] for x in d.lines]==['Вторая','Первая'];assert '7 500,00 ₽' in d.total_label.text();d.discount.setText('100');assert '7 400,00 ₽' in d.total_label.text()
+ monkeypatch.setattr(QMessageBox,'question',lambda *a:QMessageBox.StandardButton.Cancel);d.reject();assert d.isVisible() and d.dirty;assert sui.store.snapshot(r)['preliminary_draft']==before
+ monkeypatch.setattr(QMessageBox,'question',lambda *a:QMessageBox.StandardButton.Discard);d.reject();assert not d.isVisible();assert sui.store.snapshot(r)['preliminary_draft']==before;e.accept()
+
+def test_revision_conflict_preserves_unsaved_fields_and_error_state(ui):
+ app,w,sui,ids,messages=ui;e=RepairDialog(sui,sui.store.snapshot(ids['repair']));sui.dialogs.append(e);e.show();e.fields['defects'].setPlainText('Несохранённая учебная правка');sui.store.save_repair(e.key,{'defects':'Другая сохранённая правка'},e.revision);e.save_button.click();idle(app,sui);assert e.dirty and 'Не сохранено' in e.dirty_label.text();assert e.fields['defects'].toPlainText()=='Несохранённая учебная правка';assert sui.store.snapshot(e.key)['repair']['defects']=='Другая сохранённая правка';assert messages and 'изменена' in messages[-1];e.dirty=False;e.accept();sui.dialogs.remove(e)
+
+def test_internal_exception_visible_without_raw_details(ui):
+ app,w,sui,ids,messages=ui;completed=[]
+ def failure():raise RuntimeError('SYNTHETIC_INTERNAL_TRACEBACK_MARKER')
+ sui.run(failure,lambda _:completed.append(True));idle(app,sui);assert not completed and messages and 'диагностике' in messages[-1];assert 'SYNTHETIC_INTERNAL_TRACEBACK_MARKER' not in sui.message.text()
+
+def test_client_archive_filter_independent(ui):
+ app,w,sui,ids,_=ui;key=sui.store.save_client({'name':'Учебный архивный клиент'});sui.store.archive('clients',key);sui.refresh();idle(app,sui);assert key not in {x['id'] for x in sui.cache['clients']};sui.clients_archived.setChecked(True);idle(app,sui);assert key in {x['id'] for x in sui.cache['clients']} and not sui.archived.isChecked()
+
+def test_user_width_persists(ui,tmp_path):
+ app,w,sui,ids,_=ui;key='synthetic-test-'+tmp_path.name;settings=QSettings('DocFlowLite','Interface')
+ try:
+  a=Grid([('name','Название'),('total','Стоимость')],settings_key=key);a.resize(800,300);a.show();app.processEvents();a.horizontalHeader().resizeSection(1,180);a.close();settings.sync();b=Grid([('name','Название'),('total','Стоимость')],settings_key=key);b.resize(800,300);b.show();app.processEvents();assert b.columnWidth(1)==180;b.close()
+ finally:settings.remove('columns/'+key)
+
+def test_local_dates_and_localized_search_excludes_ids(ui):
+ app,w,sui,ids,_=ui;e=RepairDialog(sui,sui.store.snapshot(ids['repair']));sui.dialogs.append(e);e.fields['received_at'].setText('24.10.2026');e.save();idle(app,sui);assert sui.store.snapshot(e.key)['repair']['received_at']=='2026-10-24';assert e.fields['received_at'].text()=='24.10.2026';e.accept();sui.dialogs.remove(e)
+ g=Grid([('number','Ремонт'),('state','Отметка')]);g.install([{'id':'900-private-id','number':'100','state':'prepared'}]);g.proxy.setFilterFixedString('Подготовлена');assert g.proxy.rowCount()==1;g.proxy.setFilterFixedString('900');assert g.proxy.rowCount()==0
+
+
+def test_empty_dashboard_keeps_compact_metrics_and_working_actions(ui,tmp_path):
+ app,w,sui,ids,_=ui
+ empty=MainWindow(service_root=tmp_path/'Empty synthetic');empty.resize(1366,768);empty.show();empty.navigate(5);panel=empty.service_workspace;idle(app,panel);app.processEvents()
+ assert panel.dashboard.empty.isVisible() and not panel.dashboard.recent.isVisible()
+ assert all(card.height()<=90 for card in panel.dashboard.cards)
+ assert panel.dashboard.new_button.isVisible() and panel.dashboard.new_button.isEnabled()
+ empty.close();app.processEvents()
+
+
+def test_short_input_form_keeps_fields_at_top(ui):
+ from docflow.ui.service.forms import FieldsDialog
+ app,w,sui,ids,_=ui
+ d=FieldsDialog('Учебный ввод',[('name','Название *','text'),('notes','Примечания','long')],parent=sui);d.resize(1020,680);d.show();app.processEvents()
+ assert d.fields['name'].mapTo(d,QPoint(0,0)).y()<70
+ d.reject()

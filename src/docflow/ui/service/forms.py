@@ -22,7 +22,7 @@ class DateField(QLineEdit):
 class FieldsDialog(QDialog):
     def __init__(self,title,fields,values=None,parent=None):
         super().__init__(parent);self.setWindowTitle(title);fit_dialog(self,580,520);self.fields={};values=values or {}
-        outer=QVBoxLayout(self);scroll=QScrollArea();scroll.setWidgetResizable(True);body=QWidget();form=QFormLayout(body);form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow);form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows);scroll.setWidget(body);outer.addWidget(scroll)
+        outer=QVBoxLayout(self);scroll=QScrollArea();scroll.setWidgetResizable(True);body=QWidget();body_layout=QVBoxLayout(body);body_layout.setContentsMargins(0,0,0,0);form=QFormLayout();body_layout.addLayout(form);body_layout.addStretch(1);form.setFormAlignment(Qt.AlignmentFlag.AlignTop);form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow);form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows);scroll.setWidget(body);outer.addWidget(scroll)
         for key,label,kind in fields:
             if isinstance(kind,list):
                 w=QComboBox()

@@ -72,3 +72,6 @@ QWidget[compact="true"] QLabel#metricValue {font-size:16px;}
 QMenu {background:@input@;color:@text@;border:1px solid @border@;}
 QMenu::item {padding:8px 12px;}
 QMenu::item:selected {background:@selection@;}
+
+QAbstractItemView::indicator {width:16px;height:16px;border:1px solid #626A79;border-radius:3px;background:@input@;}
+QAbstractItemView::indicator:checked {background:@accent@;border:2px solid #DB6D7E;}

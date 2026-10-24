@@ -170,7 +170,7 @@ class MainWindow(QMainWindow):
         self.check_btn=self.button('Проверить все записи',self.check_all,'check');options.addWidget(self.check_btn)
         self.progress=QProgressBar();self.progress.setRange(0,100);self.progress.setValue(0);self.progress.setTextVisible(False);options.addWidget(self.progress)
         self.progress_label=text('Генерация ещё не запускалась','muted');options.addWidget(self.progress_label)
-        self.generate_btn=self.button('Сгенерировать документы',self.start_generation,primary=True);options.addWidget(self.generate_btn)
+        self.generate_btn=self.button('Сгенерировать документы',self.start_generation,primary=True);options.addWidget(self.generate_btn);options.addStretch()
         self.ready_card,ready=card('Состояние подготовки')
         self.readiness=text('Нужны таблица и шаблоны','muted');ready.addWidget(self.readiness)
         self.ready_details=text('Откройте встроенный демопример для первого запуска.','muted');ready.addWidget(self.ready_details)

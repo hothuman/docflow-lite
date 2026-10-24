@@ -8,7 +8,7 @@
 | CP2 Core | DONE: `test_engine`, `test_gui`, `test_modernization`, `test_refinement_core`, `test_windows_compat`: 106 passed, 10,71 с. Кнопка сохранения профиля использует worker; синхронный API сохранён. Новый неудачный запуск не показывает прежний успех. Реальные XLSX/CSV по одной записи → 2 DOCX, heartbeat при записи профиля. |
 | CP3 Service | DONE: 91 passed, 22,37 с. Регрессия 0/7500/9670/2170, обе DOCX/CSV, долг/переплата/возврат, повторное открытие. Исправлена идентичность повторной внутренней оплаты: изменённые способ/основание/дата отклоняются без мутации. Мастер истории, профили, сохранённая принадлежность старых ремонтов остаются зелёными. |
 | CP4 Reliability | DONE: 54 passed, 12,00 с. Экспорт exclusive/bounded/SHA, очистка недописанной копии; restore atomic no-replace (Windows rename, Linux renameat2). Негативные проверки malformed/изменённого архива, конкурентной новой папки и disk-full; прежние миграции/FK/commit-failure зелёные. |
-| CP5 UI/UX | PARTIAL: восстановлены общая тема, таблицы, Dashboard, три группы карточки, черновик/итоги, даты, ошибки и импорт. После очистки scratch выполняется новый полный прогон; прежние локальные файлы доказательств не восстановлены. Новый CI/EXE ещё NOT DONE. |
+| CP5 UI/UX | DONE локальная реализация: общая тема, Dashboard, таблицы, три группы ремонта, сметы, даты, состояния сохранения и ошибки. 22 Service GUI +29 Core GUI passed; 450 Service/150 Core virtual layout cases, контрольные типы окон просмотрены; после финальных правок 90 Service cases повторены. Отчёт `21_UI_UX_REFINEMENT.md`; Windows/Website gates остаются CP7–9. |
 | CP6 DOCX | NOT DONE |
 | CP7 Website | NOT DONE |
 | CP8 CI | NOT DONE |

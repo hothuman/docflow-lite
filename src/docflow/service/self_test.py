@@ -100,6 +100,8 @@ def run(output,require_windows=False):
         window.navigate(5);idle(window.service_workspace)
         from .completion_check import exercise
         proof['completion']=exercise(window.service_workspace,app,output,idle,fill_dialog)
+        from .refinement_check import exercise as refinement_exercise
+        proof['refinement']=refinement_exercise(window.service_workspace,app,output,idle,fill_dialog)
         window.close();app.processEvents();check('normal_close_after_service')
         proof['status']='passed'
     except Exception:
