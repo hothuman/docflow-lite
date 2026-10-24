@@ -13,7 +13,7 @@
 | CP7 Website | DONE подготовка: Service a3 и два настоящих Qt-снимка, Core v0.1.1 и цены сохранены. 20 offline tests passed; production-сайт 49 реальных HTTPS/headers/404/PDF/demo SHA проверок passed, production не изменён. Новая браузерная приёмка CP8. |
 | CP8 CI | DONE: application40131835602 /Chromium40131835607 completed/success наf2c0754. Windows иLinux245+16 каждый,0 failed/skipped; логи иXML сохранены. Chromium8widths, demo browser-downloadSHA,0external/writes/errors. |
 | CP9 Portable | DONE для технической приёмки: новая a3 изf2c0754, exactEXE запущен безPython вPATH, Core24DOCX, Service9+5+3,90nativecases. SHA/CRC скачанных архивов сверены; ручной Windows10/11 NOT VERIFIED. |
-| CP10 Handoff | PARTIAL: новая сборка/CI скачаны с SHA/CRC,29DOCX и19PNG подготовлены. Финальная проверка упаковщика и сохранение передачи ещё ожидаются. |
+| CP10 Handoff | DONE локальная подготовка: реальный упаковщик завершился успешно, 80 runtime-файлов побайтово совпали с exact-CI Source; Portable/все ZIP/SHA проверены. Финальная демобаза действительно backup→restore→reopen, quick_check/FK и ссылочные SHA passed. Source/Website/Demo/DOCX/QA/19PNG/отчёт/инструкция подготовлены для передачи; не Release/deploy. |
 
 Предыдущий CI повторно прочитан: application `40039598809`, Chromium `40039598815` — success. Это исходное состояние a2, за новый результат не засчитывается. Владелец сообщил об открытии a2 на Windows и ручном сценарии 0/7500/9670/2170; остальные сценарии не считаются пройденными вручную.
 
