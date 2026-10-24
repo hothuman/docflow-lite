@@ -208,16 +208,20 @@ class ServiceStore:
     def add_payment(self,repair_id,amount,kind='payment',method='Перевод (внутренняя запись)',occurred_at='',comment='',request_id=None):
         cents=money(amount)
         if cents<=0 or kind not in {'payment','refund'}:raise ServiceError('Введите положительную сумму и вид операции')
+        method=text(method,'Способ',True,100);comment=text(comment);occurred_at=day(occurred_at)
         key=request_id or uuid4().hex
         with self.lock,self.db.connection(True) as c:
             self.require(c,'repair_orders',repair_id)
             existing=c.execute('SELECT * FROM payments WHERE id=?',(key,)).fetchone()
             if existing:
-                if existing['repair_id']!=repair_id or existing['amount_cents']!=cents or existing['kind']!=kind:raise ServiceError('Идентификатор платежа относится к другой записи')
+                if (existing['repair_id']!=repair_id or existing['amount_cents']!=cents or existing['kind']!=kind
+                    or existing['method']!=method or existing['comment']!=comment
+                    or (occurred_at and existing['occurred_at']!=occurred_at)):
+                    raise ServiceError('Идентификатор платежа относится к другой записи')
                 return key
             if kind=='payment' and totals(c,repair_id)['paid']+cents>9000000000000000:raise ServiceError('Превышен лимит учтённых оплат')
             if kind=='refund' and cents>totals(c,repair_id)['paid']:raise ServiceError('Возврат превышает учтённую оплату')
-            c.execute('INSERT INTO payments(id,repair_id,amount_cents,occurred_at,method,kind,comment,created_at) VALUES(?,?,?,?,?,?,?,?)',(key,repair_id,cents,day(occurred_at) or now()[:10],text(method,'Способ',True,100),kind,text(comment),now()))
+            c.execute('INSERT INTO payments(id,repair_id,amount_cents,occurred_at,method,kind,comment,created_at) VALUES(?,?,?,?,?,?,?,?)',(key,repair_id,cents,occurred_at or now()[:10],method,kind,comment,now()))
             self._touch(c,repair_id);self.audit(c,'payment',key,'record',kind)
         return key
     def void_payment(self,key,reason):
