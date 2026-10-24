@@ -32,9 +32,23 @@ def test_dashboard_values_and_actual_row_open(ui):
  sui.find_equipment();app.processEvents();assert sui.searches['equipment'].hasFocus();QTest.keyClicks(sui.searches['equipment'],'DEMO-001');assert sui.views['equipment'].proxy.rowCount()==1;assert not messages
 
 def test_real_dialog_dark_paint_and_three_groups(ui):
- app,w,sui,ids,_=ui;d=RepairDialog(sui,sui.store.snapshot(ids['repair']));d.show();app.processEvents();image=d.grab().toImage()
+ import json,os
+ from pathlib import Path
+ app,w,sui,ids,_=ui;d=RepairDialog(sui,sui.store.snapshot(ids['repair']));d.show();app.processEvents();image=d.grab().toImage();probes=[]
  for widget in (d.fields['complaint'],d.tabs.sections['Приёмка'][2].widget()):
-  color=image.pixelColor(widget.mapTo(d,QPoint(8,8)));assert max(color.red(),color.green(),color.blue())<70
+  point=QPoint(8,8);legacy=image.pixelColor(widget.mapTo(d,point));child=widget.childAt(point)
+  target=widget.viewport() if isinstance(widget,QPlainTextEdit) else widget
+  painted=target.grab().toImage()
+  # A fixed point can hit a label glyph with Segoe UI on Windows. Measure
+  # exposed container paint, excluding children; the empty text-edit bottom
+  # is below its first text line. Keep the same dark-background threshold.
+  points=([QPoint(x,target.height()-8) for x in range(8,target.width()-8,8)] if isinstance(widget,QPlainTextEdit) else
+          [QPoint(x,y) for y in range(2,target.height()-2,4) for x in range(2,target.width()-2,8) if target.childAt(QPoint(x,y)) is None])
+  assert points,'No exposed background sampled'
+  colors=[painted.pixelColor(p) for p in points]
+  probes.append({'widget':type(widget).__name__,'legacy_rgb':legacy.name(),'legacy_child':type(child).__name__ if child else None,'legacy_child_text':child.text() if hasattr(child,'text') else None,'background_samples':len(points),'maximum_channel':max(max(c.red(),c.green(),c.blue()) for c in colors)})
+  assert all(max(c.red(),c.green(),c.blue())<70 for c in colors),probes[-1]
+ proof=Path(os.environ.get('DOCFLOW_QA_ARTIFACTS','artifacts'))/'dialog-paint';proof.mkdir(parents=True,exist_ok=True);d.grab().save(str(proof/'repair-dialog.png'));(proof/'samples.json').write_text(json.dumps(probes,ensure_ascii=False,indent=2),encoding='utf-8')
  assert d.tabs.count()==3 and not d.tabs.usesScrollButtons();assert set(d.tabs.sections)==set(d.tabs.GROUPS);d.accept()
 
 def test_localized_exact_price_sort_and_visible_money(ui):
