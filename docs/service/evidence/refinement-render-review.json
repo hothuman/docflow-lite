@@ -1,0 +1,37 @@
+{
+  "status": "passed",
+  "docx_files": 29,
+  "rendered_pages": 63,
+  "all_pages_visually_opened": true,
+  "native_service_docx": 14,
+  "native_service_pages": 18,
+  "caption_same_page": [
+    {
+      "document": "native-SYNTH-REPAIR-001-combined-v001-ee8eb558",
+      "page": 2,
+      "caption": "Вымышленная схема"
+    },
+    {
+      "document": "native-CHECK-000900-combined-v001-f2e38853",
+      "page": 2,
+      "caption": "Проверочная подпись 1"
+    },
+    {
+      "document": "native-CHECK-000900-combined-v001-f2e38853",
+      "page": 3,
+      "caption": "Проверочная подпись 0"
+    },
+    {
+      "document": "complex-landscape-with-images",
+      "page": 3,
+      "caption": "Вымышленная схема 2"
+    },
+    {
+      "document": "complex-landscape-with-images",
+      "page": 4,
+      "caption": "Вымышленная схема 1"
+    }
+  ],
+  "microsoft_word_verified": false,
+  "scope": "LibreOffice rendering, visual page review and PDF geometry; physical Windows/Word remains NOT VERIFIED"
+}

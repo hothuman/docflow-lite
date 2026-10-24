@@ -17,7 +17,10 @@ def assess(window,workspace,app,output,idle):
  output=Path(output);output.mkdir(parents=True,exist_ok=True);scale=float(os.environ.get('QT_SCALE_FACTOR','1'));cases=[];snapshot=workspace.store.snapshot(workspace.cache['finance'][0]['id']);equipment=next(x for x in workspace.cache['active_equipment'] if x['id']==snapshot['equipment']['id'])
  def pump():app.processEvents();app.processEvents()
  def inspect(widget,name,physical,logical,critical=()):
-  pump();failures=[]
+  pump();failures=[];paint={}
+  if name=='import':
+   capture=widget.grab();ratio=capture.devicePixelRatio();pixel=capture.toImage().pixelColor(round(8*ratio),round((widget.height()-8)*ratio));paint['wizard_footer_rgb']=pixel.name()
+   if max(pixel.red(),pixel.green(),pixel.blue())>=70:failures.append('light wizard footer outside shared dark theme')
   if widget.width()>logical[0] or widget.height()>logical[1]:failures.append('window exceeds requested logical client size')
   for button in critical:
    if not button.isVisible():failures.append('confirmation/cancel hidden: '+button.text());continue
@@ -34,7 +37,7 @@ def assess(window,workspace,app,output,idle):
    grid.horizontalScrollBar().setValue(0);grid.fit_columns();pump()
    for col,(key,title) in enumerate(grid.records.columns):
     if key in MONEY and (grid.isColumnHidden(col) or grid.columnViewportPosition(col)<0 or grid.columnViewportPosition(col)+grid.columnWidth(col)>grid.viewport().width()):failures.append('monetary column outside viewport: '+title)
-  cases.append({'view':name,'physical_client':list(physical),'logical_limit':list(logical),'actual_logical':[widget.width(),widget.height()],'failures':failures})
+  cases.append({'view':name,'physical_client':list(physical),'logical_limit':list(logical),'actual_logical':[widget.width(),widget.height()],'failures':failures,**paint})
   if physical in ((1280,720),(1920,1080)):assert widget.grab().save(str(output/(name+'-'+str(physical[0])+'.png')))
  for physical in SIZES:
   logical=(round(physical[0]/scale),round(physical[1]/scale));window.resize(*logical);window.navigate(5);pump()

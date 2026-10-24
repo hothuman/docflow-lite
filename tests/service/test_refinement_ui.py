@@ -110,3 +110,13 @@ def test_history_follows_selected_dates_until_user_sorts(ui):
  d.order.setCurrentIndex(1);idle(app,sui)
  assert d.grid.proxy.index(0,0).data()=='DEMO-R-002'
  d.accept();sui.dialogs.remove(d)
+
+
+def test_history_wizard_footer_uses_shared_dark_theme(ui):
+ from PySide6.QtWidgets import QWizard
+ from docflow.ui.service.import_wizard import HistoryWizard
+ app,w,sui,ids,_=ui;d=HistoryWizard(sui);sui.dialogs.append(d);d.show();app.processEvents()
+ assert d.wizardStyle()==QWizard.WizardStyle.ClassicStyle
+ capture=d.grab();ratio=capture.devicePixelRatio();color=capture.toImage().pixelColor(round(8*ratio),round((d.height()-8)*ratio))
+ assert max(color.red(),color.green(),color.blue())<70,color.name()
+ d.reject();sui.dialogs.remove(d)
