@@ -9,7 +9,7 @@
 | CP3 Service | DONE: 91 passed, 22,37 с. Регрессия 0/7500/9670/2170, обе DOCX/CSV, долг/переплата/возврат, повторное открытие. Исправлена идентичность повторной внутренней оплаты: изменённые способ/основание/дата отклоняются без мутации. Мастер истории, профили, сохранённая принадлежность старых ремонтов остаются зелёными. |
 | CP4 Reliability | DONE: 54 passed, 12,00 с. Экспорт exclusive/bounded/SHA, очистка недописанной копии; restore atomic no-replace (Windows rename, Linux renameat2). Негативные проверки malformed/изменённого архива, конкурентной новой папки и disk-full; прежние миграции/FK/commit-failure зелёные. |
 | CP5 UI/UX | DONE локальная реализация: общая тема, Dashboard, таблицы, три группы ремонта, сметы, даты, состояния сохранения и ошибки. 22 Service GUI +29 Core GUI passed; 450 Service/150 Core virtual layout cases, контрольные типы окон просмотрены; после финальных правок 90 Service cases повторены. Отчёт `21_UI_UX_REFINEMENT.md`; Windows/Website gates остаются CP7–9. |
-| CP6 DOCX | NOT DONE |
+| CP6 DOCX | DONE локально: 23 DOCX /58 страниц отрендерены и все страницы просмотрены; обе сметы, гарантийный прототип, сложный альбомный шаблон, 103 позиции. Caption/PDF geometry regression passed; 5 DOCX +15 history/UI tests passed. Нагрузка 100/1000 аппаратов, 624/6024 ремонтов; найден и исправлен лишний sort при открытии/порядок истории. `22_DOCX_PERFORMANCE.md`. Word NOT VERIFIED. |
 | CP7 Website | NOT DONE |
 | CP8 CI | NOT DONE |
 | CP9 Portable | NOT DONE |

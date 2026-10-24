@@ -33,6 +33,8 @@ def main():
   doc,doc_time=measure(lambda:generate_document(s,'r0-0','combined'))
   assert len(rows)==repairs and len(history)==30 and len(search)==repairs
   assert max(all_time,hist_time,search_time,dash_time,doc_time)<30,'Operation exceeded 30 seconds on this runner'
-  report['runs'].append({'equipment':count,'repairs':repairs,'items':items,'history_repairs_one_device':30,'journal_seconds':all_time,'history_seconds':hist_time,'search_seconds':search_time,'dashboard_seconds':dash_time,'large_docx_seconds':doc_time,'large_docx_bytes':doc.stat().st_size,'large_docx_rows':103,'docx_path':str(doc)})
+  from qa_service_gui_performance import probe
+  gui=probe(s,repairs,args.output)
+  report['runs'].append({'gui':gui,'equipment':count,'repairs':repairs,'items':items,'history_repairs_one_device':30,'journal_seconds':all_time,'history_seconds':hist_time,'search_seconds':search_time,'dashboard_seconds':dash_time,'large_docx_seconds':doc_time,'large_docx_bytes':doc.stat().st_size,'large_docx_rows':103,'docx_path':str(doc)})
  (args.output/'performance.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf-8');print(json.dumps(report,ensure_ascii=False))
 if __name__=='__main__':main()

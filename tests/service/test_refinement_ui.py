@@ -84,3 +84,15 @@ def test_short_input_form_keeps_fields_at_top(ui):
  d=FieldsDialog('Учебный ввод',[('name','Название *','text'),('notes','Примечания','long')],parent=sui);d.resize(1020,680);d.show();app.processEvents()
  assert d.fields['name'].mapTo(d,QPoint(0,0)).y()<70
  d.reject()
+
+
+def test_history_follows_selected_dates_until_user_sorts(ui):
+ from docflow.ui.service.history import HistoryDialog
+ app,w,sui,ids,_=ui
+ sui.store.save_repair(ids['first_repair'],{'received_at':'2023-01-01'})
+ sui.store.save_repair(ids['repair'],{'received_at':'2026-01-01'})
+ equipment=sui.cache['active_equipment'][0];d=HistoryDialog(sui,equipment);sui.dialogs.append(d);d.show();idle(app,sui)
+ assert d.grid.proxy.index(0,0).data()=='DEMO-R-001'
+ d.order.setCurrentIndex(1);idle(app,sui)
+ assert d.grid.proxy.index(0,0).data()=='DEMO-R-002'
+ d.accept();sui.dialogs.remove(d)

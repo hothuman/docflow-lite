@@ -51,6 +51,13 @@ def test_complex_template_stories_history_sections_logo_and_selected_images(tmp_
  assert 'DEMO-R-001' in result.tables[0].cell(0,0).tables[0].cell(1,0).text
  assert '{{' not in result.sections[0].header.paragraphs[0].text
  captions=[p.text for p in result.paragraphs if 'выбранная схема' in p.text];assert captions==['Первая выбранная схема','Вторая выбранная схема']
+ for index,paragraph in enumerate(result.paragraphs):
+  if 'выбранная схема' not in paragraph.text:continue
+  assert paragraph.paragraph_format.keep_with_next is True
+  picture=result.paragraphs[index+1]
+  assert picture._p.xpath('.//w:drawing')
+  assert picture.paragraph_format.keep_together is True
+  assert picture.paragraph_format.line_spacing==1
  for shape in result.inline_shapes:assert shape.width<=result.sections[-1].page_width-result.sections[-1].left_margin-result.sections[-1].right_margin
  meta=json.loads(s.snapshot(r)['generated_documents'][0]['metadata_json']);assert [x['id'] for x in meta['images']]==[images[1],images[0]]
  with pytest.raises(ServiceError):generate_document(s,r,'combined',image_choices=[{'id':images[0]},{'id':images[0]}])

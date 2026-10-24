@@ -6,7 +6,7 @@ from .presentation import MONEY,display
 class Grid(QTableView):
  openRequested=Signal()
  def __init__(self,columns,parent=None,settings_key=None):
-  super().__init__(parent);self.records=RowsModel(columns,self);self.proxy=QSortFilterProxyModel(self);self.proxy.setSourceModel(self.records);self.proxy.setSortRole(Qt.ItemDataRole.UserRole);self.proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive);self.proxy.setFilterKeyColumn(0);self.proxy.setFilterRole(Qt.ItemDataRole.UserRole+1);self.setModel(self.proxy);self.setSortingEnabled(True)
+  super().__init__(parent);self.records=RowsModel(columns,self);self.proxy=QSortFilterProxyModel(self);self.proxy.setSourceModel(self.records);self.proxy.setSortRole(Qt.ItemDataRole.UserRole);self.proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive);self.proxy.setFilterKeyColumn(0);self.proxy.setFilterRole(Qt.ItemDataRole.UserRole+1);self.setModel(self.proxy);self.setSortingEnabled(True);self.sortByColumn(-1,Qt.SortOrder.AscendingOrder)
   self.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows);self.setSelectionMode(QTableView.SelectionMode.SingleSelection);self.setAlternatingRowColors(True);self.setWordWrap(False);self.setTextElideMode(Qt.TextElideMode.ElideRight);self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers);self.setMinimumHeight(100);self.setMinimumWidth(0)
   self.verticalHeader().hide();self.verticalHeader().setDefaultSectionSize(38);header=self.horizontalHeader();header.setMinimumSectionSize(48);header.setStretchLastSection(False);header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
   self._sizing=False;self._preferred={};self._user_widths={};self.settings_key=settings_key
