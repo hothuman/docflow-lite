@@ -110,7 +110,12 @@ def test_explicit_existing_equipment_no_repair_number_as_identity(tmp_path):
     assert s.get('equipment',eq)['owner_id']==client
 
 
-def test_multiple_item_rows_and_two_similar_devices_are_not_merged(tmp_path):
+def test_multiple_item_rows_and_two_similar_devices_are_not_merged(tmp_path,monkeypatch):
+    from itertools import count
+    from types import SimpleNamespace
+    ids=count()
+    # Force a search collision in internal IDs; grouping assertions must target repair number 101.
+    monkeypatch.setattr("docflow.service.repository.uuid4",lambda:SimpleNamespace(hex=f"{next(ids):029x}101"))
     s=ServiceStore(tmp_path/'project')
     headers=['Аппарат','Модель','Клиент','Ремонт','Дата','Тип','Позиция','Кол-во','Цена','Итого']
     rows=[['900','Одинаковая модель','Учебный клиент','101','2023-01-01','work','Работа','1.5','1000.25','2200.58'],
@@ -123,7 +128,8 @@ def test_multiple_item_rows_and_two_similar_devices_are_not_merged(tmp_path):
     assert all(g['status']=='ready' for g in plan['groups'])
     import_history(s,plan,confirmed=True)
     assert len(s.equipment())==2 and len(s.repairs())==2
-    snap=s.snapshot(s.repairs(query='101')[0]['id'])
+    target=next(r for r in s.repairs(query='101') if r['number']=='101')
+    snap=s.snapshot(target['id'])
     assert len(snap['repair_items'])==3 and snap['totals']['total']==220058 and snap['totals']['delivery']==30000
 
 
