@@ -4,7 +4,7 @@ import os,sys
 from PySide6.QtGui import QFontDatabase
 from functools import lru_cache
 from PySide6.QtWidgets import QApplication
-COLORS={'background':'#0D0F13','rail':'#101218','surface':'#171A21','input':'#20242D','table':'#12151B','alternate':'#191D25','border':'#30343E','text':'#F3F4F6','muted':'#A1A6B1','accent':'#A1162C','focus':'#C36172','error':'#FF9AA4','success':'#70D69E','selection':'#632033'}
+COLORS={'background':'#F4F7FC','rail':'#FFFFFF','surface':'#FFFFFF','input':'#FFFFFF','table':'#FFFFFF','alternate':'#F5F8FC','border':'#CED8E6','text':'#172B4D','muted':'#52647A','accent':'#1556D9','focus':'#1556D9','error':'#B42318','success':'#00776B','selection':'#E9F0FF'}
 @lru_cache(maxsize=1)
 def stylesheet():
  result=Path(__file__).with_name('theme.qss').read_text(encoding='utf-8')

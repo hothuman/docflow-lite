@@ -31,7 +31,7 @@ def test_dashboard_values_and_actual_row_open(ui):
  QTest.mouseClick(d.recent.viewport(),Qt.MouseButton.LeftButton,pos=d.recent.visualRect(index).center());idle(app,sui);timer.stop();assert captured and captured[0]==target
  sui.find_equipment();app.processEvents();assert sui.searches['equipment'].hasFocus();QTest.keyClicks(sui.searches['equipment'],'DEMO-001');assert sui.views['equipment'].proxy.rowCount()==1;assert not messages
 
-def test_real_dialog_dark_paint_and_three_groups(ui):
+def test_real_dialog_shared_light_paint_and_three_groups(ui):
  import json,os
  from pathlib import Path
  app,w,sui,ids,_=ui;d=RepairDialog(sui,sui.store.snapshot(ids['repair']));d.show();app.processEvents();image=d.grab().toImage();probes=[]
@@ -41,13 +41,16 @@ def test_real_dialog_dark_paint_and_three_groups(ui):
   painted=target.grab().toImage()
   # A fixed point can hit a label glyph with Segoe UI on Windows. Measure
   # exposed container paint, excluding children; the empty text-edit bottom
-  # is below its first text line. Keep the same dark-background threshold.
+  # is below its first text line. Compare with the specified light-theme surface.
   points=([QPoint(x,target.height()-8) for x in range(8,target.width()-8,8)] if isinstance(widget,QPlainTextEdit) else
           [QPoint(x,y) for y in range(2,target.height()-2,4) for x in range(2,target.width()-2,8) if target.childAt(QPoint(x,y)) is None])
   assert points,'No exposed background sampled'
   colors=[painted.pixelColor(p) for p in points]
   probes.append({'widget':type(widget).__name__,'legacy_rgb':legacy.name(),'legacy_child':type(child).__name__ if child else None,'legacy_child_text':child.text() if hasattr(child,'text') else None,'background_samples':len(points),'maximum_channel':max(max(c.red(),c.green(),c.blue()) for c in colors)})
-  assert all(max(c.red(),c.green(),c.blue())<70 for c in colors),probes[-1]
+  from docflow.ui.theme import COLORS
+  from PySide6.QtGui import QColor
+  expected=QColor(COLORS['table'] if isinstance(widget,QPlainTextEdit) else COLORS['background'])
+  assert all(max(abs(c.red()-expected.red()),abs(c.green()-expected.green()),abs(c.blue()-expected.blue()))<=3 for c in colors),probes[-1]
  proof=Path(os.environ.get('DOCFLOW_QA_ARTIFACTS','artifacts'))/'dialog-paint';proof.mkdir(parents=True,exist_ok=True);d.grab().save(str(proof/'repair-dialog.png'));(proof/'samples.json').write_text(json.dumps(probes,ensure_ascii=False,indent=2),encoding='utf-8')
  assert d.tabs.count()==3 and not d.tabs.usesScrollButtons();assert set(d.tabs.sections)==set(d.tabs.GROUPS);d.accept()
 
@@ -112,13 +115,14 @@ def test_history_follows_selected_dates_until_user_sorts(ui):
  d.accept();sui.dialogs.remove(d)
 
 
-def test_history_wizard_footer_uses_shared_dark_theme(ui):
+def test_history_wizard_footer_uses_shared_light_theme(ui):
  from PySide6.QtWidgets import QWizard
  from docflow.ui.service.import_wizard import HistoryWizard
  app,w,sui,ids,_=ui;d=HistoryWizard(sui);sui.dialogs.append(d);d.show();app.processEvents()
  assert d.wizardStyle()==QWizard.WizardStyle.ClassicStyle
  capture=d.grab();ratio=capture.devicePixelRatio();color=capture.toImage().pixelColor(round(8*ratio),round((d.height()-8)*ratio))
- assert max(color.red(),color.green(),color.blue())<70,color.name()
+ from docflow.ui.theme import COLORS
+ assert color.name().lower()==COLORS['background'].lower(),color.name()
  d.reject();sui.dialogs.remove(d)
 
 
@@ -153,3 +157,26 @@ def test_narrow_finance_keeps_all_money_columns_visible(ui):
  grid.resize(600,260);grid.show();grid.install([{'number':'1','client':'Учебный клиент','status':'repair','total':170050,'paid':100000,'balance':70050}]);app.processEvents();grid.fit_columns();app.processEvents()
  for i in (3,4,5):assert not grid.isColumnHidden(i) and grid.columnViewportPosition(i)+grid.columnWidth(i)<=grid.viewport().width()
  grid.close()
+
+
+def test_a5_repair_sections_keep_selection_when_navigation_collapses(ui):
+ app,w,sui,ids,_=ui;editor=RepairDialog(sui,sui.store.snapshot(ids['repair']))
+ editor.resize(1080,760);editor.show();app.processEvents()
+ picker,stack=editor.tabs.groups[0];sidebar=editor.tabs.lists[0]
+ assert sidebar.isVisible() and not picker.isVisible()
+ sidebar.setCurrentRow(1);app.processEvents();assert picker.currentIndex()==1 and stack.currentIndex()==1
+ editor.resize(640,480);app.processEvents()
+ assert picker.isVisible() and not sidebar.isVisible() and picker.currentIndex()==1
+ assert not editor.finance_strip.isVisible()
+ editor.accept()
+
+
+def test_a5_application_palette_contrast():
+ from docflow.ui.theme import COLORS
+ def lum(value):
+  channels=[int(value[i:i+2],16)/255 for i in (1,3,5)]
+  linear=[x/12.92 if x<=.04045 else ((x+.055)/1.055)**2.4 for x in channels]
+  return sum(x*w for x,w in zip(linear,(.2126,.7152,.0722)))
+ for foreground,background in [('text','surface'),('muted','background'),('success','surface'),('error','surface')]:
+  a,b=sorted((lum(COLORS[foreground]),lum(COLORS[background])));assert (b+.05)/(a+.05)>=4.5
+ a,b=sorted((lum('#FFFFFF'),lum(COLORS['accent'])));assert (b+.05)/(a+.05)>=4.5

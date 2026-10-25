@@ -14,7 +14,7 @@ class HistoryWizard(QWizard):
     def __init__(self,workspace):
         super().__init__(workspace);self.workspace=workspace;self.store=workspace.store;self.setWindowTitle('Исторический импорт XLSX / CSV');fit_dialog(self,1020,720)
         # Windows defaults to Aero, which paints a white native footer outside
-        # the shared dark QSS. Classic uses the same themed controls as Linux.
+        # the shared application QSS. Classic uses the same themed controls as Linux.
         self.setWizardStyle(QWizard.WizardStyle.ClassicStyle)
         self.plan=None;self.table=None;self.ready_page=-1;self.applied=False;self.decisions={'equipment_decisions':{},'client_decisions':{},'current_owners':{}};self.mappings={};self.statuses={}
         self.clients=workspace.cache.get('active_clients',[]);self.equipment=workspace.cache.get('active_equipment',[])

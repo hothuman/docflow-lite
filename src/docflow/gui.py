@@ -7,7 +7,7 @@ from .ui.window import MainWindow, GenerationWorker
 def configure_app(app):
     app.setApplicationName('DocFlow Lite')
     app.setStyle('Fusion')
-    app.styleHints().setColorScheme(Qt.ColorScheme.Dark)
+    app.styleHints().setColorScheme(Qt.ColorScheme.Light)
     from .ui.theme import apply_theme
     apply_theme(app)
 

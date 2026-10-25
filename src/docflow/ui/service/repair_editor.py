@@ -3,7 +3,7 @@ from pathlib import Path
 from uuid import uuid4
 from PySide6.QtCore import QUrl,Qt
 from PySide6.QtGui import QImageReader,QPixmap,QDesktopServices
-from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QFormLayout,QLabel,QTabWidget,QLineEdit,QPlainTextEdit,QComboBox,QScrollArea,QWidget,QFileDialog,QInputDialog,QMessageBox,QCheckBox)
+from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QFormLayout,QLabel,QTabWidget,QLineEdit,QPlainTextEdit,QComboBox,QScrollArea,QWidget,QFileDialog,QInputDialog,QMessageBox,QCheckBox,QFrame)
 from ...service.validation import rub
 from ...service.statuses import STATUSES,APPROVALS
 from ...service.documents import KINDS,generate_document
@@ -20,8 +20,14 @@ class RepairDialog(QDialog):
     def __init__(self,workspace,snapshot):
         super().__init__(workspace);self.workspace=workspace;self.store=workspace.store;self.snapshot=snapshot;self.key=snapshot['repair']['id'];self.dirty=False;self.fields={};self.grids={}
         self.setWindowTitle('Ремонт '+snapshot['repair']['number']);fit_dialog(self,1060,740)
-        outer=QVBoxLayout(self);self.identity=QLabel();self.identity.setWordWrap(True);outer.addWidget(self.identity)
-        self.summary=QLabel();self.summary.setWordWrap(True);outer.addWidget(self.summary)
+        outer=QVBoxLayout(self);outer.setSpacing(14)
+        passport=QFrame();passport.setObjectName('card');passport_layout=QVBoxLayout(passport);passport_layout.setContentsMargins(16,12,16,12)
+        self.identity=QLabel();self.identity.setWordWrap(True);passport_layout.addWidget(self.identity)
+        self.summary=QLabel();self.summary.setWordWrap(True);self.summary.setObjectName('muted');passport_layout.addWidget(self.summary);outer.addWidget(passport)
+        self.finance_strip=QWidget();finance=QHBoxLayout(self.finance_strip);finance.setContentsMargins(0,0,0,0);finance.setSpacing(12);self.finance_values={}
+        for key,title in [('total','Стоимость ремонта'),('paid','Учтено оплат'),('balance','Остаток')]:
+            panel=QFrame();panel.setObjectName('metricCard');box=QVBoxLayout(panel);box.setContentsMargins(14,8,14,8);box.addWidget(text(title,'muted'));value=text('—','metricValue');box.addWidget(value);finance.addWidget(panel,1);self.finance_values[key]=value
+        outer.addWidget(self.finance_strip)
         self.tabs=RepairNavigation();self.tabs.setUsesScrollButtons(False);outer.addWidget(self.tabs,1)
         sections=[('Приёмка',[('received_at','Дата ДД.ММ.ГГГГ','date'),('complaint','Жалоба','long'),('accessories','Комплектация','long'),('condition','Внешнее состояние','long'),('notes','Примечания','long')]),('Дефектовка',[('defects','Неисправности','long'),('plan','План работ','long'),('approval','Согласование',[(v,v) for v in APPROVALS]),('approval_note','Комментарий к согласованию','long')])]
         for title,fields in sections:
@@ -75,7 +81,10 @@ class RepairDialog(QDialog):
             else:w.setText(str(value))
             w.blockSignals(False)
         self.identity.setText(f"Ремонт №{r['number']} · Аппарат №{s['equipment']['number']} · {s['equipment']['model']}\nКлиент этого обращения: {s['client']['name']}");self.identity.setObjectName('section')
-        t=s['totals'];self.summary.setText(f"Производство: {s['profile']['status_labels'].get(r['status'],STATUSES[r['status']][0])}   |   Фактически {rub(t['total'])} · Учтено {rub(t['paid'])} · Остаток {rub(t['balance'])} · {t['financial_status']}")
+        t=s['totals']
+        for key,label in self.finance_values.items():label.setText(rub(t[key]))
+        self.finance_strip.setVisible(self.height()>=600)
+        self.summary.setText(f"Производство: {s['profile']['status_labels'].get(r['status'],STATUSES[r['status']][0])}   |   Фактически {rub(t['total'])} · Учтено {rub(t['paid'])} · Остаток {rub(t['balance'])} · {t['financial_status']}")
         self.estimates.install(s)
         for group in ('work','part','delivery','other'):
             rows=[{**x,'price':rub(x['price_cents']),'total':x['total_cents']} for x in s['repair_items'] if x['kind']==group];self.grids[group].install(rows)
@@ -191,3 +200,7 @@ class RepairDialog(QDialog):
             if choice==QMessageBox.StandardButton.Cancel:event.ignore();return
             if choice==QMessageBox.StandardButton.Save:event.ignore();self.save(self.accept);return
         event.accept()
+
+    def resizeEvent(self,event):
+        super().resizeEvent(event)
+        if hasattr(self,'finance_strip'):self.finance_strip.setVisible(self.height()>=600)

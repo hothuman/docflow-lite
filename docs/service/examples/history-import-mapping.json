@@ -1,0 +1,12 @@
+{
+  "equipment_number": "Постоянный номер",
+  "model": "Модель",
+  "client_name": "Заказчик",
+  "repair_number": "Обращение",
+  "received_at": "Дата приёмки",
+  "complaint": "Жалоба",
+  "works": "Работы",
+  "parts": "Детали",
+  "final_total": "Итог",
+  "status": "Статус"
+}

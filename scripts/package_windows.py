@@ -43,7 +43,7 @@ def package(bundle,out,sources):
     shutil.copy2(ROOT/'THIRD_PARTY.md',bundle/'THIRD_PARTY.md')
     shutil.copytree(ROOT/'src/docflow/examples',bundle/'examples',dirs_exist_ok=True)
     manifest={str(p.relative_to(bundle)).replace('\\','/'):sha256(p)
-              for p in sorted(bundle.rglob('*')) if p.is_file()}
+              for p in sorted(bundle.rglob('*')) if p.is_file() and p.name!='BUNDLE-SHA256.json'}
     assert not any(p.endswith(('.pem','.key')) for p in manifest)
     (bundle/'BUNDLE-SHA256.json').write_text(json.dumps(manifest,indent=2),encoding='utf-8')
     portable=out/f'DocFlow-Lite-{VERSION}-Windows-x64-Portable.zip'

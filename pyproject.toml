@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "docflow-lite"
-version = "0.3.0a4"
+version = "0.3.0a5"
 description = "Local XLSX/CSV to DOCX batch generation with strict text placeholders"
 requires-python = ">=3.11,<3.14"
 dependencies = ["python-docx==1.2.0", "openpyxl==3.1.5", "defusedxml==0.7.1", "lxml==6.1.3"]

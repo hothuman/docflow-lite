@@ -68,7 +68,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._service_root=service_root;self.service_workspace=None
         self.setWindowTitle(f'DocFlow Lite {__version__}')
-        self.setWindowIcon(icon('document','#A1162C',32))
+        self.setWindowIcon(icon('document','#1556D9',32))
         self.resize(1400,860);self.setMinimumSize(560,320)
         self.table=None;self.templates=[];self.worker=None;self.task_worker=None;self.preview_worker=None
         self.last_result=None;self.encoding='auto';self.sheet=None;self._busy=False
@@ -106,6 +106,7 @@ class MainWindow(QMainWindow):
         self.work=QWidget();self.work.setObjectName('work');outer.addWidget(self.work,1)
         work=QVBoxLayout(self.work);work.setContentsMargins(22,20,22,12);work.setSpacing(14)
         header=QHBoxLayout();titles=QVBoxLayout();titles.setSpacing(5)
+        self.breadcrumb=text('CORE / LITE · ДОКУМЕНТЫ','eyebrow');titles.addWidget(self.breadcrumb)
         self.title=text(self.PAGE_NAMES[0],'title');titles.addWidget(self.title)
         self.subtitle=text('Таблица → ваши шаблоны Word → комплект документов','muted');titles.addWidget(self.subtitle)
         header.addLayout(titles,1)
@@ -121,7 +122,7 @@ class MainWindow(QMainWindow):
 
     def button(self,title,callback,kind=None,primary=False):
         button=QPushButton(title)
-        if kind:button.setIcon(icon(kind,'#F3F4F6'))
+        if kind:button.setIcon(icon(kind,'#FFFFFF' if primary else '#405474'))
         if primary:button.setObjectName('primary')
         button.clicked.connect(callback);button.setAccessibleName(title)
         return button
@@ -244,6 +245,7 @@ class MainWindow(QMainWindow):
         if index!=5:self._last_core_page=index
         self.mode_picker.blockSignals(True);self.mode_picker.setCurrentIndex(1 if index==5 else 0);self.mode_picker.blockSignals(False)
         self.nav_caption.setText('МАСТЕРСКАЯ' if index==5 else 'ДОКУМЕНТЫ')
+        self.breadcrumb.setText('SERVICE · РАБОЧИЙ ПРОЕКТ' if index==5 else 'CORE / LITE · ДОКУМЕНТЫ')
         for i,b in enumerate(self.nav_buttons):b.setVisible(index!=5 and i<5)
         for b in self.service_nav:b.setVisible(index==5)
         if index==5:self._service_section_changed(self.service_workspace.tabs.currentIndex())
@@ -277,6 +279,7 @@ class MainWindow(QMainWindow):
 
     def _responsive(self):
         service=self.pages.currentIndex()==5
+        self.breadcrumb.setVisible(self.height()>=600)
         self.status.setVisible(not service);self.subtitle.setVisible(not(service and self.height()<600))
         if self.service_workspace:self.service_workspace.location.setVisible(self.height()>=600)
         compact=self.width()<1050
@@ -294,7 +297,7 @@ class MainWindow(QMainWindow):
         self.demo_btn.setText('Демо' if compact else 'Открыть демопример');self.folder_btn.setText('Папка' if compact else 'Открыть папку')
         width=self.width()-self.rail.width()-48
         mode=3 if width>=1120 else 2 if width>=900 else 1
-        pinned=self.height()<800 or compact
+        pinned=True
         if hasattr(self,'footer_layout') and self._pinned_action!=pinned:
             self.options_layout.removeWidget(self.generate_btn);self.footer_layout.removeWidget(self.generate_btn)
             (self.footer_layout if pinned else self.options_layout).addWidget(self.generate_btn)
@@ -303,12 +306,14 @@ class MainWindow(QMainWindow):
         self._columns=mode
         for item in (self.source_card,self.options_card,self.ready_card):self.create_grid.removeWidget(item)
         for column in range(3):self.create_grid.setColumnStretch(column,0)
-        self.create_grid.addWidget(self.source_card,0,0)
-        self.create_grid.addWidget(self.options_card,0 if mode>1 else 1,1 if mode>1 else 0)
-        self.create_grid.addWidget(self.ready_card,0 if mode==3 else 1 if mode==2 else 2,2 if mode==3 else 1 if mode==2 else 0,alignment=Qt.AlignmentFlag.AlignTop)
-        self.create_grid.setColumnStretch(0,5)
-        if mode>1:self.create_grid.setColumnStretch(1,3)
-        if mode==3:self.create_grid.setColumnStretch(2,3)
+        if mode>1:
+            self.create_grid.addWidget(self.source_card,0,0,1,2)
+            self.create_grid.addWidget(self.options_card,1,0)
+            self.create_grid.addWidget(self.ready_card,1,1,alignment=Qt.AlignmentFlag.AlignTop)
+            self.create_grid.setColumnStretch(0,3);self.create_grid.setColumnStretch(1,2)
+        else:
+            for row,item in enumerate((self.source_card,self.options_card,self.ready_card)):self.create_grid.addWidget(item,row,0)
+            self.create_grid.setColumnStretch(0,1)
 
     def active_templates(self):return [t for t in self.templates if t.path in self._active_paths]
 
@@ -411,7 +416,7 @@ class MainWindow(QMainWindow):
         self.template_list.clear();self.template_selector.clear();self.name_selector.clear()
         active=self.active_templates()
         for template in self.templates:
-            item=QListWidgetItem(icon('document','#C45468'),template.path.name+'\n'+f'{len(template.raw)/1024:.1f} КБ · {len(template.fields)} полей · {template.path.parent}')
+            item=QListWidgetItem(icon('document','#1556D9'),template.path.name+'\n'+f'{len(template.raw)/1024:.1f} КБ · {len(template.fields)} полей · {template.path.parent}')
             item.setFlags(item.flags()|Qt.ItemFlag.ItemIsUserCheckable)
             item.setData(Qt.ItemDataRole.UserRole,str(template.path));item.setToolTip(str(template.path)+'\nПоля: '+', '.join(sorted(template.fields)))
             item.setCheckState(Qt.CheckState.Checked if template.path in self._active_paths else Qt.CheckState.Unchecked);self.template_list.addItem(item)
@@ -475,7 +480,7 @@ class MainWindow(QMainWindow):
         self.generate_btn.setEnabled(valid and not self._busy)
         for row in range(self.mapping_table.rowCount()):
             missing=not self.mapping_table.cellWidget(row,1).currentText()
-            self.mapping_table.item(row,0).setForeground(QColor('#FF9AA4' if missing else '#F3F4F6'))
+            self.mapping_table.item(row,0).setForeground(QColor('#B42318' if missing else '#172B4D'))
 
     def _table_row_changed(self,current,previous):
         if current.isValid():self.row_selector.setCurrentIndex(current.row())

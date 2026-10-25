@@ -4,6 +4,8 @@ from pathlib import Path
 from PySide6.QtCore import QPoint
 from PySide6.QtWidgets import QPushButton,QScrollArea
 from ..ui.service.widgets import Grid
+from ..ui.theme import COLORS
+from PySide6.QtGui import QColor
 from ..ui.service.presentation import MONEY
 from ..ui.service.repair_editor import RepairDialog
 from ..ui.service.estimates import DraftDialog
@@ -20,7 +22,8 @@ def assess(window,workspace,app,output,idle):
   pump();failures=[];paint={}
   if name=='import':
    capture=widget.grab();ratio=capture.devicePixelRatio();pixel=capture.toImage().pixelColor(round(8*ratio),round((widget.height()-8)*ratio));paint['wizard_footer_rgb']=pixel.name()
-   if max(pixel.red(),pixel.green(),pixel.blue())>=70:failures.append('light wizard footer outside shared dark theme')
+   expected=QColor(COLORS['background'])
+   if max(abs(pixel.red()-expected.red()),abs(pixel.green()-expected.green()),abs(pixel.blue()-expected.blue()))>3:failures.append('wizard footer outside shared theme')
   if widget.width()>logical[0] or widget.height()>logical[1]:failures.append('window exceeds requested logical client size')
   for button in critical:
    if not button.isVisible():failures.append('confirmation/cancel hidden: '+button.text());continue

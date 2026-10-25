@@ -114,7 +114,7 @@ class WebsiteV2Tests(unittest.TestCase):
             self.assertNotIn(call,script)
     def test_service_review_is_current_and_not_an_unpublished_download(self):
         html=(SITE/'dist/service.html').read_text()
-        self.assertIn('0.3.0a4',html)
+        self.assertIn('0.3.0a5',html)
         self.assertNotIn('0.3.0a2',html)
         for name in ('service.png','service-repair.png'):
             self.assertIn('assets/'+name,html)
@@ -133,7 +133,11 @@ class WebsiteV2Tests(unittest.TestCase):
             c=[int(h[i:i+2],16)/255 for i in (0,2,4)]
             c=[v/12.92 if v<=.04045 else ((v+.055)/1.055)**2.4 for v in c]
             return sum(v*w for v,w in zip(c,(.2126,.7152,.0722)))
-        for foreground,background in [('f3efeb','161517'),('c3bec2','1e1c20'),('a69fa6','2c2028'),('ffffff','873047'),('ffffff','a13d57'),('e1a2b2','161517'),('28242b','f1eee8'),('335840','e3e8e1'),('70283e','eedde2')]:
+        import re
+        css=(SITE/'dist/style.css').read_text()
+        colors=dict(re.findall(r'--([a-z-]+):#([0-9a-fA-F]{6})',css))
+        pairs=[(colors['text'],'ffffff'),(colors['muted'],colors['surface']),('ffffff',colors['accent']),('ffffff',colors['accent-hover']),(colors['teal'],colors['teal-soft']),(colors['error'],colors['error-soft'])]
+        for foreground,background in pairs:
             a,b=sorted((luminance(foreground),luminance(background)))
             self.assertGreaterEqual((b+.05)/(a+.05),4.5,(foreground,background))
 
