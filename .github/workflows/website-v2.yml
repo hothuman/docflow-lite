@@ -3,10 +3,10 @@ name: Website 2.0 checks
 on:
   push:
     branches: [main, feature/website-v2]
-    paths: ['site/**', '.github/workflows/website-v2.yml']
+    paths: ['FILE_HASHES.json', 'site/**', '.github/workflows/website-v2.yml']
   pull_request:
     branches: [main]
-    paths: ['site/**', '.github/workflows/website-v2.yml']
+    paths: ['FILE_HASHES.json', 'site/**', '.github/workflows/website-v2.yml']
 
 permissions:
   contents: read

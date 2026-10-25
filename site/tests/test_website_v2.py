@@ -43,6 +43,7 @@ class WebsiteV2Tests(unittest.TestCase):
         self.assertIn('href="https://review.example.test/subdir/"',text)
         self.assertIn('content="https://review.example.test/subdir/assets/social-card.png"',text)
         self.assertIn('noindex,follow',text)
+        self.assertIn('href="https://review.example.test/subdir/software.html"',(out/'software.html').read_text(encoding='utf-8'))
         self.assertIn('Disallow: /',(out/'robots.txt').read_text(encoding="utf-8"))
         self.assertIn('href="/subdir/style.css"',(out/'404.html').read_text(encoding="utf-8"))
     def test_explicit_indexing_only_indexes_home(self):

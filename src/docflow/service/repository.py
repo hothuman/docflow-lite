@@ -13,6 +13,11 @@ def default_root():
     if os.name=='nt': return Path(os.environ.get('LOCALAPPDATA',Path.home()/'AppData/Local'))/'DocFlowLite'/'Service'
     return Path(os.environ.get('XDG_DATA_HOME',Path.home()/'.local/share'))/'DocFlowLite'/'Service'
 
+def search_records(rows,query,fields):
+    """Search meaningful record fields, excluding UUIDs and storage metadata."""
+    query=query.strip().casefold()
+    return [row for row in rows if not query or query in ' '.join(str(row.get(field) or '') for field in fields).casefold()]
+
 class ServiceStore:
     def __init__(self,root=None):
         self.root=Path(root or default_root()).absolute()
@@ -66,13 +71,13 @@ class ServiceStore:
     def clients(self,query='',archived=False):
         with self.db.connection() as c:
             rows=[dict(r) for r in c.execute('SELECT * FROM clients WHERE archived=? ORDER BY name',(int(archived),))]
-        q=query.casefold();return [r for r in rows if not q or q in ' '.join(str(v) for v in r.values()).casefold()]
+        return search_records(rows,query,('name','legal_name','kind','contact','phone','email','notes'))
     def equipment(self,query='',archived=False,active=False):
         with self.db.connection() as c:
             rows=[dict(r) for r in c.execute('SELECT e.*,c.name AS owner FROM equipment e JOIN clients c ON c.id=e.owner_id WHERE e.archived=? ORDER BY e.updated_at DESC',(int(archived),))]
             if active:
                 ids={r[0] for r in c.execute("SELECT equipment_id FROM repair_orders WHERE status NOT IN('issued','closed','cancelled')")};rows=[r for r in rows if r['id'] in ids]
-        q=query.casefold();return [r for r in rows if not q or q in ' '.join(str(v) for v in r.values()).casefold()]
+        return search_records(rows,query,('number','manufacturer','model','kind','serial','identifiers','notes','owner'))
     def create_repair(self,equipment_id,number='',complaint='',request_id=None,client_id=None):
         key=request_id or uuid4().hex
         number=text(number,'Номер ремонта',limit=100);complaint=text(complaint)
@@ -154,8 +159,7 @@ class ServiceStore:
             for r in rows:
                 r.update(calculate([{'kind':kind,'total_cents':r[column]} for kind,column in (('work','work_cents'),('part','parts_cents'),('delivery','delivery_cents'),('other','other_cents'))],r['discount_cents'],r['paid_cents']))
                 r['status_display']=labels.get(r['profile_id'],{}).get(r['status'],STATUSES[r['status']][0])
-        q=query.casefold()
-        return [r for r in rows if not q or q in ' '.join(str(v) for v in r.values()).casefold()]
+        return search_records(rows,query,('number','equipment_number','model','serial','manufacturer','client','received_at','complaint','accessories','condition','defects','plan','approval','approval_note','status','status_display','started_at','completed_at','issued_at','issued_accessories','handover','notes','item_text'))
     def snapshot(self,key):
         with self.db.connection() as c:
             r=self.require(c,'repair_orders',key)

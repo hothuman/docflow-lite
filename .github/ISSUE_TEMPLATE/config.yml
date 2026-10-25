@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Поддержка и индивидуальная настройка
+    url: https://github.com/hothuman/docflow-lite/blob/main/SUPPORT.md
+    about: Каналы связи и безопасная подготовка примеров
+  - name: Сообщить об уязвимости непублично
+    url: https://github.com/hothuman/docflow-lite/security/policy
+    about: Не публикуйте секреты и сведения клиентов

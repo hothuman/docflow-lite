@@ -45,7 +45,7 @@ class ServiceWorkspace(QWidget):
         'estimates':('Сметы',[('number','Ремонт №'),('client','Клиент'),('kind','Смета'),('version','Версия'),('state','Ручная отметка'),('total','Итог')])}
         for key,(name,cols) in definitions.items():
             page=QWidget();layout=QVBoxLayout(page);layout.setContentsMargins(0,8,0,0);layout.setSpacing(12);bar=ActionBar();layout.addWidget(bar);self.toolbars[key]=bar
-            search=QLineEdit();search.setPlaceholderText('Поиск по всем столбцам');search.setAccessibleName('Поиск '+name);layout.addWidget(search)
+            search=QLineEdit();search.setPlaceholderText('Номер, название или описание');search.setAccessibleName('Поиск '+name);layout.addWidget(search)
             self.searches[key]=search
             empty=QLabel({'equipment':'Пока нет оборудования. Добавьте первый аппарат или импортируйте журнал.','repairs':'Ремонтов пока нет. Создайте первое обращение.','clients':'Клиентов пока нет. Добавьте первого клиента.','finance':'Финансовых записей пока нет. Откройте ремонт для учёта расчётов.','documents':'Документы ещё не создавались.','estimates':'Нет сохранённых смет. Откройте ремонт и подготовьте расчёт.'}[key]);empty.setObjectName('empty');empty.setWordWrap(True);layout.addWidget(empty);self.empty_labels[key]=empty
             view=Grid(cols,settings_key='workspace/'+key);layout.addWidget(view,1);search.textChanged.connect(view.proxy.setFilterFixedString);self.views[key]=view;self.tabs.addTab(page,name)

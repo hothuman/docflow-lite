@@ -38,9 +38,10 @@ def package(bundle,out,sources):
     assert (bundle/'THIRD-PARTY-LICENSES.json').is_file()
     out.mkdir(parents=True,exist_ok=True)
     instruction_lines=INSTRUCTIONS.read_text(encoding='utf-8').splitlines()
-    instruction_lines[0]=f'DocFlow Lite {VERSION} — Core + Service, подготовительная сборка'
+    instruction_lines[0]=f'DocFlow Lite {VERSION} — Core + Service, предварительный выпуск'
     (bundle/'README-WINDOWS.txt').write_text('\n'.join(instruction_lines)+'\n',encoding='utf-8')
     shutil.copy2(ROOT/'THIRD_PARTY.md',bundle/'THIRD_PARTY.md')
+    shutil.copy2(ROOT/'LICENSE.txt',bundle/'LICENSE.txt')
     shutil.copytree(ROOT/'src/docflow/examples',bundle/'examples',dirs_exist_ok=True)
     manifest={str(p.relative_to(bundle)).replace('\\','/'):sha256(p)
               for p in sorted(bundle.rglob('*')) if p.is_file() and p.name!='BUNDLE-SHA256.json'}
@@ -69,6 +70,7 @@ def package(bundle,out,sources):
           'procedure':'Pinned Windows wheels with SHA256, PyInstaller onedir; byte-for-byte reproducibility is not claimed'}
     (out/'BUILD-INFO.json').write_text(json.dumps(info,indent=2),encoding='utf-8')
     shutil.copy2(bundle/'README-WINDOWS.txt',out/'README-WINDOWS.txt')
+    shutil.copy2(ROOT/'LICENSE.txt',out/'LICENSE.txt')
     print(json.dumps({'portable':str(portable),'source':str(source_zip),'third_party_sources':str(library_zip)}))
 
 

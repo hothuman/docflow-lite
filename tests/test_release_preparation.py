@@ -49,6 +49,7 @@ class ReleasePreparationTests(unittest.TestCase):
         self.assertIn("/releases/download/v0.3.0a6/DocFlow-Lite-0.3.0a6-Windows-x64-Portable.zip",text)
         self.assertNotIn("/releases/download/v0.1.1",text)
         self.assertIn("SHA256 Portable: "+"b"*64,text)
+        self.assertNotIn("не входит в публичный Release",(self.root/"site/service.html").read_text(encoding="utf-8"))
         self.assertIn("fieldset disabled",text)
         info=json.loads((self.root/"site/build-info.json").read_text(encoding="utf-8"))
         self.assertEqual(info["application_version"],self.version)
@@ -58,7 +59,7 @@ class ReleasePreparationTests(unittest.TestCase):
         folder=self.root/"assets";folder.mkdir()
         names=[a["name"] for a in self.manifest["assets"]]
         exe=b"synthetic test executable";license_data=b"{}"
-        files={"DocFlow-Lite.exe":exe,"THIRD-PARTY-LICENSES.json":license_data}
+        files={"DocFlow-Lite.exe":exe,"THIRD-PARTY-LICENSES.json":license_data,"LICENSE.txt":b"Synthetic original terms"}
         with zipfile.ZipFile(folder/names[0],"w") as z:
             for n,b in files.items():z.writestr("DocFlow-Lite/"+n,b)
             z.writestr("DocFlow-Lite/BUNDLE-SHA256.json",json.dumps({n:candidate.digest(b) for n,b in files.items()}))
@@ -68,6 +69,7 @@ class ReleasePreparationTests(unittest.TestCase):
         with zipfile.ZipFile(folder/names[2],"w") as z:z.writestr("ThirdParty-Sources/example.txt",b"dependency source")
         (folder/"BUILD-INFO.json").write_text(json.dumps({"version":self.version,"python":"3.13.16","commit":self.sha,"exe_sha256":candidate.digest(exe)}))
         (folder/"README-WINDOWS.txt").write_text("Example instructions")
+        (folder/"LICENSE.txt").write_text("Synthetic original terms")
         (folder/"WINDOWS-CI-RESULTS.json").write_text(json.dumps({"status":"passed","runs":[{},{}]}))
         self.resum(folder)
         return folder
@@ -97,3 +99,21 @@ class ReleasePreparationTests(unittest.TestCase):
         with zipfile.ZipFile(p,"w") as z:z.writestr("../private.txt",b"bad")
         with self.assertRaisesRegex(ValueError,"Unsafe"):candidate.checked_zip(p)
         self.assertFalse((self.root.parent/"private.txt").exists())
+
+    def test_draft_payload_preserves_prerelease_and_exact_build_target(self):
+        sys.path.insert(0,str(ROOT/"scripts"))
+        from prepare_github_draft import prepare
+        folder=self.fixtures();notes=self.root/"notes.md";notes.write_text("Version "+self.version)
+        result=prepare(folder,self.sha,notes)
+        self.assertTrue(result["draft"]);self.assertTrue(result["prerelease"])
+        self.assertEqual(result["target_commitish"],self.sha)
+        self.assertIn("LICENSE.txt",result["asset_names"])
+        self.assertFalse((folder/"draft-payload.json").exists())
+
+    def test_draft_preparation_rejects_source_target_and_notes_mismatch(self):
+        sys.path.insert(0,str(ROOT/"scripts"))
+        from prepare_github_draft import prepare
+        folder=self.fixtures();notes=self.root/"notes.md";notes.write_text("Version "+self.version)
+        with self.assertRaisesRegex(ValueError,"commit differs"):prepare(folder,"c"*40,notes)
+        notes.write_text("Other version")
+        with self.assertRaisesRegex(ValueError,"notes"):prepare(folder,self.sha,notes)

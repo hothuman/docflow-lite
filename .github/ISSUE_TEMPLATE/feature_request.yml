@@ -1,0 +1,22 @@
+name: Предложение функции
+description: Опишите задачу и ожидаемый результат
+title: "[Предложение] "
+labels: []
+body:
+  - type: textarea
+    id: task
+    attributes:
+      label: Какую задачу нужно решить
+      description: Кто выполняет работу и на каком шаге возникает затруднение? Без реальных клиентских данных.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Какой результат нужен
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Как задача решается сейчас

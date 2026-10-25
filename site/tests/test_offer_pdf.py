@@ -19,7 +19,7 @@ class OfferPDFTests(unittest.TestCase):
         data = PDF.read_bytes()
         uris = re.findall(rb'/URI\s*\(([^)]*)\)', data)
         self.assertCountEqual(uris, [OFFICIAL, b'https://t.me/de1grace',
-                                    b'mailto:rostg2007@gmail.com'])
+                                    b'mailto:docflow.lite@gmail.com'])
         self.assertNotIn(LEGACY_HOST, data)
 
     def test_visible_url_is_updated_in_pdf_content(self):

@@ -55,7 +55,7 @@ def get(url):
     return result, body
 
 
-def verify(base, expected_pdf=None, expected_demo=None):
+def verify(base, expected_pdf=None, expected_demo=None, release_manifest=None):
     home, _ = normalize_base(base)
     responses, bodies, checks = {}, {}, []
 
@@ -67,6 +67,8 @@ def verify(base, expected_pdf=None, expected_demo=None):
              'app.js', 'assets/demo-data.js']
     if expected_demo is not None:
         paths.append('assets/DocFlow-Lite-Demo.zip')
+    if release_manifest is not None:
+        paths += ['service.html','software.html','build-info.json']
     for path in paths:
         try:
             responses[path], bodies[path] = get(urljoin(home, path))
@@ -80,7 +82,7 @@ def verify(base, expected_pdf=None, expected_demo=None):
         r = responses[path]
         check('HTTPS '+path, urlsplit(r['final_url']).scheme == 'https')
         check('HTTP status '+path, r['status'] == (404 if path.startswith('__docflow_') else 200))
-        if path in ('', 'privacy.html', 'terms.html') or path.startswith('__docflow_'):
+        if path in ('', 'privacy.html', 'terms.html', 'service.html', 'software.html') or path.startswith('__docflow_'):
             h = {k.lower():v for k,v in r['headers'].items()}
             csp = {part.strip() for part in h.get('content-security-policy','').split(';')}
             check('CSP disabled data submission '+path,
@@ -120,6 +122,20 @@ def verify(base, expected_pdf=None, expected_demo=None):
     expected_demo_hash = sha256(expected_demo.read_bytes()).hexdigest() if expected_demo is not None else None
     if expected_demo is not None:
         check('deployed demo SHA256 matches expected', responses.get('assets/DocFlow-Lite-Demo.zip',{}).get('sha256') == expected_demo_hash)
+    if release_manifest is not None:
+        from build_release_site import verify_published
+        try:
+            proof=verify_published(release_manifest)
+            check('published release target and all asset SHA256',True)
+        except (OSError,ValueError,KeyError) as exc:
+            check('published release target and all asset SHA256',False)
+        info=json.loads(bodies.get('build-info.json',b'{}'))
+        check('deployed application version',info.get('application_version')==release_manifest['version'])
+        check('deployed source commit',info.get('source_commit')==release_manifest['release_target'])
+        check('deployed collection remains disabled',info.get('lead_collection_enabled') is False)
+        name='DocFlow-Lite-'+release_manifest['version']+'-Windows-x64-Portable.zip'
+        url='https://github.com/hothuman/docflow-lite/releases/download/'+release_manifest['tag']+'/'+name
+        check('deployed Windows link matches verified asset',url.encode() in bodies.get('',b''))
     return {'checked_at_utc':datetime.now(timezone.utc).isoformat(), 'public_url':home,
             'expected_pdf_sha256':expected_hash, 'expected_demo_sha256':expected_demo_hash,
             'all_checks_passed':all(c['passed'] for c in checks),
@@ -134,9 +150,11 @@ if __name__ == '__main__':
     parser.add_argument('--url', default='https://docflow-lite.pages.dev/')
     parser.add_argument('--expect-pdf', type=Path)
     parser.add_argument('--expect-demo', type=Path)
+    parser.add_argument('--release-manifest', type=Path)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
-    result = verify(args.url, args.expect_pdf, args.expect_demo)
+    manifest=json.loads(args.release_manifest.read_text(encoding="utf-8")) if args.release_manifest else None
+    result = verify(args.url, args.expect_pdf, args.expect_demo, manifest)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
     failures = [c['check'] for c in result['checks'] if not c['passed']]

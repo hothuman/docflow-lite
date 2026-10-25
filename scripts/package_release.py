@@ -12,11 +12,13 @@ OUT = ROOT.parent / "deliverables"
 DIST = ROOT / "site" / "dist"
 SKIP = {".venv", "__pycache__", ".pytest_cache", ".git", "docflow-output", "build"}
 VERSION = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
+SOURCE_FILES = set(json.loads((ROOT / "FILE_HASHES.json").read_text(encoding="utf-8")))
 
 
 def eligible(path):
     relative = path.relative_to(ROOT)
-    return (relative.parts[0] not in {"dist", "build", "release", "artifacts", "wheelhouse"}
+    return (relative.as_posix() in SOURCE_FILES
+            and relative.parts[0] not in {"dist", "build", "release", "artifacts", "wheelhouse", "client-work", "private", "orders", "service-data", ".handoff-input", "handoff"}
             and path.name not in {"FILE_HASHES.json", "__audit.html"}
             and not (set(relative.parts) & SKIP)
             and not any(x.endswith(".egg-info") for x in path.parts)
@@ -38,23 +40,29 @@ def main():
     # The website's public demo never includes internal launch strategy or marketing drafts.
     public_demo = DIST / "assets" / "DocFlow-Lite-Demo.zip"
     with zipfile.ZipFile(public_demo, "w", zipfile.ZIP_DEFLATED) as z:
-        for folder in ("src", "tests", "third-party-licenses"):
-            for path in sorted((ROOT / folder).rglob("*")):
-                if path.is_file() and eligible(path):
-                    add(z, path)
-        for filename in (".gitignore", "pyproject.toml", "launch.py", "start_windows.bat", "THIRD_PARTY.md", "scripts/make_examples.py", "docs/dependency-metadata.json", "docs/tested-dependencies.txt"):
-            add(z, ROOT / filename)
+        for path in sorted((ROOT/"src/docflow/examples").rglob("*")):
+            if path.is_file():
+                add(z,path,Path("docflow-lite/examples")/path.relative_to(ROOT/"src/docflow/examples"))
         for path in sorted(sample.rglob("*")):
             if path.is_file():
-                add(z, path)
-        readme = (ROOT / "README.md").read_text(encoding="utf-8").split("## Что где лежит")[0]
-        readme = readme.replace("В этом архиве находится первая рабочая версия из исходников, сайт и демонстрационные материалы.", "В этом архиве находится первая рабочая версия приложения из исходников и демонстрационные документы.")
-        z.writestr("docflow-lite/README.md", readme)
+                add(z,path,Path("docflow-lite/results")/path.relative_to(sample))
+        add(z,ROOT/"LICENSE.txt")
+        readme=f"""# DocFlow {VERSION} — данные и примеры
+
+Это учебные таблицы, DOCX-шаблоны, профиль и четыре готовых результата. Все сведения вымышлены. Полная программа и разработческие тесты в этот архив не входят.
+
+Скачайте Windows Portable из нужного выпуска: https://github.com/hothuman/docflow-lite/releases . Основной сайт: https://docflow-lite.pages.dev/ . Перед запуском ознакомьтесь с LICENSE.txt.
+
+В Core можно открыть встроенный пример либо выбрать файлы из examples. Ожидаются две обработанные и одна пропущенная запись, четыре DOCX. В ошибочной записи намеренно пропущена услуга и указана отрицательная сумма. Профиль содержит настройки; доступность путей проверьте после распаковки.
+
+Результаты находятся в results. Текстовый предпросмотр не заменяет проверку оформления DOCX в Word/LibreOffice. Не используйте реальные данные для первого знакомства.
+"""
+        z.writestr("docflow-lite/README.md",readme)
     # The full founder package includes the site, ready demo and publication draft.
     archive = OUT / f"DocFlow_Lite_v{VERSION}_Starter.zip"
     manifest = {}
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as z:
-        for path in sorted(ROOT.rglob("*")):
+        for path in sorted(ROOT/name for name in SOURCE_FILES):
             if not path.is_file() or not eligible(path):
                 continue
             rel = path.relative_to(ROOT)
@@ -67,7 +75,7 @@ def main():
         with zipfile.ZipFile(p) as z:
             assert z.testzip() is None
             assert len(z.namelist()) == len(set(z.namelist())), "Duplicate ZIP entry"
-    shutil.copy2(DIST / "assets/demo.mp4", OUT / "DocFlow_Lite_Demo_24s.mp4")
+    shutil.copy2(DIST / "assets/demo.mp4", OUT / "DocFlow_Lite_Core_Service_Demo_40s.mp4")
     shutil.copy2(DIST / "assets/app.png", OUT / "DocFlow_Lite_Interface.png")
     class Links(HTMLParser):
         def handle_starttag(self, tag, attrs):
@@ -84,4 +92,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

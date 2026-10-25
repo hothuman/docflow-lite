@@ -45,7 +45,7 @@ def verify(directory):
         raise ValueError("Official candidate requires pinned Python and a full source SHA")
     required = [f"DocFlow-Lite-{version}-{suffix}.zip" for suffix in
                 ("Windows-x64-Portable", "Source", "ThirdParty-Sources")]
-    required += ["BUILD-INFO.json", "WINDOWS-CI-RESULTS.json", "README-WINDOWS.txt"]
+    required += ["BUILD-INFO.json", "WINDOWS-CI-RESULTS.json", "README-WINDOWS.txt", "LICENSE.txt"]
     sums = {}
     for line in (directory / "SHA256SUMS.txt").read_text(encoding="utf-8").splitlines():
         if not line.strip():
@@ -64,7 +64,7 @@ def verify(directory):
         if digest(exe) != info["exe_sha256"]:
             raise ValueError("EXE and BUILD-INFO differ")
         manifest = json.loads(z.read("DocFlow-Lite/BUNDLE-SHA256.json"))
-        if not manifest or "THIRD-PARTY-LICENSES.json" not in manifest:
+        if not manifest or "THIRD-PARTY-LICENSES.json" not in manifest or "LICENSE.txt" not in manifest:
             raise ValueError("Missing bundle provenance/licenses")
         for name, value in manifest.items():
             safe_name(name)

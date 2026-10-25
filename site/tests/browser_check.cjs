@@ -2,7 +2,9 @@
 // Isolated CI browser tests: only synthetic static build files are served.
 const {chromium}=require('playwright');
 const fs=require('node:fs/promises');const path=require('node:path');const http=require('node:http');const crypto=require('node:crypto');const assert=require('node:assert/strict');
-const root=path.resolve(__dirname,'../build');const output=path.resolve(__dirname,'../../artifacts/website');
+const root=path.resolve(__dirname,'../build');const publicBase=process.env.DOCFLOW_PUBLIC_BASE_URL;
+if(publicBase){const u=new URL(publicBase);assert.equal(u.protocol,'https:');assert.equal(u.hostname,'docflow-lite.pages.dev');assert.equal(u.pathname,'/');assert.equal(u.search,'');assert.equal(u.hash,'');}
+const output=path.resolve(__dirname,publicBase?'../../artifacts/website-public':'../../artifacts/website');
 const widths=[320,360,390,620,768,860,1024,1280];
 (async()=>{
  await fs.mkdir(output,{recursive:true});
@@ -15,7 +17,7 @@ const widths=[320,360,390,620,768,860,1024,1280];
    const file=path.join(root,name);const ext=path.extname(file);const mime={'.html':'text/html; charset=utf-8','.css':'text/css','.js':'application/javascript','.png':'image/png','.svg':'image/svg+xml','.ico':'image/x-icon','.mp4':'video/mp4','.zip':'application/zip','.pdf':'application/pdf','.vtt':'text/vtt'}[ext]||'application/octet-stream';
    const data=await fs.readFile(file);res.writeHead(200,{...headers,'Content-Type':mime});res.end(req.method==='HEAD'?undefined:data);
   }catch{res.writeHead(404,headers);res.end('Not found');}
- });await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const base=`http://127.0.0.1:${server.address().port}`;
+ });await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const base=publicBase?publicBase.replace(/\/$/,''):`http://127.0.0.1:${server.address().port}`;
  let browser;const results=[];const errors=[];const foreign=[];const writes=[];
  try{
   browser=await chromium.launch({headless:true,channel:process.env.DOCFLOW_BROWSER_CHANNEL||'chromium'});
@@ -63,7 +65,7 @@ const widths=[320,360,390,620,768,860,1024,1280];
   }
   const nojs=await browser.newContext({javaScriptEnabled:false,viewport:{width:390,height:900}});const page=await nojs.newPage();await page.goto(base+'/index.html');await page.locator('.direction-nav a[href="service.html"]').click();assert(await page.locator('#service-title').isVisible());assert.equal(await page.locator('.route-switch').isVisible(),false);assert((await page.locator('.route-stops').innerText()).includes('Аппарат'));results.push({scenario:'no_javascript_navigation_and_static_route',passed:true});await nojs.close();
   assert.deepEqual(errors,[]);assert.deepEqual(foreign,[]);assert.deepEqual(writes,[]);
-  await fs.writeFile(path.join(output,'browser-checks.json'),JSON.stringify({status:'passed',browser:browser.version(),widths,results,script_errors:errors,external_requests:foreign,data_writes:writes,production_deployed:false},null,2));
+  await fs.writeFile(path.join(output,'browser-checks.json'),JSON.stringify({status:'passed',browser:browser.version(),widths,results,script_errors:errors,external_requests:foreign,data_writes:writes,production_deployed:Boolean(publicBase)},null,2));
  }catch(e){await fs.writeFile(path.join(output,'browser-checks.json'),JSON.stringify({status:'failed',error:e.stack,results,script_errors:errors,external_requests:foreign,data_writes:writes},null,2));throw e;}
  finally{if(browser)await browser.close();server.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

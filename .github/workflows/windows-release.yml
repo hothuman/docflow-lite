@@ -116,7 +116,7 @@ jobs:
           tag="v$version"
           notes="docs/release-$tag.md"
           test -f "$notes"
-          python3 scripts/release_candidate.py verify --directory release
+          python3 scripts/prepare_github_draft.py --directory release --target "$RELEASE_TARGET" --notes "$notes" --output draft-payload.json
           gh api "repos/$GH_REPO/releases?per_page=100" > existing-releases.json
           RELEASE_TAG="$tag" python3 -c "import json,os; assert not any(r['tag_name']==os.environ['RELEASE_TAG'] for r in json.load(open('existing-releases.json'))), 'Release already exists; refusing replacement'"
           gh release create "$tag" release/* \

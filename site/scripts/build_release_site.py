@@ -87,7 +87,7 @@ def activate(output, manifest, fetch=get_json, hash_url=download_hash):
         for old, new in replacements.items():
             text = text.replace(old, new)
         page.write_text(text, encoding="utf-8")
-    info.update(application_version=version, public_prerelease=True, release_verification=proof)
+    info.update(application_version=version, public_prerelease=True, release_verification=proof, source_commit=manifest["release_target"])
     info["file_sha256"] = {str(p.relative_to(output)):hashlib.sha256(p.read_bytes()).hexdigest()
                            for p in sorted(Path(output).rglob("*")) if p.is_file() and p.name != "build-info.json"}
     (Path(output)/"build-info.json").write_text(json.dumps(info,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")

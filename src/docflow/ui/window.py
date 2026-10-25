@@ -238,7 +238,14 @@ class MainWindow(QMainWindow):
         body.addWidget(text('Локальная генерация Word-документов из XLSX/CSV. Данные и шаблоны не отправляются на сервер.'))
         body.addWidget(text('До 5 000 записей, 100 столбцов и 20 DOCX-шаблонов за запуск. Исходники не перезаписываются.'))
         body.addWidget(text('Поддерживаются простые переменные {{поле}}. В Core нет PDF-экспорта, циклов и истории. Service отдельно ведёт ремонты и поддерживает ограниченное повторение строк. Текстовый предпросмотр не заменяет проверку оформления в Word/LibreOffice.','muted'))
-        body.addWidget(text('Подготовительная alpha требует ручной приёмки на Windows 10/11 и проверки DOCX в Word. Опубликованный выпуск 0.1.1 остаётся отдельным.','muted'))
+        body.addWidget(text('Предварительная версия Core + Service. Проверяйте готовые документы в своей версии Word/LibreOffice.','muted'))
+        body.addWidget(text('© 2026 Гапоненко Ростислав Дмитриевич. Бесплатное личное и деловое использование по условиям поставки.'))
+        body.addWidget(text('Используются Qt / PySide6 / Shiboken под LGPLv3 и другие сторонние библиотеки. Их лицензии сохраняются; совместимая замена LGPL-библиотек допускается.','muted'))
+        from pathlib import Path
+        license_path=Path(__file__).resolve().parents[1]/'resources'/'LICENSE.txt'
+        license_button=QPushButton('Условия использования')
+        license_button.clicked.connect(lambda:QDesktopServices.openUrl(QUrl.fromLocalFile(str(license_path))))
+        body.addWidget(license_button)
         layout.addStretch()
 
     def navigate(self,index):
