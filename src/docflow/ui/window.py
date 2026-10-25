@@ -293,7 +293,7 @@ class MainWindow(QMainWindow):
         self.rail.setFixedWidth(94 if compact else max(224,max(button.sizeHint().width() for button in self.nav_buttons)+28))
         self.demo_btn.setText('Демо' if compact else 'Открыть демопример');self.folder_btn.setText('Папка' if compact else 'Открыть папку')
         width=self.width()-self.rail.width()-48
-        mode=3 if width>=1120 else 2 if width>=760 else 1
+        mode=3 if width>=1120 else 2 if width>=900 else 1
         pinned=self.height()<800 or compact
         if hasattr(self,'footer_layout') and self._pinned_action!=pinned:
             self.options_layout.removeWidget(self.generate_btn);self.footer_layout.removeWidget(self.generate_btn)

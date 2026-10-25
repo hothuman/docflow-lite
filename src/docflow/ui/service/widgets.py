@@ -36,7 +36,7 @@ class Grid(QTableView):
   self._sizing=True
   try:
    available=max(100,self.viewport().width()-2);visible=list(range(len(self.records.columns)));widths={i:self._user_widths.get(i,self._preferred.get(i,130)) for i in visible}
-   secondary=('description','complaint','notes','void_reason','source','path','logo_path','contact','email','phone','legal_name','serial','prepared_by','client','financial_status','received_at','created_at','changed_at','method','unit','kind','defects','item_text')
+   secondary=('description','complaint','notes','void_reason','source','path','logo_path','contact','email','phone','legal_name','serial','prepared_by','client','financial_status','status','received_at','created_at','changed_at','method','unit','kind','defects','item_text')
    for key in secondary:
     if sum(widths[i] for i in visible)<=available:break
     if len(visible)>3:

@@ -145,3 +145,11 @@ def test_preferences_failure_keeps_session_width_and_explains(ui,monkeypatch):
  assert grid._user_widths[1]==180 and grid.preferences_saved is False
  assert 'Не удалось сохранить' in grid.horizontalHeader().toolTip()
  grid.close()
+
+
+def test_narrow_finance_keeps_all_money_columns_visible(ui):
+ app,*_=ui
+ grid=Grid([('number','Ремонт №'),('client','Клиент'),('status','Статус'),('total','Стоимость'),('paid','Учтено'),('balance','Остаток'),('financial_status','Расчёты')])
+ grid.resize(600,260);grid.show();grid.install([{'number':'1','client':'Учебный клиент','status':'repair','total':170050,'paid':100000,'balance':70050}]);app.processEvents();grid.fit_columns();app.processEvents()
+ for i in (3,4,5):assert not grid.isColumnHidden(i) and grid.columnViewportPosition(i)+grid.columnWidth(i)<=grid.viewport().width()
+ grid.close()
