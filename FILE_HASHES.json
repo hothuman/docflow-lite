@@ -103,7 +103,7 @@
   "sales/DocFlow_Lite_Leads.xlsx": "61249e1563fdefecd747558ef34640c952b7767a56f43926cd2602842b40fd6a",
   "scripts/build_windows.ps1": "3aec7bc4f381cbf65c3bdd6ca56f211b0b4bac5578d2a6113a61c73737201f50",
   "scripts/capture_demo.py": "f5b6c26aee8964fda00fd9731b9169a56d093fefe29da45bafb9cc0bcbee0df9",
-  "scripts/collect_release_licenses.py": "457cdbbec5b105b14226c05f6e3a50f62cd7683276ba23535738be9e876bdd71",
+  "scripts/collect_release_licenses.py": "1304a4caace52fce54fff534fbe23c0b8b92b3a4c1b18cbb7ff2d5bd044cf297",
   "scripts/compare_windows_startup.py": "c6d90d3c5a75539c05888ad6a01aac728f7fd42d76d9f4d983210f9d4c9cbbf5",
   "scripts/make_examples.py": "aa2f113cdb0302e2e633b4063adce1fa3b781cf6e0294a27df7cfc09db433c64",
   "scripts/package_release.py": "70e090b48e06e45b906cd706b9c22fc56307ecba2e244de7d8c9a40e02c940b8",
