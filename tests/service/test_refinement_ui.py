@@ -179,4 +179,4 @@ def test_a5_application_palette_contrast():
   return sum(x*w for x,w in zip(linear,(.2126,.7152,.0722)))
  for foreground,background in [('text','surface'),('muted','background'),('success','surface'),('error','surface')]:
   a,b=sorted((lum(COLORS[foreground]),lum(COLORS[background])));assert (b+.05)/(a+.05)>=4.5
- a,b=sorted((lum('#FFFFFF'),lum(COLORS['accent'])));assert (b+.05)/(a+.05)>=4.5
+ a,b=sorted((lum(COLORS['accentText']),lum(COLORS['accent'])));assert (b+.05)/(a+.05)>=4.5

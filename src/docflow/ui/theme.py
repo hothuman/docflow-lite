@@ -1,10 +1,10 @@
 """One shared theme for the workspace and top-level Qt dialogs."""
 from pathlib import Path
 import os,sys
-from PySide6.QtGui import QFontDatabase
+from PySide6.QtGui import QFontDatabase,QPalette,QColor
 from functools import lru_cache
 from PySide6.QtWidgets import QApplication
-COLORS={'background':'#F4F7FC','rail':'#FFFFFF','surface':'#FFFFFF','input':'#FFFFFF','table':'#FFFFFF','alternate':'#F5F8FC','border':'#CED8E6','text':'#172B4D','muted':'#52647A','accent':'#1556D9','focus':'#1556D9','error':'#B42318','success':'#00776B','selection':'#E9F0FF'}
+COLORS={'background': '#081C20', 'rail': '#0B2226', 'surface': '#102B2F', 'raised': '#17363A', 'input': '#0B2226', 'table': '#102B2F', 'alternate': '#123035', 'border': '#3C5B59', 'text': '#E5EEE5', 'muted': '#A7BDB5', 'accent': '#C2EF92', 'accentText': '#12241A', 'accentHover': '#D2F5AE', 'focus': '#EFBF73', 'error': '#FFABA0', 'success': '#A9E4BB', 'warning': '#EFBF73', 'info': '#A9D8DA', 'selection': '#284C43', 'disabled': '#829B93'}
 @lru_cache(maxsize=1)
 def stylesheet():
  result=Path(__file__).with_name('theme.qss').read_text(encoding='utf-8')
@@ -18,4 +18,10 @@ def apply_theme(app=None):
   folder=Path(os.environ.get('SYSTEMROOT','C:/Windows'))/'Fonts'
   for name in ('segoeui.ttf','segoeuib.ttf','arial.ttf'):
    if (folder/name).is_file():QFontDatabase.addApplicationFont(str(folder/name))
- if app and app.property('docflow_shared_theme')!=stylesheet():app.setStyleSheet(stylesheet());app.setProperty('docflow_shared_theme',stylesheet())
+ if app and app.property('docflow_shared_theme')!=stylesheet():
+  palette=QPalette()
+  for role,key in [('Window','background'),('WindowText','text'),('Base','input'),('AlternateBase','alternate'),('Text','text'),('Button','raised'),('ButtonText','text'),('Highlight','selection'),('HighlightedText','text'),('ToolTipBase','raised'),('ToolTipText','text'),('PlaceholderText','muted'),('Link','accent')]:
+   palette.setColor(getattr(QPalette.ColorRole,role),QColor(COLORS[key]))
+  palette.setColor(QPalette.ColorGroup.Disabled,QPalette.ColorRole.Text,QColor(COLORS['disabled']))
+  palette.setColor(QPalette.ColorGroup.Disabled,QPalette.ColorRole.ButtonText,QColor(COLORS['disabled']))
+  app.setPalette(palette);app.setStyleSheet(stylesheet());app.setProperty('docflow_shared_theme',stylesheet())

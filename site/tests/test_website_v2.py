@@ -114,7 +114,7 @@ class WebsiteV2Tests(unittest.TestCase):
             self.assertNotIn(call,script)
     def test_service_review_is_current_and_not_an_unpublished_download(self):
         html=(SITE/'dist/service.html').read_text()
-        self.assertIn('0.3.0a5',html)
+        self.assertIn('0.3.0a6',html)
         self.assertNotIn('0.3.0a2',html)
         for name in ('service.png','service-repair.png'):
             self.assertIn('assets/'+name,html)
@@ -136,7 +136,7 @@ class WebsiteV2Tests(unittest.TestCase):
         import re
         css=(SITE/'dist/style.css').read_text()
         colors=dict(re.findall(r'--([a-z-]+):#([0-9a-fA-F]{6})',css))
-        pairs=[(colors['text'],'ffffff'),(colors['muted'],colors['surface']),('ffffff',colors['accent']),('ffffff',colors['accent-hover']),(colors['teal'],colors['teal-soft']),(colors['error'],colors['error-soft'])]
+        pairs=[(colors['text'],colors['bg']),(colors['muted'],colors['surface']),(colors['accent-text'],colors['accent']),(colors['accent-text'],colors['accent-hover']),(colors['teal'],colors['teal-soft']),(colors['error'],colors['error-soft'])]
         for foreground,background in pairs:
             a,b=sorted((luminance(foreground),luminance(background)))
             self.assertGreaterEqual((b+.05)/(a+.05),4.5,(foreground,background))

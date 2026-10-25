@@ -21,7 +21,7 @@ class RowsModel(QAbstractTableModel):
    return '<qt>'+'<br>'.join(html.escape(x) for x in lines)+'</qt>'
   if role==Qt.ItemDataRole.TextAlignmentRole and key in MONEY|{'quantity','version'}:return Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignVCenter
   if role==Qt.ItemDataRole.ForegroundRole:
-   if key=='status':return QColor({'accepted':'#875B0A','diagnostics':'#2458AD','approval':'#875B0A','repair':'#2458AD','parts':'#875B0A','ready':'#00776B','issued':'#52647A','closed':'#52647A','cancelled':'#52647A'}.get(value,COLORS['text']))
+   if key=='status':return QColor({key:COLORS['warning'] if key in ('accepted','approval','parts') else COLORS['info'] if key in ('diagnostics','repair') else COLORS['success'] if key=='ready' else COLORS['muted'] for key in STATUSES}.get(value,COLORS['text']))
    if key=='balance' and type(value) is int and value>0:return QColor(COLORS['error'])
   return None
  def headerData(self,section,orientation,role=Qt.ItemDataRole.DisplayRole):

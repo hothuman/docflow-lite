@@ -21,7 +21,7 @@ class Dashboard(QWidget):
   for title,fn in [('Добавить оборудование',workspace.new_equipment),('История аппарата',workspace.dashboard_history),('Резервная копия',workspace.backup)]:menu.addAction(title,fn)
   self.more.setMenu(menu);self.more.setAccessibleName('Ещё действия обзора');self.actions.addWidget(self.more)
   self.cards=[];self.values={};self.metric_titles={};self.metric_grid=QGridLayout();self.metric_grid.setSpacing(12);layout.addLayout(self.metric_grid)
-  self.queue_frame,self.queue_body=card('Очередь работ','Следующие этапы по текущим обращениям.')
+  self.queue_frame,self.queue_body=card('Сейчас в мастерской','Фактические состояния обращений. Этапы могут повторяться.')
   for key,title in [('active','В работе'),('ready','Готовы к выдаче'),('debt','Остаток к оплате'),('equipment','Оборудование'),('approval','На согласовании'),('parts','Ожидают запчастей')]:
    frame=QFrame();frame.setObjectName('metricCard');frame.setMaximumHeight(86);frame.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Maximum)
    content=QVBoxLayout(frame);content.setContentsMargins(16,10,16,10);content.setSpacing(4)

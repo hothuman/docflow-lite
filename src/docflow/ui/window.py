@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import QThread, QTimer, QUrl, Qt, Signal, Slot, QSize
-from PySide6.QtGui import QDesktopServices, QColor
+from PySide6.QtGui import QDesktopServices, QColor, QIcon
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QFileDialog, QFrame, QGridLayout,
     QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem,
@@ -21,6 +21,8 @@ from ..profile import Profile
 from ..templates import Template
 from ..validation import Rule, values_for, validate_mapping
 from .diagnostics import record_exception,friendly_error
+from .theme import COLORS
+from .flow import FlowLayout
 from .widgets import DataModel, DataView, RecordModel, card, icon, text
 
 KINDS = {"Текст":"text", "Число ≥ 0":"number", "Email":"email", "Дата ГГГГ-ММ-ДД":"date"}
@@ -68,7 +70,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._service_root=service_root;self.service_workspace=None
         self.setWindowTitle(f'DocFlow Lite {__version__}')
-        self.setWindowIcon(icon('document','#1556D9',32))
+        self.setWindowIcon(QIcon(str(Path(__file__).with_name('app.ico'))))
         self.resize(1400,860);self.setMinimumSize(560,320)
         self.table=None;self.templates=[];self.worker=None;self.task_worker=None;self.preview_worker=None
         self.last_result=None;self.encoding='auto';self.sheet=None;self._busy=False
@@ -82,7 +84,7 @@ class MainWindow(QMainWindow):
         outer=QHBoxLayout(root);outer.setContentsMargins(0,0,0,0);outer.setSpacing(0)
         self.rail=QFrame();self.rail.setObjectName('rail');self.rail.setFixedWidth(224)
         nav=QVBoxLayout(self.rail);nav.setContentsMargins(14,22,14,18);nav.setSpacing(8)
-        self.brand=text('DocFlow','brand');nav.addWidget(self.brand)
+        self.brand=text('d/ DocFlow','brand');nav.addWidget(self.brand)
         self.version_label=text(f'v{__version__} · alpha','version');nav.addWidget(self.version_label)
         self.mode_picker=QComboBox();self.mode_picker.addItems(['Core · Документы','Service · Мастерская'])
         self.mode_picker.setAccessibleName('Направление DocFlow');nav.addWidget(self.mode_picker)
@@ -122,7 +124,7 @@ class MainWindow(QMainWindow):
 
     def button(self,title,callback,kind=None,primary=False):
         button=QPushButton(title)
-        if kind:button.setIcon(icon(kind,'#FFFFFF' if primary else '#405474'))
+        if kind:button.setIcon(icon(kind,COLORS['accentText'] if primary else COLORS['muted']))
         if primary:button.setObjectName('primary')
         button.clicked.connect(callback);button.setAccessibleName(title)
         return button
@@ -135,8 +137,12 @@ class MainWindow(QMainWindow):
 
     def _build_create(self):
         page,layout=self.page();self.create_grid=QGridLayout();self.create_grid.setSpacing(14)
-        layout.addLayout(self.create_grid);layout.addStretch()
-        self.source_card,source=card('1. Файлы для генерации','Исходники не перезаписываются. XLSX/CSV и от 1 до 20 DOCX.')
+        self.core_route=QFrame();self.core_route.setObjectName('routeBar');route=FlowLayout(self.core_route);self.route_buttons=[]
+        for label,callback in [('01  Таблица',self.select_data),('02  Шаблоны',self.select_templates),('03  Поля',lambda:self.navigate(2)),('04  Результат',lambda:self.navigate(3))]:
+            b=self.button(label,callback);b.setObjectName('journey');route.addWidget(b);self.route_buttons.append(b)
+        self.route_buttons[2].setToolTip('Сопоставление полей. Значения всех строк проверяются кнопкой «Проверить все записи».')
+        layout.addWidget(self.core_route);layout.addLayout(self.create_grid);layout.addStretch()
+        self.source_card,source=card('Таблица и шаблоны','Исходники не перезаписываются. XLSX/CSV и от 1 до 20 DOCX.')
         self.template_summary=text('Шаблоны Word ещё не выбраны','muted');source.addWidget(self.template_summary)
         buttons=QHBoxLayout();self.add_btn=self.button('Добавить DOCX',self.select_templates,'plus');buttons.addWidget(self.add_btn)
         self.manage_btn=self.button('Управление',lambda:self.navigate(1));buttons.addWidget(self.manage_btn);source.addLayout(buttons)
@@ -167,7 +173,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(preview,'Предпросмотр')
         self.report_text=QTextBrowser();self.report_text.setOpenExternalLinks(False);self.report_text.setPlainText('Здесь появятся результаты проверки и отчёт генерации')
         self.tabs.addTab(self.report_text,'Отчёт')
-        self.options_card,options=card('2. Настройки генерации')
+        self.options_card,options=card('Куда сохранить документы')
         self.options_layout=options
         options.addWidget(text('Формат результата','eyebrow'));options.addWidget(text('DOCX · отдельные файлы для каждой записи'))
         options.addWidget(text('Название папки записи','eyebrow'))
@@ -181,7 +187,7 @@ class MainWindow(QMainWindow):
         self.progress=QProgressBar();self.progress.setRange(0,100);self.progress.setValue(0);self.progress.setTextVisible(False);options.addWidget(self.progress)
         self.progress_label=text('Генерация ещё не запускалась','muted');options.addWidget(self.progress_label)
         self.generate_btn=self.button('Сгенерировать документы',self.start_generation,primary=True);options.addWidget(self.generate_btn);options.addStretch()
-        self.ready_card,ready=card('Состояние подготовки')
+        self.ready_card,ready=card('Следующий шаг')
         self.readiness=text('Нужны таблица и шаблоны','muted');ready.addWidget(self.readiness)
         self.ready_details=text('Откройте встроенный демопример для первого запуска.','muted');ready.addWidget(self.ready_details)
         ready.addWidget(text('Проверки выполняются по вашим правилам. Ошибочные записи пропускаются и попадают в отчёт.','muted'))
@@ -285,15 +291,15 @@ class MainWindow(QMainWindow):
         compact=self.width()<1050
         self.rail.layout().setContentsMargins(9 if compact else 14,12 if compact else 22,9 if compact else 14,12 if compact else 18)
         self.rail.layout().setSpacing(2 if compact else 8)
-        if self.rail.property('compact')!=compact:
-            self.rail.setProperty('compact',compact)
+        if self.rail.property('compact')!=compact or self.rail.property('short')!=(self.height()<600):
+            self.rail.setProperty('compact',compact);self.rail.setProperty('short',self.height()<600)
             for widget in [self.rail,*self.rail.findChildren(QWidget)]:widget.style().unpolish(widget);widget.style().polish(widget)
-        self.brand.setText('DF' if compact else 'DocFlow');self.version_label.setVisible(not compact);self.local_note.setVisible(not compact)
-        for i,button in enumerate(self.nav_buttons):button.setText('' if compact else self.NAV_NAMES[i])
-        for i,button in enumerate(self.service_nav):button.setText('' if compact else ('Обзор','Оборудование','Ремонты','Клиенты','Финансы','Документы','Сметы','Настройки')[i])
+        self.brand.setText('d/ DocFlow');self.version_label.setVisible(not compact);self.local_note.setVisible(not compact)
+        for i,button in enumerate(self.nav_buttons):button.setText(('Документы','Шаблоны','Поля','Результат','О программе','Service')[i] if compact else self.NAV_NAMES[i])
+        for i,button in enumerate(self.service_nav):button.setText(('Обзор','Аппараты','Ремонты','Клиенты','Финансы','Документы','Сметы','Настройки')[i] if compact else ('Обзор','Оборудование','Ремонты','Клиенты','Финансы','Документы','Сметы','Настройки')[i])
         self.nav_caption.setVisible(not compact)
         self.mode_picker.setItemText(0,'Core' if compact else 'Core · Документы');self.mode_picker.setItemText(1,'Service' if compact else 'Service · Мастерская')
-        self.rail.setFixedWidth(94 if compact else max(224,max(button.sizeHint().width() for button in self.nav_buttons)+28))
+        self.rail.setFixedWidth(148 if compact else max(224,max(button.sizeHint().width() for button in self.nav_buttons)+28))
         self.demo_btn.setText('Демо' if compact else 'Открыть демопример');self.folder_btn.setText('Папка' if compact else 'Открыть папку')
         width=self.width()-self.rail.width()-48
         mode=3 if width>=1120 else 2 if width>=900 else 1
@@ -416,7 +422,7 @@ class MainWindow(QMainWindow):
         self.template_list.clear();self.template_selector.clear();self.name_selector.clear()
         active=self.active_templates()
         for template in self.templates:
-            item=QListWidgetItem(icon('document','#1556D9'),template.path.name+'\n'+f'{len(template.raw)/1024:.1f} КБ · {len(template.fields)} полей · {template.path.parent}')
+            item=QListWidgetItem(icon('document',COLORS['accent']),template.path.name+'\n'+f'{len(template.raw)/1024:.1f} КБ · {len(template.fields)} полей · {template.path.parent}')
             item.setFlags(item.flags()|Qt.ItemFlag.ItemIsUserCheckable)
             item.setData(Qt.ItemDataRole.UserRole,str(template.path));item.setToolTip(str(template.path)+'\nПоля: '+', '.join(sorted(template.fields)))
             item.setCheckState(Qt.CheckState.Checked if template.path in self._active_paths else Qt.CheckState.Unchecked);self.template_list.addItem(item)
@@ -478,9 +484,15 @@ class MainWindow(QMainWindow):
         self.mapping_feedback.setText('Все переменные сопоставлены' if valid else message)
         self.ready_details.setText(f'Таблица: {len(self.table.records) if self.table else 0} записей\nШаблоны: {len(self.active_templates())} выбрано\nФормат: DOCX\nОтчёты: JSON и CSV')
         self.generate_btn.setEnabled(valid and not self._busy)
+        states=[bool(self.table),bool(self.active_templates()),valid,bool(self.last_result)]
+        for b,complete in zip(self.route_buttons,states):
+            b.setProperty('complete',complete);b.setEnabled(not self._busy);b.style().unpolish(b);b.style().polish(b)
+        next_step='Выберите таблицу XLSX или CSV.' if not self.table else 'Добавьте шаблон DOCX.' if not self.active_templates() else 'Откройте «Поля и проверки» и сопоставьте переменные.' if not valid else 'Проверьте записи, затем нажмите «Сгенерировать документы».'
+        self.readiness.setToolTip(next_step)
+        self.ready_details.setText(next_step+'\n'+self.ready_details.text())
         for row in range(self.mapping_table.rowCount()):
             missing=not self.mapping_table.cellWidget(row,1).currentText()
-            self.mapping_table.item(row,0).setForeground(QColor('#B42318' if missing else '#172B4D'))
+            self.mapping_table.item(row,0).setForeground(QColor(COLORS['error'] if missing else COLORS['text']))
 
     def _table_row_changed(self,current,previous):
         if current.isValid():self.row_selector.setCurrentIndex(current.row())

@@ -22,12 +22,15 @@ class RepairDialog(QDialog):
         self.setWindowTitle('Ремонт '+snapshot['repair']['number']);fit_dialog(self,1060,740)
         outer=QVBoxLayout(self);outer.setSpacing(14)
         passport=QFrame();passport.setObjectName('card');passport_layout=QVBoxLayout(passport);passport_layout.setContentsMargins(16,12,16,12)
-        self.identity=QLabel();self.identity.setWordWrap(True);passport_layout.addWidget(self.identity)
+        self.identity=QLabel();self.identity.setWordWrap(True);passport_layout.addWidget(text('SERVICE / ПАСПОРТ ОБРАЩЕНИЯ','eyebrow'));passport_layout.addWidget(self.identity)
         self.summary=QLabel();self.summary.setWordWrap(True);self.summary.setObjectName('muted');passport_layout.addWidget(self.summary);outer.addWidget(passport)
         self.finance_strip=QWidget();finance=QHBoxLayout(self.finance_strip);finance.setContentsMargins(0,0,0,0);finance.setSpacing(12);self.finance_values={}
         for key,title in [('total','Стоимость ремонта'),('paid','Учтено оплат'),('balance','Остаток')]:
             panel=QFrame();panel.setObjectName('metricCard');box=QVBoxLayout(panel);box.setContentsMargins(14,8,14,8);box.addWidget(text(title,'muted'));value=text('—','metricValue');box.addWidget(value);finance.addWidget(panel,1);self.finance_values[key]=value
         outer.addWidget(self.finance_strip)
+        self.state_frame=QFrame();self.state_frame.setObjectName('repairState');state_layout=QHBoxLayout(self.state_frame);state_layout.setContentsMargins(12,8,12,8)
+        self.state_hint=text('','muted');self.state_hint.setAccessibleName('Текущий этап и следующий шаг');state_layout.addWidget(self.state_hint,1)
+        self.status_action=button(state_layout,'Статус и история',self.open_status);outer.addWidget(self.state_frame)
         self.tabs=RepairNavigation();self.tabs.setUsesScrollButtons(False);outer.addWidget(self.tabs,1)
         sections=[('Приёмка',[('received_at','Дата ДД.ММ.ГГГГ','date'),('complaint','Жалоба','long'),('accessories','Комплектация','long'),('condition','Внешнее состояние','long'),('notes','Примечания','long')]),('Дефектовка',[('defects','Неисправности','long'),('plan','План работ','long'),('approval','Согласование',[(v,v) for v in APPROVALS]),('approval_note','Комментарий к согласованию','long')])]
         for title,fields in sections:
@@ -57,6 +60,8 @@ class RepairDialog(QDialog):
         bar=QHBoxLayout();outer.addLayout(bar);self.dirty_label=text('','muted');bar.addWidget(self.dirty_label,1);self.save_button=button(bar,'Сохранить ремонт',self.save,primary=True);button(bar,'Закрыть',self.close)
         for label in self.findChildren(QLabel):label.setTextFormat(Qt.TextFormat.PlainText)
         self.install(snapshot)
+    def open_status(self):
+        self.tabs.show_section('Статус и история');self.fields['status'].setFocus()
     def add_field(self,form,key,label,kind):
         if isinstance(kind,list):
             w=QComboBox()
@@ -80,11 +85,14 @@ class RepairDialog(QDialog):
             elif isinstance(w,QPlainTextEdit):w.setPlainText(str(value))
             else:w.setText(str(value))
             w.blockSignals(False)
-        self.identity.setText(f"Ремонт №{r['number']} · Аппарат №{s['equipment']['number']} · {s['equipment']['model']}\nКлиент этого обращения: {s['client']['name']}");self.identity.setObjectName('section')
+        self.identity.setText(f"{s['equipment']['model']}\nАппарат №{s['equipment']['number']}  |  Обращение №{r['number']}\nКлиент обращения: {s['client']['name']}");self.identity.setObjectName('section')
         t=s['totals']
         for key,label in self.finance_values.items():label.setText(rub(t[key]))
         self.finance_strip.setVisible(self.height()>=600)
         self.summary.setText(f"Производство: {s['profile']['status_labels'].get(r['status'],STATUSES[r['status']][0])}   |   Фактически {rub(t['total'])} · Учтено {rub(t['paid'])} · Остаток {rub(t['balance'])} · {t['financial_status']}")
+        hints={'accepted':'Зафиксируйте жалобу и комплектацию в разделе «Приёмка».','diagnostics':'Опишите неисправности и план работ в разделе «Дефектовка».','approval':'Откройте «Сметы» и внесите только фактическую отметку согласования.','parts':'Уточните запчасти и план работ. Этап меняется вручную.','repair':'Запишите выполненные работы и фактическую стоимость.','ready':'Проверьте документы, комплектацию и внутренние расчёты перед выдачей.','issued':'Сведения о выдаче и история доступны в разделе «Статус и история».','closed':'Обращение закрыто. История и документы сохранены.','cancelled':'Отказ или отмена: причина сохраняется в истории.'}
+        self.state_hint.setText(s['profile']['status_labels'].get(r['status'],STATUSES[r['status']][0])+' · '+hints.get(r['status'],''))
+        self.state_frame.setVisible(self.height()>=640)
         self.estimates.install(s)
         for group in ('work','part','delivery','other'):
             rows=[{**x,'price':rub(x['price_cents']),'total':x['total_cents']} for x in s['repair_items'] if x['kind']==group];self.grids[group].install(rows)
@@ -204,3 +212,4 @@ class RepairDialog(QDialog):
     def resizeEvent(self,event):
         super().resizeEvent(event)
         if hasattr(self,'finance_strip'):self.finance_strip.setVisible(self.height()>=600)
+        if hasattr(self,'state_frame'):self.state_frame.setVisible(self.height()>=640)

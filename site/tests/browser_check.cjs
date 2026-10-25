@@ -30,6 +30,12 @@ const widths=[320,360,390,620,768,860,1024,1280];
     }
     const sizes=await page.evaluate(()=>({client:document.documentElement.clientWidth,scroll:document.documentElement.scrollWidth}));assert(sizes.scroll<=sizes.client,JSON.stringify({name,width,...sizes}));
     assert.match(await page.locator('meta[name=robots]').getAttribute('content'),/noindex/);
+    const route=page.locator('.route-instrument');
+    await route.locator('[data-route-mode="service"]').focus();await page.keyboard.press('Enter');
+    assert.equal(await route.getAttribute('data-route'),'service');assert.match(await route.locator('.route-stops').innerText(),/Аппарат/);
+    await route.locator('[data-route-mode="core"]').focus();await page.keyboard.press('Space');
+    assert.equal(await route.getAttribute('data-route'),'core');assert.match(await route.locator('.route-stops').innerText(),/XLSX/);
+    if(name==='service.html')await route.locator('[data-route-mode="service"]').click();
     for(const a of await page.locator('a[href^="mailto:"]').all())assert((await a.getAttribute('href')).startsWith('mailto:docflow.lite@gmail.com'));
     for(const a of await page.locator('a[href^="https://t.me/"]').all()){const url=new URL(await a.getAttribute('href'));assert.equal(url.pathname,'/de1grace');if(url.searchParams.has('text')){assert.match(url.searchParams.get('text'),/DocFlow/);assert.match(url.searchParams.get('text'),name==='service.html'?/Service/:/настрой|DocFlow/);}}
     const summary=page.locator('details summary').first();await summary.click();assert(await summary.evaluate(el=>el.parentElement.open));await summary.press('Space');assert.equal(await summary.evaluate(el=>el.parentElement.open),false);
@@ -55,7 +61,7 @@ const widths=[320,360,390,620,768,860,1024,1280];
    await page.goto(base+'/index.html');await page.locator('.direction-nav a[href="service.html"]').focus();await page.keyboard.press('Enter');await page.waitForURL('**/service.html');assert.equal(await page.locator('.direction-nav a[aria-current=page]').getAttribute('href'),'service.html');await page.goBack();assert(page.url().endsWith('/index.html'));
    await context.close();
   }
-  const nojs=await browser.newContext({javaScriptEnabled:false,viewport:{width:390,height:900}});const page=await nojs.newPage();await page.goto(base+'/index.html');await page.locator('.direction-nav a[href="service.html"]').click();assert(await page.locator('#service-title').isVisible());results.push({scenario:'no_javascript_navigation',passed:true});await nojs.close();
+  const nojs=await browser.newContext({javaScriptEnabled:false,viewport:{width:390,height:900}});const page=await nojs.newPage();await page.goto(base+'/index.html');await page.locator('.direction-nav a[href="service.html"]').click();assert(await page.locator('#service-title').isVisible());assert.equal(await page.locator('.route-switch').isVisible(),false);assert((await page.locator('.route-stops').innerText()).includes('Аппарат'));results.push({scenario:'no_javascript_navigation_and_static_route',passed:true});await nojs.close();
   assert.deepEqual(errors,[]);assert.deepEqual(foreign,[]);assert.deepEqual(writes,[]);
   await fs.writeFile(path.join(output,'browser-checks.json'),JSON.stringify({status:'passed',browser:browser.version(),widths,results,script_errors:errors,external_requests:foreign,data_writes:writes,production_deployed:false},null,2));
  }catch(e){await fs.writeFile(path.join(output,'browser-checks.json'),JSON.stringify({status:'failed',error:e.stack,results,script_errors:errors,external_requests:foreign,data_writes:writes},null,2));throw e;}

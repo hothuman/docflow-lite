@@ -1,4 +1,4 @@
-DocFlow Lite 0.3.0a5 — Core + Service, подготовительная сборка
+DocFlow Lite 0.3.0a6 — Core + Service, подготовительная сборка
 
 Не официальный стабильный Release. Публичный v0.1.1 остаётся отдельным.
 Windows 10 x64 (1809+) / Windows 11 x64. Python устанавливать не требуется.
