@@ -58,3 +58,10 @@ def test_repair_context_uses_actual_status_and_only_navigates(tmp_path):
  assert editor.fields['status'].hasFocus() and not editor.dirty
  assert ui.store.snapshot(ids['repair'])['repair']['revision']==before
  editor.accept();w.close();app.processEvents()
+
+
+@pytest.mark.parametrize('page',[1,2])
+def test_core_setup_pages_wrap_long_actions_at_640(page):
+ app=QApplication.instance() or QApplication([]);configure_app(app);w=MainWindow();w.resize(640,360);w.show();w.load_demo();wait_idle(w);w.navigate(page);app.processEvents();app.processEvents()
+ assert w.pages.currentWidget().horizontalScrollBar().maximum()==0
+ wait_idle(w);w.close();app.processEvents()

@@ -198,7 +198,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(box);self.template_list=QListWidget();self.template_list.setMinimumHeight(240)
         self.template_list.setTextElideMode(Qt.TextElideMode.ElideMiddle);self.template_list.setAccessibleName('Шаблоны, выбранные для генерации')
         self.template_list.itemChanged.connect(self._template_toggled);body.addWidget(self.template_list,1)
-        row=QHBoxLayout();self.template_add_btn=self.button('Добавить шаблоны',self.select_templates,'plus');row.addWidget(self.template_add_btn)
+        row=FlowLayout();self.template_add_btn=self.button('Добавить шаблоны',self.select_templates,'plus');row.addWidget(self.template_add_btn)
         self.remove_btn=self.button('Удалить выбранный из списка',self.remove_template);row.addWidget(self.remove_btn);body.addLayout(row)
         body.addWidget(text('Удаление из списка не удаляет исходный файл. PDF, макросы и сложные выражения шаблонов не поддерживаются.','muted'));layout.addStretch()
 
@@ -212,7 +212,7 @@ class MainWindow(QMainWindow):
         for col in (2,3):self.mapping_table.horizontalHeader().setSectionResizeMode(col,QHeaderView.ResizeMode.ResizeToContents)
         self.mapping_table.horizontalHeader().setMinimumSectionSize(100);self.mapping_table.verticalHeader().hide();body.addWidget(self.mapping_table,1)
         self.mapping_feedback=text('Сначала загрузите файлы','muted');body.addWidget(self.mapping_feedback)
-        row=QHBoxLayout();self.open_profile_btn=self.button('Открыть JSON-профиль',self.open_profile,'folder')
+        row=FlowLayout();self.open_profile_btn=self.button('Открыть JSON-профиль',self.open_profile,'folder')
         self.save_profile_btn=self.button('Сохранить JSON-профиль',lambda:self.save_profile(background=True))
         row.addWidget(self.open_profile_btn);row.addWidget(self.save_profile_btn);body.addLayout(row)
         formatbox,settings=card('Чтение таблицы','CSV: auto определяет UTF-8 или Windows-1251. Для XLSX можно указать имя листа; пустое поле означает активный лист.')
