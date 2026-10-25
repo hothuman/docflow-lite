@@ -37,12 +37,13 @@ def run(output):
                     primary=window.generate_btn;point=primary.mapTo(window,QPoint())
                     if not primary.isVisible() or not window.rect().contains(point) or not window.rect().contains(point+QPoint(primary.width()-1,primary.height()-1)):
                         failures.append('primary generation action clipped or hidden')
-                for button in [window.demo_btn,window.folder_btn,*window.nav_buttons]:
+                for button in [window.demo_btn,window.folder_btn,window.mode_picker,*window.nav_buttons,*window.service_nav]:
+                    if not button.isVisible():continue
                     point=button.mapTo(window,QPoint(0,0))
                     if not window.rect().contains(point) or not window.rect().contains(point+QPoint(button.width()-1,button.height()-1)):
                         failures.append('header/navigation clipped: '+button.accessibleName())
                 for button in window.nav_buttons:
-                    if button.text() and button.width()<button.sizeHint().width():
+                    if button.isVisible() and button.text() and button.width()<button.sizeHint().width():
                         failures.append('navigation label truncated: '+button.text())
                 case={'physical_client_size':[width,height],'scale_factor':scale,'device_pixel_ratio':window.devicePixelRatioF(),
                       'logical_size':[window.width(),window.height()],'page':page,'horizontal_scroll_max':scroll.horizontalScrollBar().maximum(),

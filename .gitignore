@@ -27,3 +27,19 @@ site/dist/__audit.html
 /client-work/
 /orders/
 /sales/leads-private*
+
+# Service customer data stays outside source control.
+/service-data/
+/private/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.bak
+*.service-backup.zip
+site/node_modules/
+
+# Synthetic CI handoff inputs and generated deliverables
+/.handoff-input/
+/handoff/

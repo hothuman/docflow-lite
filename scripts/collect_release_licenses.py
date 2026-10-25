@@ -40,7 +40,16 @@ def collect(bundle, sources):
     notices.mkdir(parents=True,exist_ok=True)
     sources.mkdir(parents=True,exist_ok=True)
     distributions=[]
-    for name in RUNTIME:
+    runtime_names=list(RUNTIME)
+    # lxml/openpyxl hooks may include optional packages from a local build env.
+    # Collect their actual wheel notices when frozen, without requiring them in CI.
+    pyz=ROOT/'build/windows/PYZ-00.pyz'
+    if pyz.is_file():
+        from PyInstaller.archive.readers import ZlibArchiveReader
+        modules={name.split('.')[0] for name in ZlibArchiveReader(str(pyz)).toc}
+        for module,distribution in [('PIL','Pillow'),('bs4','beautifulsoup4'),('soupsieve','soupsieve')]:
+            if module in modules:runtime_names.append(distribution)
+    for name in runtime_names:
         dist=metadata.distribution(name)
         copied=[]
         for item in dist.files or []:

@@ -57,10 +57,10 @@ class PublicURLTests(unittest.TestCase):
         tree = ElementTree.parse(self.directory / "sitemap.xml")
         urls = [n.text for n in tree.findall(".//{*}loc")]
         self.assertEqual(urls, [PAGES_FIXTURE])
-        robots = (self.directory / "robots.txt").read_text()
+        robots = (self.directory / "robots.txt").read_text(encoding="utf-8")
         self.assertIn("Allow: /docflow-lite/", robots)
         self.assertIn("Sitemap: " + PAGES_FIXTURE + "sitemap.xml", robots)
-        self.assertIn('content="noindex,follow"', (self.directory / "privacy.html").read_text())
+        self.assertIn('content="noindex,follow"', (self.directory / "privacy.html").read_text(encoding="utf-8"))
 
     def test_resources_keep_subdirectory(self):
         module.configure(PAGES_FIXTURE, self.directory)

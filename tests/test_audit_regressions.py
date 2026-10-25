@@ -109,12 +109,19 @@ def test_release_can_be_repacked_with_verifiable_hashes(tmp_path):
     if not (source / 'scripts/package_release.py').is_file() or not (source / 'site/dist/index.html').is_file():
         pytest.skip('Release packaging integration requires the full developer checkout with website source')
     checkout = tmp_path / "source"
-    shutil.copytree(source, checkout, ignore=shutil.ignore_patterns('__pycache__', '.pytest_cache', '*.egg-info', '.git', 'docflow-output'))
+    declared=json.loads((source/'FILE_HASHES.json').read_text(encoding='utf-8'))
+    for name in [*declared,'FILE_HASHES.json']:
+        target=checkout/name;target.parent.mkdir(parents=True,exist_ok=True)
+        shutil.copy2(source/name,target)
+    # Untracked private/stale inputs must never enter a source/starter or public demo.
+    private_marker=b'UNTRACKED_CUSTOMER_'+bytes(range(20))
+    for name in ('.env','client-work/customer.txt','release-old/stale.zip'):
+        target=checkout/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(private_marker)
     result = subprocess.run([sys.executable, 'scripts/package_release.py'], cwd=checkout, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     archive = next((tmp_path / 'deliverables').glob('*Starter.zip'))
     with zipfile.ZipFile(archive) as z:
         assert len(z.namelist()) == len(set(z.namelist()))
+        assert not any(private_marker in z.read(n) for n in z.namelist())
         checksums = json.loads(z.read('docflow-lite/FILE_HASHES.json'))
         assert all(hashlib.sha256(z.read('docflow-lite/' + path)).hexdigest() == digest for path, digest in checksums.items())
-

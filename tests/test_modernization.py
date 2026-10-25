@@ -212,3 +212,9 @@ def test_archive_member_limit_not_weakened():
     with zipfile.ZipFile(b,'w') as z:
         for i in range(2001):z.writestr(f'{i}.bin',b'')
     with pytest.raises(DocFlowError):check_archive(b.getvalue())
+
+
+@pytest.mark.parametrize('size',[(1024,576),(900,600),(640,360)])
+def test_create_page_does_not_gain_horizontal_scroll_at_compact_width(window,size):
+    window.resize(*size);window.navigate(0);QApplication.processEvents();QApplication.processEvents()
+    assert window.pages.currentWidget().horizontalScrollBar().maximum()==0

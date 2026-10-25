@@ -1,0 +1,58 @@
+{
+  "platform": "Linux-6.18.55-x86_64-with-glibc2.39",
+  "python": "3.12.14",
+  "synthetic_only": true,
+  "runs": [
+    {
+      "gui": {
+        "journal_rows": 624,
+        "open_seconds": 0.1985,
+        "filter_seconds": 0.0147,
+        "sort_seconds": 0.0304,
+        "history_seconds": 0.0474,
+        "edit_103_line_draft_seconds": 0.0307,
+        "photo_preview_seconds": 0.0444,
+        "heartbeat_ticks": 18,
+        "max_heartbeat_gap_seconds": 0.1512,
+        "whole_journal_queries_on_resize_hover_scroll": 0
+      },
+      "equipment": 100,
+      "repairs": 624,
+      "items": 1972,
+      "history_repairs_one_device": 30,
+      "journal_seconds": 0.0109,
+      "history_seconds": 0.0031,
+      "search_seconds": 0.0154,
+      "dashboard_seconds": 0.0132,
+      "large_docx_seconds": 0.4481,
+      "large_docx_bytes": 40319,
+      "large_docx_rows": 103
+    },
+    {
+      "gui": {
+        "journal_rows": 6024,
+        "open_seconds": 0.4366,
+        "filter_seconds": 0.0425,
+        "sort_seconds": 0.3485,
+        "history_seconds": 0.0582,
+        "edit_103_line_draft_seconds": 0.0264,
+        "photo_preview_seconds": 0.0451,
+        "heartbeat_ticks": 46,
+        "max_heartbeat_gap_seconds": 0.3487,
+        "whole_journal_queries_on_resize_hover_scroll": 0
+      },
+      "equipment": 1000,
+      "repairs": 6024,
+      "items": 18172,
+      "history_repairs_one_device": 30,
+      "journal_seconds": 0.1819,
+      "history_seconds": 0.024,
+      "search_seconds": 0.235,
+      "dashboard_seconds": 0.1192,
+      "large_docx_seconds": 0.5139,
+      "large_docx_bytes": 40319,
+      "large_docx_rows": 103
+    }
+  ],
+  "status": "passed"
+}

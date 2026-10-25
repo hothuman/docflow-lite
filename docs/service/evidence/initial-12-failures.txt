@@ -1,0 +1,609 @@
+..F...............F.....................................FFFFFFFFF......F [ 34%]
+........................................................................ [ 69%]
+...............................................................                                                                  [100%]
+=================================== FAILURES ===================================
+_________________ test_docx_commit_failure_removes_own_output __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-8/test_docx_commit_failure_remov0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f9377140860>
+
+    def test_docx_commit_failure_removes_own_output(tmp_path, monkeypatch):
+        s = ServiceStore(tmp_path/'project'); ids = seed_demo(s.root)
+        original = sqlite3.connect
+        class Full(sqlite3.Connection):
+            def commit(self): raise sqlite3.OperationalError('database or disk is full')
+        monkeypatch.setattr(sqlite3, 'connect', lambda *a, **kw: original(*a, **kw, factory=Full))
+>       with pytest.raises(ServiceError): generate_document(s, ids['repair'], 'completion')
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/service/test_completion.py:76: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/docflow/service/documents.py:303: in generate_document
+    raw=Template.load(path)
+        ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'docflow.templates.Template'>
+path = PosixPath('/tmp/pytest-of-root/pytest-8/test_docx_commit_failure_remov0/project/templates/default-v3/completion.docx')
+
+    @classmethod
+    def load(cls, path: Path | str):
+        path = Path(path)
+        if path.suffix.lower() != ".docx":
+            raise DocFlowError("Шаблон должен иметь расширение .docx")
+        raw = read_bounded(path)
+        check_archive(raw)
+        fields = set()
+        try:
+            document = Document(io.BytesIO(raw))
+            if document.element.tag != W + "document":
+                raise DocFlowError("Неверная структура основного документа Word")
+            with zipfile.ZipFile(io.BytesIO(raw)) as z:
+                if "word/document.xml" not in z.namelist():
+                    raise DocFlowError("В архиве нет документа Word")
+                for name in z.namelist():
+                    if not name.startswith("word/") or not name.endswith(".xml"):
+                        continue
+                    root = parse(z.read(name))
+                    if any(next(root.iter(W + tag), None) is not None for tag in ("instrText", "fldSimple", "fldChar", "object", "altChunk")):
+                        raise DocFlowError("Поля Word, OLE и altChunk не поддерживаются; используйте обычный текст")
+                    all_text = "".join(t.text or "" for t in root.iter(W + "t"))
+                    if not STORY.fullmatch(name):
+                        if any(m in all_text for m in ("{{", "}}", "{%", "{#")):
+                            raise DocFlowError("Переменные поддерживаются в тексте, таблицах и колонтитулах; обнаружена другая часть DOCX")
+                        continue
+                    part_fields = set()
+                    for p in root.iter(W + "p"):
+                        text = "".join(t.text for t in paragraph_nodes(p))
+                        current = _fields(text)
+                        if current and (next(p.iterancestors(W + "txbxContent"), None) is not None or any(next(p.iter(W + tag), None) is not None for tag in ("ins", "del", "br", "tab"))):
+>                           raise DocFlowError("Переменные в надписях, правках и абзацах с табуляцией/разрывами не поддерживаются")
+E                           docflow.errors.DocFlowError: Переменные в надписях, правках и абзацах с табуляцией/разрывами не поддерживаются
+
+src/docflow/templates.py:76: DocFlowError
+___________________ test_actual_qt_service_and_core_workflow ___________________
+
+app = <PySide6.QtWidgets.QApplication(0x22fc1ce0) at 0x7f9376f3f9c0>
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-8/test_actual_qt_service_and_cor0')
+
+    def test_actual_qt_service_and_core_workflow(app,tmp_path):
+     from docflow.service.self_test import run
+>    assert run(tmp_path/'native-qt-workflow')==0
+E    AssertionError: assert 1 == 0
+E     +  where 1 = <function run at 0x7f937717c220>((PosixPath('/tmp/pytest-of-root/pytest-8/test_actual_qt_service_and_cor0') / 'native-qt-workflow'))
+
+tests/service/test_gui_service.py:20: AssertionError
+----------------------------- Captured stderr call -----------------------------
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+________________ test_documents_versions_and_no_tokens[intake] _________________
+
+store = (<docflow.service.repository.ServiceStore object at 0x7f9375db64b0>, {'client': 'f6b80edb569f4e0f91629c9d4c89dc36', 'e...baad4e1e356e53b99e', 'first_repair': '6e9e66bae2ad4b02b0d878b6edb9e568', 'repair': '10a7671fefbd47b7abd1697c297c3fa6'})
+kind = 'intake'
+
+    @pytest.mark.parametrize('kind',list(KINDS))
+    def test_documents_versions_and_no_tokens(store,kind):
+     s,ids=store
+>    p=generate_document(s,ids['repair'],kind);p2=generate_document(s,ids['repair'],kind)
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/service/test_service.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/docflow/service/documents.py:303: in generate_document
+    raw=Template.load(path)
+        ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'docflow.templates.Template'>
+path = PosixPath('/tmp/pytest-of-root/pytest-8/test_documents_versions_and_no0/Кириллица с пробелами/templates/default-v3/intake.docx')
+
+    @classmethod
+    def load(cls, path: Path | str):
+        path = Path(path)
+        if path.suffix.lower() != ".docx":
+            raise DocFlowError("Шаблон должен иметь расширение .docx")
+        raw = read_bounded(path)
+        check_archive(raw)
+        fields = set()
+        try:
+            document = Document(io.BytesIO(raw))
+            if document.element.tag != W + "document":
+                raise DocFlowError("Неверная структура основного документа Word")
+            with zipfile.ZipFile(io.BytesIO(raw)) as z:
+                if "word/document.xml" not in z.namelist():
+                    raise DocFlowError("В архиве нет документа Word")
+                for name in z.namelist():
+                    if not name.startswith("word/") or not name.endswith(".xml"):
+                        continue
+                    root = parse(z.read(name))
+                    if any(next(root.iter(W + tag), None) is not None for tag in ("instrText", "fldSimple", "fldChar", "object", "altChunk")):
+                        raise DocFlowError("Поля Word, OLE и altChunk не поддерживаются; используйте обычный текст")
+                    all_text = "".join(t.text or "" for t in root.iter(W + "t"))
+                    if not STORY.fullmatch(name):
+                        if any(m in all_text for m in ("{{", "}}", "{%", "{#")):
+                            raise DocFlowError("Переменные поддерживаются в тексте, таблицах и колонтитулах; обнаружена другая часть DOCX")
+                        continue
+                    part_fields = set()
+                    for p in root.iter(W + "p"):
+                        text = "".join(t.text for t in paragraph_nodes(p))
+                        current = _fields(text)
+                        if current and (next(p.iterancestors(W + "txbxContent"), None) is not None or any(next(p.iter(W + tag), None) is not None for tag in ("ins", "del", "br", "tab"))):
+>                           raise DocFlowError("Переменные в надписях, правках и абзацах с табуляцией/разрывами не поддерживаются")
+E                           docflow.errors.DocFlowError: Переменные в надписях, правках и абзацах с табуляцией/разрывами не поддерживаются
+
+src/docflow/templates.py:76: DocFlowError
+______________ test_documents_versions_and_no_tokens[completion] _______________
+
+store = (<docflow.service.repository.ServiceStore object at 0x7f9377141820>, {'client': 'a2fd1ce2f34d42bd8ddb63d9caba094a', 'e...96b3d37eda9dfbe8a2', 'first_repair': 'aaca7b427cd942d89739a207fb7f57bb', 'repair': 'c597ba07270b4e35a2effc34dba1d047'})
+kind = 'completion'
+
+    @pytest.mark.parametrize('kind',list(KINDS))
+    def test_documents_versions_and_no_tokens(store,kind):
+     s,ids=store
+>    p=generate_document(s,ids['repair'],kind);p2=generate_document(s,ids['repair'],kind)
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/service/test_service.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/docflow/service/documents.py:303: in generate_document
+    raw=Template.load(path)
+        ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'docflow.templates.Template'>
+path = PosixPath('/tmp/pytest-of-root/pytest-8/test_documents_versions_and_no1/Кириллица с пробелами/templates/default-v3/completion.docx')
+
+    @classmethod
+    def load(cls, path: Path | str):
+        path = Path(path)
+        if path.suffix.lower() != ".docx":
+            raise DocFlowError("Шаблон должен иметь расширение .docx")
+        raw = read_bounded(path)
+        check_archive(raw)
+        fields = set()
+        try:
+            document = Document(io.BytesIO(raw))
+            if document.element.tag != W + "document":
+                raise DocFlowError("Неверная структура основного документа Word")
+            with zipfile.ZipFile(io.BytesIO(raw)) as z:
+                if "word/document.xml" not in z.namelist():
+                    raise DocFlowError("В архиве нет документа Word")
+                for name in z.namelist():
+                    if not name.startswith("word/") or not name.endswith(".xml"):
+                        continue
+                    root = parse(z.read(name))
+                    if any(next(root.iter(W + tag), None) is not None for tag in ("instrText", "fldSimple", "fldChar", "object", "altChunk")):
+                        raise DocFlowError("Поля Word, OLE и altChunk не поддерживаются; используйте обычный текст")
+                    all_text = "".join(t.text or "" for t in root.iter(W + "t"))
+                    if not STORY.fullmatch(name):
+                        if any(m in all_text for m in ("{{", "}}", "{%", "{#")):
+                            raise DocFlowError("Переменные поддерживаются в тексте, таблицах и колонтитулах; обнаружена другая часть DOCX")
+                        continue
+                    part_fields = set()
+                    for p in root.iter(W + "p"):
+                        text = "".join(t.text for t in paragraph_nodes(p))
+                        current = _fields(text)
+                        if current and (next(p.iterancestors(W + "txbxContent"), None) is not None or any(next(p.iter(W + tag), None) is not None for tag in ("ins", "del", "br", "tab"))):
+>                           raise DocFlowError("Переменные в надписях, правках и абзацах с табуляцией/разрывами не поддерживаются")
+E                           docflow.errors.DocFlowError: Переменные в надписях, правках и абзацах с табуляцией/разрывами не поддерживаются
+
+src/docflow/templates.py:76: DocFlowError
+_______________ test_documents_versions_and_no_tokens[combined] ________________
+
+store = (<docflow.service.repository.ServiceStore object at 0x7f9375db45c0>, {'client': 'f19e587ba9db4db6a7ed974e18b7b5ab', 'e...e38494f87b4889e4b4', 'first_repair': 'ee70f828974e4e8ca93bcc0159f0366d', 'repair': 'ee159117321b49b99848ba59b6705e23'})
+kind = 'combined'
+
+    @pytest.mark.parametrize('kind',list(KINDS))
+    def test_documents_versions_and_no_tokens(store,kind):
+     s,ids=store
+>    p=generate_document(s,ids['repair'],kind);p2=generate_document(s,ids['repair'],kind)
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/service/test_service.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/docflow/service/documents.py:303: in generate_document
+    raw=Template.load(path)
+        ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'docflow.templates.Template'>
+path = PosixPath('/tmp/pytest-of-root/pytest-8/test_documents_versions_and_no2/Кириллица с пробелами/templates/default-v3/combined.docx')
+
+    @classmethod
+    def load(cls, path: Path | str):
+        path = Path(path)
+        if path.suffix.lower() != ".docx":
+            raise DocFlowError("Шаблон должен иметь расширение .docx")
+        raw = read_bounded(path)
+        check_archive(raw)
+        fields = set()
+        try:
+            document = Document(io.BytesIO(raw))
+            if document.element.tag != W + "document":
+                raise DocFlowError("Неверная структура основного документа Word")
+            with zipfile.ZipFile(io.BytesIO(raw)) as z:
+                if "word/document.xml" not in z.namelist():
+                    raise DocFlowError("В архиве нет документа Word")
+                for name in z.namelist():
+                    if not name.startswith("word/") or not name.endswith(".xml"):
+                        continue
+                    root = parse(z.read(name))
+                    if any(next(root.iter(W + tag), None) is not None for tag in ("instrText", "fldSimple", "fldChar", "object", "altChunk")):
+                        raise DocFlowError("Поля Word, OLE и altChunk не поддерживаются; используйте обычный текст")
+                    all_text = "".join(t.text or "" for t in root.iter(W + "t"))
+                    if not STORY.fullmatch(name):
+                        if any(m in all_text for m in ("{{", "}}", "{%", "{#")):
+                            raise DocFlowError("Переменные поддерживаются в тексте, таблицах и колонтитулах; обнаружена другая часть DOCX")
+                        continue
+                    part_fields = set()
+                    for p in root.iter(W + "p"):
+                        text = "".join(t.text for t in paragraph_nodes(p))
+                        current = _fields(text)
+                        if current and (next(p.iterancestors(W + "txbxContent"), None) is not None or any(next(p.iter(W + tag), None) is not None for tag in ("ins", "del", "br", "tab"))):
+>                           raise DocFlowError("Переменные в надписях, правках и абзацах с табуляцией/разрывами не поддерживаются")
+E                           docflow.errors.DocFlowError: Переменные в надписях, правках и абзацах с табуляцией/разрывами не поддерживаются
+
+src/docflow/templates.py:76: DocFlowError
+________________ test_documents_versions_and_no_tokens[defects] ________________
+
+store = (<docflow.service.repository.ServiceStore object at 0x7f9375da7ec0>, {'client': 'ed6b096efc3d464194d0019bfc658205', 'e...d68a2ea9354e0bdde4', 'first_repair': 'd4dc0aa45561455ea245a6587a6ea769', 'repair': 'bf1d0d7467634ce596a626ffa4b59d92'})
+kind = 'defects'
+
+    @pytest.mark.parametrize('kind',list(KINDS))
+    def test_documents_versions_and_no_tokens(store,kind):
+     s,ids=store
+>    p=generate_document(s,ids['repair'],kind);p2=generate_document(s,ids['repair'],kind)
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/service/test_service.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/docflow/service/documents.py:303: in generate_document
+    raw=Template.load(path)
+        ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'docflow.templates.Template'>
+path = PosixPath('/tmp/pytest-of-root/pytest-8/test_documents_versions_and_no3/Кириллица с пробелами/templates/default-v3/defects.docx')
+
+    @classmethod
+    def load(cls, path: Path | str):
+        path = Path(path)
+        if path.suffix.lower() != ".docx":
+            raise DocFlowError("Шаблон должен иметь расширение .docx")
+        raw = read_bounded(path)
+        check_archive(raw)
+        fields = set()
+        try:
+            document = Document(io.BytesIO(raw))
+            if document.element.tag != W + "document":
+                raise DocFlowError("Неверная структура основного документа Word")
+            with zipfile.ZipFile(io.BytesIO(raw)) as z:
+                if "word/document.xml" not in z.namelist():
+                    raise DocFlowError("В архиве нет документа Word")
+                for name in z.namelist():
+                    if not name.startswith("word/") or not name.endswith(".xml"):
+                        continue
+                    root = parse(z.read(name))
+                    if any(next(root.iter(W + tag), None) is not None for tag in ("instrText", "fldSimple", "fldChar", "object", "altChunk")):
+                        raise DocFlowError("Поля Word, OLE и altChunk не поддерживаются; используйте обычный текст")
+                    all_text = "".join(t.text or "" for t in root.iter(W + "t"))
+                    if not STORY.fullmatch(name):
+                        if any(m in all_text for m in ("{{", "}}", "{%", "{#")):
+                            raise DocFlowError("Переменные поддерживаются в тексте, таблицах и колонтитулах; обнаружена другая часть DOCX")
+                        continue
+                    part_fields = set()
+                    for p in root.iter(W + "p"):
+                        text = "".join(t.text for t in paragraph_nodes(p))
+                        current = _fields(text)
+                        if current and (next(p.iterancestors(W + "txbxContent"), None) is not None or any(next(p.iter(W + tag), None) is not None for tag in ("ins", "del", "br", "tab"))):
+>                           raise DocFlowError("Переменные в надписях, правках и абзацах с табуляцией/разрывами не поддерживаются")
+E                           docflow.errors.DocFlowError: Переменные в надписях, правках и абзацах с табуляцией/разрывами не поддерживаются
+
+src/docflow/templates.py:76: DocFlowError
+_______________ test_documents_versions_and_no_tokens[handover] ________________
+
+store = (<docflow.service.repository.ServiceStore object at 0x7f9375db5ee0>, {'client': 'd0608217e3e64042a4273993d290d0e2', 'e...8ca1ca62eee6ff4e93', 'first_repair': '8f2acf3aaab649b68950d8a53920bc0f', 'repair': '87d1139ae1ed48f78ed4f55c2415a64c'})
+kind = 'handover'
+
+    @pytest.mark.parametrize('kind',list(KINDS))
+    def test_documents_versions_and_no_tokens(store,kind):
+     s,ids=store
+>    p=generate_document(s,ids['repair'],kind);p2=generate_document(s,ids['repair'],kind)
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/service/test_service.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/docflow/service/documents.py:303: in generate_document
+    raw=Template.load(path)
+        ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'docflow.templates.Template'>
+path = PosixPath('/tmp/pytest-of-root/pytest-8/test_documents_versions_and_no4/Кириллица с пробелами/templates/default-v3/handover.docx')
+
+    @classmethod
+    def load(cls, path: Path | str):
+        path = Path(path)
+        if path.suffix.lower() != ".docx":
+            raise DocFlowError("Шаблон должен иметь расширение .docx")
+        raw = read_bounded(path)
+        check_archive(raw)
+        fields = set()
+        try:
+            document = Document(io.BytesIO(raw))
+            if document.element.tag != W + "document":
+                raise DocFlowError("Неверная структура основного документа Word")
+            with zipfile.ZipFile(io.BytesIO(raw)) as z:
+                if "word/document.xml" not in z.namelist():
+                    raise DocFlowError("В архиве нет документа Word")
+                for name in z.namelist():
+                    if not name.startswith("word/") or not name.endswith(".xml"):
+                        continue
+                    root = parse(z.read(name))
+                    if any(next(root.iter(W + tag), None) is not None for tag in ("instrText", "fldSimple", "fldChar", "object", "altChunk")):
+                        raise DocFlowError("Поля Word, OLE и altChunk не поддерживаются; используйте обычный текст")
+                    all_text = "".join(t.text or "" for t in root.iter(W + "t"))
+                    if not STORY.fullmatch(name):
+                        if any(m in all_text for m in ("{{", "}}", "{%", "{#")):
+                            raise DocFlowError("Переменные поддерживаются в тексте, таблицах и колонтитулах; обнаружена другая часть DOCX")
+                        continue
+                    part_fields = set()
+                    for p in root.iter(W + "p"):
+                        text = "".join(t.text for t in paragraph_nodes(p))
+                        current = _fields(text)
+                        if current and (next(p.iterancestors(W + "txbxContent"), None) is not None or any(next(p.iter(W + tag), None) is not None for tag in ("ins", "del", "br", "tab"))):
+>                           raise DocFlowError("Переменные в надписях, правках и абзацах с табуляцией/разрывами не поддерживаются")
+E                           docflow.errors.DocFlowError: Переменные в надписях, правках и абзацах с табуляцией/разрывами не поддерживаются
+
+src/docflow/templates.py:76: DocFlowError
+_________ test_documents_versions_and_no_tokens[estimate_preliminary] __________
+
+store = (<docflow.service.repository.ServiceStore object at 0x7f9376dcf8f0>, {'client': '630f40bdee8344faa8d71d3046bd830f', 'e...1dae5bdb61aefd4855', 'first_repair': 'f98c6e12296e4c34aa002451ca180160', 'repair': '3c2ebe49647741638a639a5d51a7f02e'})
+kind = 'estimate_preliminary'
+
+    @pytest.mark.parametrize('kind',list(KINDS))
+    def test_documents_versions_and_no_tokens(store,kind):
+     s,ids=store
+>    p=generate_document(s,ids['repair'],kind);p2=generate_document(s,ids['repair'],kind)
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/service/test_service.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+store = <docflow.service.repository.ServiceStore object at 0x7f9376dcf8f0>
+repair_id = '3c2ebe49647741638a639a5d51a7f02e', kind = 'estimate_preliminary'
+template = None, image_ids = ()
+
+    def generate_document(store, repair_id, kind, template=None, image_ids=(), *, estimate_id=None, image_choices=None):
+        if kind not in KINDS: raise ServiceError('Неизвестный документ')
+        with store.lock:
+            snapshot=store.snapshot(repair_id); r=snapshot['repair']; eq=snapshot['equipment']; client=snapshot['client']
+            amounts=snapshot['totals']; organization=snapshot['profile']; items=snapshot['repair_items']; quote=None
+            if kind.startswith('estimate_'):
+                from .estimates import get_estimate
+                expected='preliminary' if kind=='estimate_preliminary' else 'final'
+                if not estimate_id:
+                    matches=[q for q in snapshot['estimates'] if q['kind']==expected]
+                    estimate_id=matches[0]['id'] if matches else None
+>               if not estimate_id: raise ServiceError('Сначала сохраните неизменяемую версию соответствующей сметы')
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               docflow.service.validation.ServiceError: Сначала сохраните неизменяемую версию соответствующей сметы
+
+src/docflow/service/documents.py:265: ServiceError
+____________ test_documents_versions_and_no_tokens[estimate_final] _____________
+
+store = (<docflow.service.repository.ServiceStore object at 0x7f9377143c50>, {'client': 'db40e75e267548dd8b54d57227e5b87f', 'e...f5920e92c47e74bbad', 'first_repair': '6bfab3340eac4637aefe4a8e3eaf5ecb', 'repair': '18fb43ed6f3c4c3c9a5374320f0a18d7'})
+kind = 'estimate_final'
+
+    @pytest.mark.parametrize('kind',list(KINDS))
+    def test_documents_versions_and_no_tokens(store,kind):
+     s,ids=store
+>    p=generate_document(s,ids['repair'],kind);p2=generate_document(s,ids['repair'],kind)
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/service/test_service.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+store = <docflow.service.repository.ServiceStore object at 0x7f9377143c50>
+repair_id = '18fb43ed6f3c4c3c9a5374320f0a18d7', kind = 'estimate_final'
+template = None, image_ids = ()
+
+    def generate_document(store, repair_id, kind, template=None, image_ids=(), *, estimate_id=None, image_choices=None):
+        if kind not in KINDS: raise ServiceError('Неизвестный документ')
+        with store.lock:
+            snapshot=store.snapshot(repair_id); r=snapshot['repair']; eq=snapshot['equipment']; client=snapshot['client']
+            amounts=snapshot['totals']; organization=snapshot['profile']; items=snapshot['repair_items']; quote=None
+            if kind.startswith('estimate_'):
+                from .estimates import get_estimate
+                expected='preliminary' if kind=='estimate_preliminary' else 'final'
+                if not estimate_id:
+                    matches=[q for q in snapshot['estimates'] if q['kind']==expected]
+                    estimate_id=matches[0]['id'] if matches else None
+>               if not estimate_id: raise ServiceError('Сначала сохраните неизменяемую версию соответствующей сметы')
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               docflow.service.validation.ServiceError: Сначала сохраните неизменяемую версию соответствующей сметы
+
+src/docflow/service/documents.py:265: ServiceError
+_______________ test_documents_versions_and_no_tokens[warranty] ________________
+
+store = (<docflow.service.repository.ServiceStore object at 0x7f9375e226c0>, {'client': 'f670558f826e4c0eaf1a565f2e318f51', 'e...0b8950eaee74b2ad84', 'first_repair': '4ac2163471554aaea76b91b30b8aa3f4', 'repair': '1f5678593e714e2e870aaa94b398ad6b'})
+kind = 'warranty'
+
+    @pytest.mark.parametrize('kind',list(KINDS))
+    def test_documents_versions_and_no_tokens(store,kind):
+     s,ids=store
+>    p=generate_document(s,ids['repair'],kind);p2=generate_document(s,ids['repair'],kind)
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/service/test_service.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/docflow/service/documents.py:303: in generate_document
+    raw=Template.load(path)
+        ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'docflow.templates.Template'>
+path = PosixPath('/tmp/pytest-of-root/pytest-8/test_documents_versions_and_no7/Кириллица с пробелами/templates/default-v3/warranty.docx')
+
+    @classmethod
+    def load(cls, path: Path | str):
+        path = Path(path)
+        if path.suffix.lower() != ".docx":
+            raise DocFlowError("Шаблон должен иметь расширение .docx")
+        raw = read_bounded(path)
+        check_archive(raw)
+        fields = set()
+        try:
+            document = Document(io.BytesIO(raw))
+            if document.element.tag != W + "document":
+                raise DocFlowError("Неверная структура основного документа Word")
+            with zipfile.ZipFile(io.BytesIO(raw)) as z:
+                if "word/document.xml" not in z.namelist():
+                    raise DocFlowError("В архиве нет документа Word")
+                for name in z.namelist():
+                    if not name.startswith("word/") or not name.endswith(".xml"):
+                        continue
+                    root = parse(z.read(name))
+                    if any(next(root.iter(W + tag), None) is not None for tag in ("instrText", "fldSimple", "fldChar", "object", "altChunk")):
+                        raise DocFlowError("Поля Word, OLE и altChunk не поддерживаются; используйте обычный текст")
+                    all_text = "".join(t.text or "" for t in root.iter(W + "t"))
+                    if not STORY.fullmatch(name):
+                        if any(m in all_text for m in ("{{", "}}", "{%", "{#")):
+                            raise DocFlowError("Переменные поддерживаются в тексте, таблицах и колонтитулах; обнаружена другая часть DOCX")
+                        continue
+                    part_fields = set()
+                    for p in root.iter(W + "p"):
+                        text = "".join(t.text for t in paragraph_nodes(p))
+                        current = _fields(text)
+                        if current and (next(p.iterancestors(W + "txbxContent"), None) is not None or any(next(p.iter(W + tag), None) is not None for tag in ("ins", "del", "br", "tab"))):
+>                           raise DocFlowError("Переменные в надписях, правках и абзацах с табуляцией/разрывами не поддерживаются")
+E                           docflow.errors.DocFlowError: Переменные в надписях, правках и абзацах с табуляцией/разрывами не поддерживаются
+
+src/docflow/templates.py:76: DocFlowError
+__________________ test_empty_many_rows_and_custom_split_runs __________________
+
+store = (<docflow.service.repository.ServiceStore object at 0x7f93753ba6f0>, {'client': '238ef4c8cbd24991b65c92ac9ff0386e', 'e...b887c57aeac3e7ac02', 'first_repair': '1defa6d6328d4c67a3e0fd2db9ad1cb5', 'repair': '55b0ffc95657449b9e45c4ec37382bc6'})
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-8/test_empty_many_rows_and_custo0')
+
+    def test_empty_many_rows_and_custom_split_runs(store,tmp_path):
+>    s,ids=store;r=s.create_repair(ids['equipment']);path=generate_document(s,r,'completion')
+                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/service/test_service.py:124: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/docflow/service/documents.py:303: in generate_document
+    raw=Template.load(path)
+        ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'docflow.templates.Template'>
+path = PosixPath('/tmp/pytest-of-root/pytest-8/test_empty_many_rows_and_custo0/Кириллица с пробелами/templates/default-v3/completion.docx')
+
+    @classmethod
+    def load(cls, path: Path | str):
+        path = Path(path)
+        if path.suffix.lower() != ".docx":
+            raise DocFlowError("Шаблон должен иметь расширение .docx")
+        raw = read_bounded(path)
+        check_archive(raw)
+        fields = set()
+        try:
+            document = Document(io.BytesIO(raw))
+            if document.element.tag != W + "document":
+                raise DocFlowError("Неверная структура основного документа Word")
+            with zipfile.ZipFile(io.BytesIO(raw)) as z:
+                if "word/document.xml" not in z.namelist():
+                    raise DocFlowError("В архиве нет документа Word")
+                for name in z.namelist():
+                    if not name.startswith("word/") or not name.endswith(".xml"):
+                        continue
+                    root = parse(z.read(name))
+                    if any(next(root.iter(W + tag), None) is not None for tag in ("instrText", "fldSimple", "fldChar", "object", "altChunk")):
+                        raise DocFlowError("Поля Word, OLE и altChunk не поддерживаются; используйте обычный текст")
+                    all_text = "".join(t.text or "" for t in root.iter(W + "t"))
+                    if not STORY.fullmatch(name):
+                        if any(m in all_text for m in ("{{", "}}", "{%", "{#")):
+                            raise DocFlowError("Переменные поддерживаются в тексте, таблицах и колонтитулах; обнаружена другая часть DOCX")
+                        continue
+                    part_fields = set()
+                    for p in root.iter(W + "p"):
+                        text = "".join(t.text for t in paragraph_nodes(p))
+                        current = _fields(text)
+                        if current and (next(p.iterancestors(W + "txbxContent"), None) is not None or any(next(p.iter(W + tag), None) is not None for tag in ("ins", "del", "br", "tab"))):
+>                           raise DocFlowError("Переменные в надписях, правках и абзацах с табуляцией/разрывами не поддерживаются")
+E                           docflow.errors.DocFlowError: Переменные в надписях, правках и абзацах с табуляцией/разрывами не поддерживаются
+
+src/docflow/templates.py:76: DocFlowError
+_______________ test_real_image_video_missing_and_backup_restore _______________
+
+store = (<docflow.service.repository.ServiceStore object at 0x7f9375db5a60>, {'client': '58d8e035ff374fd09deb90b7716c51fd', 'e...4e9fbe18ecfd7b8f38', 'first_repair': '8b6fb4de94ed4ce5a47858ae7e91f43c', 'repair': '6353bcc4bc8342c697ed069a10a433cb'})
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-8/test_real_image_video_missing_0')
+
+    def test_real_image_video_missing_and_backup_restore(store,tmp_path):
+     from PySide6.QtGui import QImage,QColor
+     s,ids=store;r=ids['repair'];photo=tmp_path/'Фото с пробелами.png';im=QImage(200,150,QImage.Format.Format_RGB32);im.fill(QColor('#873047'));assert im.save(str(photo))
+     key=add_attachment(s,r,photo,'Вымышленная схема');assert attachment_path(s,key).is_file()
+     video=Path(__file__).resolve().parents[2]/'site/dist/assets/demo.mp4';v=add_attachment(s,r,video)
+>    generated=generate_document(s,r,'combined',image_ids=[key]);assert len(Document(generated).inline_shapes)==1
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/service/test_service.py:154: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/docflow/service/documents.py:303: in generate_document
+    raw=Template.load(path)
+        ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'docflow.templates.Template'>
+path = PosixPath('/tmp/pytest-of-root/pytest-8/test_real_image_video_missing_0/Кириллица с пробелами/templates/default-v3/combined.docx')
+
+    @classmethod
+    def load(cls, path: Path | str):
+        path = Path(path)
+        if path.suffix.lower() != ".docx":
+            raise DocFlowError("Шаблон должен иметь расширение .docx")
+        raw = read_bounded(path)
+        check_archive(raw)
+        fields = set()
+        try:
+            document = Document(io.BytesIO(raw))
+            if document.element.tag != W + "document":
+                raise DocFlowError("Неверная структура основного документа Word")
+            with zipfile.ZipFile(io.BytesIO(raw)) as z:
+                if "word/document.xml" not in z.namelist():
+                    raise DocFlowError("В архиве нет документа Word")
+                for name in z.namelist():
+                    if not name.startswith("word/") or not name.endswith(".xml"):
+                        continue
+                    root = parse(z.read(name))
+                    if any(next(root.iter(W + tag), None) is not None for tag in ("instrText", "fldSimple", "fldChar", "object", "altChunk")):
+                        raise DocFlowError("Поля Word, OLE и altChunk не поддерживаются; используйте обычный текст")
+                    all_text = "".join(t.text or "" for t in root.iter(W + "t"))
+                    if not STORY.fullmatch(name):
+                        if any(m in all_text for m in ("{{", "}}", "{%", "{#")):
+                            raise DocFlowError("Переменные поддерживаются в тексте, таблицах и колонтитулах; обнаружена другая часть DOCX")
+                        continue
+                    part_fields = set()
+                    for p in root.iter(W + "p"):
+                        text = "".join(t.text for t in paragraph_nodes(p))
+                        current = _fields(text)
+                        if current and (next(p.iterancestors(W + "txbxContent"), None) is not None or any(next(p.iter(W + tag), None) is not None for tag in ("ins", "del", "br", "tab"))):
+>                           raise DocFlowError("Переменные в надписях, правках и абзацах с табуляцией/разрывами не поддерживаются")
+E                           docflow.errors.DocFlowError: Переменные в надписях, правках и абзацах с табуляцией/разрывами не поддерживаются
+
+src/docflow/templates.py:76: DocFlowError
+=========================== short test summary info ============================
+FAILED tests/service/test_completion.py::test_docx_commit_failure_removes_own_output
+FAILED tests/service/test_gui_service.py::test_actual_qt_service_and_core_workflow
+FAILED tests/service/test_service.py::test_documents_versions_and_no_tokens[intake]
+FAILED tests/service/test_service.py::test_documents_versions_and_no_tokens[completion]
+FAILED tests/service/test_service.py::test_documents_versions_and_no_tokens[combined]
+FAILED tests/service/test_service.py::test_documents_versions_and_no_tokens[defects]
+FAILED tests/service/test_service.py::test_documents_versions_and_no_tokens[handover]
+FAILED tests/service/test_service.py::test_documents_versions_and_no_tokens[estimate_preliminary]
+FAILED tests/service/test_service.py::test_documents_versions_and_no_tokens[estimate_final]
+FAILED tests/service/test_service.py::test_documents_versions_and_no_tokens[warranty]
+FAILED tests/service/test_service.py::test_empty_many_rows_and_custom_split_runs
+FAILED tests/service/test_service.py::test_real_image_video_missing_and_backup_restore
+12 failed, 195 passed, 16 subtests passed in 21.40s

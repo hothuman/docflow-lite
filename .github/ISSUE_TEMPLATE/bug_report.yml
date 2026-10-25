@@ -1,0 +1,40 @@
+name: Ошибка программы
+description: Сообщение об ошибке DocFlow
+title: "[Ошибка] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: Не прикладывайте реальные базы, клиентские документы, персональные данные, ключи или полный список переменных среды.
+  - type: input
+    id: version
+    attributes:
+      label: Версия DocFlow и Windows
+      placeholder: 0.3.0a6, Windows 11 x64
+    validations:
+      required: true
+  - type: dropdown
+    id: direction
+    attributes:
+      label: Направление
+      options: [Core, Service, Сборка или сайт]
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Шаги воспроизведения
+      description: Действия и маленький синтетический пример, если нужен.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Ожидаемый и фактический результат
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Обезличенная диагностика
+      description: Удалите имена, адреса, номера клиентов и секреты; проверьте пути на снимках.

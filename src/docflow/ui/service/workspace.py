@@ -1,0 +1,290 @@
+"""Asynchronous local workspace. Every DB/media/DOCX/backup operation runs off Qt's UI thread."""
+from pathlib import Path
+from uuid import uuid4
+from datetime import datetime
+from PySide6.QtCore import QThread,Qt,QSortFilterProxyModel,QTimer,QUrl,QLockFile,Signal
+from PySide6.QtGui import QDesktopServices
+from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QGridLayout,QLabel,QPushButton,QTabWidget,QTableView,QHeaderView,QLineEdit,QComboBox,QCheckBox,QFileDialog,QInputDialog,QMessageBox,QDialog,QPlainTextEdit,QFormLayout,QScrollArea,QToolBar)
+from ...service.repository import ServiceStore,default_root
+from ...service.validation import ServiceError,rub
+from ...service.statuses import STATUSES,APPROVALS
+from ...service.documents import generate_document,KINDS
+from ...service.attachments import add_attachment,attachment_path,remove_attachment,export_file
+from ...service.backup import create_backup,restore_backup
+from ...service.demo import seed_demo
+from .widgets import Grid,button,confirm
+from .forms import FieldsDialog
+from ..flow import ActionBar
+from ..diagnostics import record_exception,friendly_error,diagnostic_path
+
+class Job(QThread):
+    def __init__(self,function,parent):super().__init__(parent);self.function=function;self.value=None;self.error=''
+    def run(self):
+        try:self.value=self.function()
+        except Exception as exc:record_exception('Service worker',exc);self.error=friendly_error(exc)
+        finally:self.function=None
+
+class ServiceWorkspace(QWidget):
+    def __init__(self,parent=None,root=None,shell_navigation=False):
+        super().__init__(parent);self.shell_navigation=shell_navigation;self.store=None;self.worker=None;self.project_lock=None;self.cache={};self._pending_refresh=False;self.dialogs=[]
+        out=QVBoxLayout(self);out.setContentsMargins(0,0,0,0)
+        self.location=QLabel('Открываю проект…');self.location.setObjectName('projectLocation');self.location.setWordWrap(True);out.addWidget(self.location)
+        self.section_picker=QComboBox();self.section_picker.setAccessibleName('Раздел Service');out.addWidget(self.section_picker)
+        self.tabs=QTabWidget();self.tabs.setUsesScrollButtons(False);out.addWidget(self.tabs,1)
+        self.section_picker.currentIndexChanged.connect(self.tabs.setCurrentIndex);self.tabs.currentChanged.connect(self.section_picker.setCurrentIndex)
+        from .dashboard import Dashboard
+        self.dashboard=Dashboard(self);self.tabs.addTab(self.dashboard,'Обзор')
+        self.searches={};self.empty_labels={}
+        self.views={};self.toolbars={}
+        definitions={
+        'equipment':('Оборудование',[('number','Постоянный №'),('model','Модель'),('owner','Владелец'),('serial','Серийный №')]),
+        'repairs':('Ремонты',[('number','Ремонт №'),('equipment_label','Аппарат'),('client','Клиент'),('received_at','Приёмка'),('status','Статус'),('total','Стоимость'),('balance','Остаток')]),
+        'clients':('Клиенты',[('name','Клиент'),('kind','Тип'),('contact','Контактное лицо'),('phone','Телефон'),('email','Email'),('archived','Состояние')]),
+        'finance':('Финансы',[('number','Ремонт №'),('client','Клиент'),('status','Статус'),('total','Стоимость'),('paid','Учтено'),('balance','Остаток'),('financial_status','Расчёты')]),
+        'documents':('Документы',[('number','Ремонт №'),('kind','Тип'),('version','Версия'),('created_at','Создано'),('path','Файл')]),
+        'estimates':('Сметы',[('number','Ремонт №'),('client','Клиент'),('kind','Смета'),('version','Версия'),('state','Ручная отметка'),('total','Итог')])}
+        for key,(name,cols) in definitions.items():
+            page=QWidget();layout=QVBoxLayout(page);layout.setContentsMargins(0,8,0,0);layout.setSpacing(12);bar=ActionBar();layout.addWidget(bar);self.toolbars[key]=bar
+            search=QLineEdit();search.setPlaceholderText('Номер, название или описание');search.setAccessibleName('Поиск '+name);layout.addWidget(search)
+            self.searches[key]=search
+            empty=QLabel({'equipment':'Пока нет оборудования. Добавьте первый аппарат или импортируйте журнал.','repairs':'Ремонтов пока нет. Создайте первое обращение.','clients':'Клиентов пока нет. Добавьте первого клиента.','finance':'Финансовых записей пока нет. Откройте ремонт для учёта расчётов.','documents':'Документы ещё не создавались.','estimates':'Нет сохранённых смет. Откройте ремонт и подготовьте расчёт.'}[key]);empty.setObjectName('empty');empty.setWordWrap(True);layout.addWidget(empty);self.empty_labels[key]=empty
+            view=Grid(cols,settings_key='workspace/'+key);layout.addWidget(view,1);search.textChanged.connect(view.proxy.setFilterFixedString);self.views[key]=view;self.tabs.addTab(page,name)
+        button(self.toolbars['clients'],'Добавить',self.new_client);button(self.toolbars['clients'],'Изменить',self.edit_client);button(self.toolbars['clients'],'Архив / вернуть',lambda:self.archive('clients'))
+        button(self.toolbars['equipment'],'Добавить',self.new_equipment);button(self.toolbars['equipment'],'Карточка / история',self.equipment_card);button(self.toolbars['equipment'],'Изменить',self.edit_equipment);button(self.toolbars['equipment'],'Архив / вернуть',lambda:self.archive('equipment'))
+        button(self.toolbars['repairs'],'Новый ремонт',self.new_repair);button(self.toolbars['repairs'],'Открыть',lambda:self.open_selected('repairs'))
+        self.status_filter=QComboBox();self.status_filter.addItem('Все статусы','')
+        for k,(name,_) in STATUSES.items():self.status_filter.addItem(name,k)
+        self.toolbars['repairs'].addWidget(self.status_filter);self.status_filter.currentIndexChanged.connect(self.refresh)
+        self.archived=QCheckBox('Архив');self.toolbars['equipment'].addWidget(self.archived);self.archived.toggled.connect(self.refresh)
+        self.clients_archived=QCheckBox('Архивные клиенты');self.toolbars['clients'].addWidget(self.clients_archived);self.clients_archived.toggled.connect(self.refresh)
+        self.active_only=QCheckBox('Активные');self.toolbars['equipment'].addWidget(self.active_only);self.active_only.toggled.connect(self.refresh)
+        button(self.toolbars['finance'],'Карточка и платежи',lambda:self.open_selected('finance'))
+        button(self.toolbars['estimates'],'Открыть ремонт и сметы',lambda:self.open_selected('estimates'))
+        self.views['estimates'].doubleClicked.connect(lambda _:self.open_selected('estimates'))
+        button(self.toolbars['documents'],'Открыть DOCX',lambda:self.open_file(True));button(self.toolbars['documents'],'Экспортировать',self.export_document)
+        for k in ('repairs','finance'):self.views[k].doubleClicked.connect(lambda _,key=k:self.open_selected(key))
+        self.views['equipment'].doubleClicked.connect(self.equipment_card)
+        self.views['equipment'].openRequested.connect(self.equipment_card)
+        for key in ('repairs','finance','estimates'):self.views[key].openRequested.connect(lambda k=key:self.open_selected(k))
+        self.views['documents'].openRequested.connect(lambda:self.open_file(True))
+        from ..widgets import card
+        settings=QWidget();sl=QVBoxLayout(settings);sl.setContentsMargins(0,8,0,0);sl.setSpacing(16)
+        groups=[('Рабочий проект','Данные хранятся отдельно от программы. Переключение не удаляет текущий проект.',[
+            ('Открыть другой проект',self.choose_project),('Открыть папку проекта',self.open_folder),('Профили организаций',self.organization_profiles)]),
+            ('Импорт и начало работы','Связи оборудования и обращений подтверждаются перед импортом.',[
+            ('Исторический импорт XLSX / CSV',self.import_history),('Импорт оборудования XLSX / CSV',self.import_equipment),('Word → проверочный CSV',self.review_docx),('Создать отдельное демо',self.demo)]),
+            ('Резервное копирование','Копия включает базу и связанные файлы. Восстановление — в новую папку. Архив не зашифрован.',[
+            ('Создать резервную копию',self.backup),('Восстановить в новую папку',self.restore)])]
+        for title,note,actions in groups:
+            frame,body=card(title,note);bar=ActionBar();body.addWidget(bar)
+            for label,fn in actions:button(bar,label,fn)
+            sl.addWidget(frame)
+        sl.addStretch();settings_scroll=QScrollArea();settings_scroll.setWidgetResizable(True);settings_scroll.setWidget(settings);self.tabs.addTab(settings_scroll,'Настройки')
+        self.section_picker.addItems([self.tabs.tabText(i) for i in range(self.tabs.count())]);self.section_picker.setCurrentIndex(0)
+        if self.shell_navigation:self.tabs.tabBar().hide();self.section_picker.hide()
+        self.message=QLabel('');self.message.setWordWrap(True);out.addWidget(self.message)
+        for label in self.findChildren(QLabel):label.setTextFormat(Qt.TextFormat.PlainText)
+        self.open_project(root or default_root())
+    def resizeEvent(self,event):
+        super().resizeEvent(event)
+        compact=self.width()<920;self.tabs.tabBar().setVisible(not compact and not self.shell_navigation);self.section_picker.setVisible(compact and not self.shell_navigation)
+    def run(self,fn,callback=None,message='Выполняю операцию…',on_error=None):
+        if self.worker:return False
+        self.tabs.setEnabled(False)
+        for d in self.dialogs:d.setEnabled(False)
+        self.message.setText(message);job=Job(fn,self);self.worker=job
+        def done():
+            self.worker=None;self.tabs.setEnabled(True)
+            for d in self.dialogs:d.setEnabled(True)
+            error=job.error;value=job.value;job.deleteLater()
+            if error:
+                self.message.setText('Ошибка: '+error)
+                if on_error:on_error(error)
+                QMessageBox.warning(self,'Service',error)
+            else:
+                try:
+                    if callback:callback(value)
+                    if not self.worker and self.message.text()==message:self.message.setText('Операция выполнена')
+                except Exception as exc:
+                    record_exception('Service callback',exc);error=friendly_error(exc);self.message.setText('Ошибка: '+error)
+                    if on_error:on_error(error)
+                    QMessageBox.warning(self,'Service',error)
+            if self._pending_refresh and not self.worker:self._pending_refresh=False;self.refresh()
+        job.finished.connect(done);job.start();return True
+    def open_project(self,root):
+        root=Path(root).absolute()
+        if self.store and root.resolve()==self.store.root.resolve():self.refresh();return
+        if str(root).startswith('\\\\'):raise ServiceError('SQLite-проект должен находиться на локальном диске')
+        root.mkdir(parents=True,exist_ok=True);lock=QLockFile(str(root/'.docflow-service.lock'));lock.setStaleLockTime(30000)
+        if not lock.tryLock(0):QMessageBox.warning(self,'Service','Этот проект уже открыт другим экземпляром приложения');return
+        def installed(store):
+            if self.project_lock:self.project_lock.unlock()
+            self.project_lock=lock;self.store=store;self.location.setText('Проект: '+root.name);self.location.setToolTip(str(root));self.refresh()
+        def open_store():
+            try:return ServiceStore(root)
+            except Exception:lock.unlock();raise
+        self.run(open_store,installed,'Проверяю SQLite и версию схемы…')
+    def refresh(self,*args):
+        if not self.store:return
+        if self.worker:self._pending_refresh=True;return
+        s=self.store;archived=self.archived.isChecked();active=self.active_only.isChecked();status=self.status_filter.currentData();clients_archived=self.clients_archived.isChecked()
+        def query():
+            from ...service.estimates import estimate_summaries
+            docs=s.documents();rows=[{**r,'equipment_label':r['equipment_number']+' · '+r['model']} for r in s.repairs()]
+            return {'clients':s.clients(archived=clients_archived),'equipment':s.equipment(archived=archived,active=active),'repairs':[r for r in rows if not status or r['status']==status],'finance':rows,'documents':docs,'estimates':estimate_summaries(s),'dashboard':s.dashboard(rows),'active_clients':s.clients(),'active_equipment':s.equipment()}
+        def install(data):
+            self.cache=data
+            for k,v in self.views.items():
+                v.install(data[k]);self.empty_labels[k].setVisible(not data[k])
+            self.dashboard.install(data['dashboard'])
+        self.run(query,install,'Обновляю журнал…')
+    def find_equipment(self):
+        self.tabs.setCurrentIndex(1)
+        def focus():self.window().activateWindow();self.searches['equipment'].setFocus(Qt.FocusReason.ShortcutFocusReason)
+        QTimer.singleShot(0,focus)
+    def dashboard_history(self):
+        rows=self.cache.get('active_equipment',[])
+        if not rows:QMessageBox.information(self,'История','Добавьте оборудование или импортируйте журнал.');return
+        if len(rows)==1:
+            from .history import HistoryDialog
+            self.modal(HistoryDialog(self,rows[0]))
+        else:self.find_equipment();self.message.setText('Найдите аппарат, выберите строку и нажмите «Карточка / история» или Enter.')
+    def open_local(self,path):
+        if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(path))):
+            self.message.setText('Не удалось открыть файл или папку. Скопируйте путь: '+str(path));QMessageBox.warning(self,'Открытие','Система не смогла открыть файл или папку. Проверьте установленное приложение и доступ к файлу.');return False
+        return True
+    def diagnostics(self):
+        store=self.store
+        def query():
+            with store.db.connection() as c:rows=[dict(r) for r in c.execute('SELECT * FROM operations ORDER BY id DESC LIMIT 200')]
+            path=diagnostic_path();return rows,path.read_text(encoding='utf-8')[-100000:] if path.is_file() else ''
+        def show(data):
+            from .dashboard import DiagnosticsDialog
+            self.modal(DiagnosticsDialog(self,data[0],{r['id']:r['number'] for r in self.cache.get('finance',[])},data[1]))
+        self.run(query,show,'Открываю локальную диагностику…')
+    def selection(self,key):
+        row=self.views[key].selected()
+        if not row:QMessageBox.information(self,'Service','Сначала выберите запись в таблице')
+        return row
+    def _client_fields(self):return [('kind','Тип',[('organization','Организация'),('individual','Физическое лицо'),('entrepreneur','ИП')]),('name','Отображаемое название *','text'),('legal_name','ФИО / наименование','text'),('contact','Контактное лицо','text'),('phone','Телефон (необязательно)','text'),('email','Email (необязательно)','text'),('notes','Примечания','long')]
+    def new_client(self):self._client_dialog()
+    def edit_client(self):
+        r=self.selection('clients')
+        if r:self._client_dialog(r)
+    def _client_dialog(self,row=None):
+        d=FieldsDialog('Клиент',self._client_fields(),row,self)
+        if d.exec()==QDialog.DialogCode.Accepted:
+            data=d.values();key=row['id'] if row else None;s=self.store;self.run(lambda:s.save_client(data,key),lambda _:self.refresh())
+    def _equipment_dialog(self,row=None):
+        clients=[(x['id'],x['name']) for x in self.cache.get('active_clients',[])]
+        if not clients:QMessageBox.information(self,'Клиенты','Сначала добавьте клиента');return
+        fields=[('number','Постоянный номер *','text'),('model','Модель *','text'),('manufacturer','Производитель','text'),('kind','Тип','text'),('serial','Серийный номер','text'),('owner_id','Текущий владелец',clients),('identifiers','Другие идентификаторы','text'),('notes','Примечания','long')]
+        d=FieldsDialog('Оборудование',fields,row,self)
+        if d.exec()==QDialog.DialogCode.Accepted:
+            data=d.values();key=row['id'] if row else None;s=self.store;self.run(lambda:s.save_equipment(data,key),lambda _:self.refresh())
+    def new_equipment(self):self._equipment_dialog()
+    def edit_equipment(self):
+        r=self.selection('equipment')
+        if r:self._equipment_dialog(r)
+    def archive(self,table):
+        r=self.selection(table)
+        if r and confirm(self,('Вернуть из архива' if r['archived'] else 'Архивировать')+'? История не удаляется.'):
+            s=self.store;self.run(lambda:s.archive(table,r['id'],not r['archived']),lambda _:self.refresh())
+    def equipment_card(self,*args):
+        row=self.selection('equipment')
+        if not row:return
+        from .history import HistoryDialog
+        self.modal(HistoryDialog(self,row));return
+    def new_repair(self):
+        eq=[(x['id'],x['number']+' · '+x['model']) for x in self.cache.get('active_equipment',[])]
+        if not eq:QMessageBox.information(self,'Оборудование','Сначала добавьте оборудование');return
+        self._repair_create([('equipment_id','Оборудование',eq),('number','Номер обращения (пусто — автоматически)','text'),('complaint','Жалоба','long')])
+    def new_repair_for(self,row):self._repair_create([('equipment_id','Оборудование',[(row['id'],row['number'])]),('number','Номер обращения (не номер оборудования)','text'),('complaint','Жалоба','long')])
+    def _repair_create(self,fields):
+        fields=fields+[('client_id','Заказчик',[(None,'Текущий владелец оборудования')]+[(x['id'],x['name']) for x in self.cache.get('active_clients',[])])]
+        d=FieldsDialog('Приёмка оборудования',fields,parent=self)
+        if d.exec()==QDialog.DialogCode.Accepted:
+            v=d.values();s=self.store;request=uuid4().hex
+            self.run(lambda:s.create_repair(v['equipment_id'],v['number'],v['complaint'],request,client_id=v['client_id']),self.open_repair)
+    def open_selected(self,key):
+        r=self.selection(key)
+        if r:self.open_repair(r['repair_id'] if key=='estimates' else r['id'],'Сметы' if key=='estimates' else 'Финансы' if key=='finance' else None)
+    def modal(self,dialog):
+        self.dialogs.append(dialog)
+        if self.worker:dialog.setEnabled(False)
+        try:return dialog.exec()
+        finally:self.dialogs.remove(dialog);dialog.deleteLater();self.refresh()
+    def import_history(self):
+        from .import_wizard import HistoryWizard
+        self.modal(HistoryWizard(self))
+    def organization_profiles(self):
+        from .profiles import ProfileDialog
+        self.modal(ProfileDialog(self))
+    def review_docx(self):
+        from ...service.docx_extract import export_review_csv
+        source,_=QFileDialog.getOpenFileName(self,'Таблицы Word для ручной проверки','','Word (*.docx)')
+        if not source:return
+        target,_=QFileDialog.getSaveFileName(self,'Новый проверочный CSV','word-review.csv','CSV (*.csv)')
+        if target and confirm(self,'Сохранить текст таблиц с координатами источника? Это не импорт ремонтов: связи, колонки и суммы нужно проверить вручную.'):
+            self.run(lambda:export_review_csv(source,target),lambda _:self.message.setText('CSV сохранён. Исправьте и сопоставьте колонки перед историческим импортом.'))
+    def open_repair(self,key,section=None):
+        s=self.store
+        def show(snapshot):
+            d=RepairDialog(self,snapshot)
+            if section:d.tabs.show_section(section)
+            self.dialogs.append(d)
+            try:d.exec()
+            finally:self.dialogs.remove(d);d.deleteLater();self.refresh()
+        self.run(lambda:s.snapshot(key),show)
+    def open_file(self,document=False):
+        r=self.selection('documents')
+        if r:
+            s=self.store;self.run(lambda:attachment_path(s,r['id'],True),self.open_local)
+    def export_document(self):
+        row=self.selection('documents')
+        if not row:return
+        path,_=QFileDialog.getSaveFileName(self,'Копия DOCX',Path(row['path']).name,'Word (*.docx)')
+        if not path:return
+        s=self.store
+        self.run(lambda:export_file(s,row['id'],path,True),lambda _:self.message.setText('Копия сохранена: '+path))
+    def choose_project(self):
+        p=QFileDialog.getExistingDirectory(self,'Локальная папка проекта')
+        if p:self.open_project(p)
+    def open_folder(self):
+        if self.store:self.open_local(self.store.root)
+    def demo(self):
+        p=default_root().with_name('Service-Synthetic-Demo-'+datetime.now().strftime('%Y%m%d-%H%M%S'))
+        if not confirm(self,'Создать отдельный вымышленный проект? Рабочая база не меняется.'):return
+        self.run(lambda:seed_demo(p),lambda _:self.open_project(p),'Создаю отдельное синтетическое демо…')
+    def backup(self):
+        path,_=QFileDialog.getSaveFileName(self,'Новая резервная копия',f'DocFlow-{datetime.now():%Y%m%d-%H%M%S}.service-backup.zip','ZIP (*.zip)')
+        if path:
+            s=self.store;self.run(lambda:create_backup(s,path),lambda _:self.message.setText('Копия создана: '+path),'Резервирую SQLite и вложения…')
+    def restore(self):
+        archive,_=QFileDialog.getOpenFileName(self,'Проверенная резервная копия','','ZIP (*.zip)')
+        if not archive:return
+        parent=QFileDialog.getExistingDirectory(self,'Родительская папка восстановления')
+        if not parent:return
+        target=Path(parent)/('DocFlow-Restored-'+datetime.now().strftime('%Y%m%d-%H%M%S'))
+        if confirm(self,'Проверить и восстановить копию в новую папку '+str(target)+'? Текущие данные не заменяются.'):
+            self.run(lambda:restore_backup(archive,target),lambda p:self.open_project(p),'Проверяю манифест и восстанавливаю новую папку…')
+    def import_equipment(self):
+        path,_=QFileDialog.getOpenFileName(self,'Таблица оборудования','','Таблицы (*.xlsx *.csv)')
+        if not path:return
+        from ...data import load_table
+        from ...service.importers import preview_equipment,import_equipment
+        s=self.store
+        def mapping(table):
+            options=[(h,h) for h in table.headers]
+            clients=[(x['id'],x['name']) for x in self.cache.get('active_clients',[])]
+            if not clients:QMessageBox.information(self,'Импорт','Сначала создайте владельца оборудования');return
+            d=FieldsDialog('Явное сопоставление (новое оборудование)',[('number','Постоянный номер',options),('model','Модель',options),('owner_id','Владелец',clients)],parent=self)
+            if d.exec()!=QDialog.DialogCode.Accepted:return
+            v=d.values();m={k:v[k] for k in ('number','model')}
+            def preview(rows):
+                if confirm(self,f"Проверено записей: {len(rows)}. Первые номера: "+', '.join(x['number'] for x in rows[:5])+'. Импортировать всё одной транзакцией?'):
+                    self.run(lambda:import_equipment(s,rows,v['owner_id']),lambda _:self.refresh(),'Импортирую без объединения исторических номеров…')
+            self.run(lambda:preview_equipment(path,m),preview,'Проверяю таблицу…')
+        self.run(lambda:load_table(Path(path)),mapping,'Открываю таблицу в фоновом потоке…')
+
+from .repair_editor import RepairDialog

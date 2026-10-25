@@ -1,0 +1,42 @@
+{
+  "status": "passed",
+  "docx_files": 29,
+  "rendered_pages": 63,
+  "visual_assessment_complete": true,
+  "fresh_pages_opened_after_final_build": 7,
+  "remaining_pages_pixel_identical_to_previously_opened_pages": 56,
+  "native_service_docx": 14,
+  "native_service_pages": 18,
+  "caption_same_page": [
+    {
+      "document": "native-CHECK-000900-combined-v001-11be9e99",
+      "page": 2,
+      "caption": "Проверочная подпись 1"
+    },
+    {
+      "document": "native-CHECK-000900-combined-v001-11be9e99",
+      "page": 3,
+      "caption": "Проверочная подпись 0"
+    },
+    {
+      "document": "native-SYNTH-REPAIR-001-combined-v001-fa8ff22f",
+      "page": 2,
+      "caption": "Вымышленная схема"
+    },
+    {
+      "document": "complex-landscape-with-images",
+      "caption": "Вымышленная схема 2",
+      "page": 3,
+      "gap_points": 11.83
+    },
+    {
+      "document": "complex-landscape-with-images",
+      "caption": "Вымышленная схема 1",
+      "page": 4,
+      "gap_points": 11.83
+    }
+  ],
+  "microsoft_word_verified": false,
+  "binary_source_commit": "f2c0754857cca7758567771cace16c1e69af5088",
+  "scope": "LibreOffice page PNG review and PDF geometry; no claim of manual Microsoft Word acceptance"
+}

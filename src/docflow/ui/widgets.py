@@ -3,7 +3,7 @@ from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QFrame, QLabel, QSizePolicy, QTableView, QVBoxLayout
 
 
-def icon(kind='document', color='#A1A6B1', size=24):
+def icon(kind='document', color='#A7BDB5', size=24):
     """Small original line icons; painted at 2x for fractional Windows scaling."""
     image = QPixmap(size*2, size*2); image.fill(Qt.GlobalColor.transparent)
     p = QPainter(image); p.setRenderHint(QPainter.RenderHint.Antialiasing)
