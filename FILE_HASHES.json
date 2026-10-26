@@ -9,7 +9,7 @@
   ".github/workflows/pages.yml": "0126360b42b46bb7ad9ed87b53927903777a03ea2b505b7efa098e1cb46bcb08",
   ".github/workflows/service-review.yml": "bb772e9fa97286ad376136919ce0c461a31a5bbc18d123aabd0c369936728de7",
   ".github/workflows/verify.yml": "e69ed527808db4831c12d83f829505a9b24179d98ebbe6c3e79b557b4f83e7b3",
-  ".github/workflows/website-v2.yml": "935c6feab0b4f1d116674e5acea8425010f4f9c859ade57d423b7c495827d8e1",
+  ".github/workflows/website-v2.yml": "84bd59632519ee42fccc66b0a0c00ac9e501ef8be570bcd2bd088e7ec1eca46e",
   ".github/workflows/windows-release.yml": "a5d7ffcb39f852b62ee83d355c0b981e759e42a1330059681516eda2c9f036ab",
   ".gitignore": "4f968c0a04c3f298a4ce2f4b8527ebd7db323ab7eb6d9a8425d97575779387f2",
   "AGENTS.md": "f67ec4e606be6727b0555bbdd4f6c7fc3fcbb5413725b7a133364a4b9fecdf03",

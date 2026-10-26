@@ -29,7 +29,9 @@ jobs:
         run: |
           npm ci --prefix site --ignore-scripts
           cd site
-          npx playwright install --with-deps chromium
+          # Hosted ubuntu-24.04 already supplies Chromium runtime libraries.
+          # Keep actual launch/tests authoritative; avoid unrelated font upgrades.
+          npx playwright install chromium
       - name: Actual Chromium widths, keyboard, downloads and no-JS
         run: node site/tests/browser_check.cjs
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
