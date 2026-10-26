@@ -99,10 +99,10 @@ def verify(base, expected_pdf=None, expected_demo=None, release_manifest=None):
         page = Page(bodies[''])
         check('HTML noindex', any(t=='meta' and a.get('name')=='robots' and
                                  'noindex' in a.get('content','') for t,a in page.tags))
-        forms = [a for t,a in page.tags if t=='form']
-        check('no form endpoint', len(forms)==1 and 'action' not in forms[0])
-        check('form fieldset disabled', any(t=='fieldset' and 'disabled' in a for t,a in page.tags))
-        check('submit disabled', any(t=='button' and a.get('type')=='submit' and 'disabled' in a for t,a in page.tags))
+        check('no lead form or collection inputs', not any(
+            tag in {'form','input','textarea'} or
+            (tag=='button' and attrs.get('type','').lower()=='submit')
+            for tag,attrs in page.tags))
     if 'robots.txt' in bodies:
         check('robots disallow', 'Disallow: /' in bodies['robots.txt'].decode())
     if 'sitemap.xml' in bodies:
