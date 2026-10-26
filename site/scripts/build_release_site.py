@@ -73,6 +73,7 @@ def activate(output, manifest, fetch=get_json, hash_url=download_hash):
     portable = f"DocFlow-Lite-{version}-Windows-x64-Portable.zip"
     expected = next(a for a in manifest["assets"] if a["name"] == portable)
     replacements = {
+      "Подготовительная alpha 0.3.0a6.": "Публичная alpha 0.3.0a6.",
       "https://github.com/hothuman/docflow-lite/releases/download/v0.1.1/DocFlow-Lite-0.1.1-Windows-x64-Portable.zip": REPO+"/releases/download/v"+version+"/"+portable,
       "Настоящий интерфейс новой alpha. Публичная загрузка пока остаётся v0.1.1.": "Настоящий интерфейс публичной alpha 0.3.0a6. Данные вымышлены.",
       "Публичный Core v0.1.1. Новая alpha 0.3.0a6 проходит отдельную приёмку и здесь не подменяет опубликованный файл.": "Публичная alpha 0.3.0a6 · Core + Service. EXE не подписан. Перед обновлением сохраните копию проекта. SHA256 Portable: "+expected["sha256"],

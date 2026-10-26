@@ -53,3 +53,7 @@ python site/scripts/build_release_site.py --manifest ПУТЬ/RELEASE-MANIFEST.j
 Финальная папка: Portable, Source, ThirdParty Sources, LICENSE, BUILD-INFO, SHA, CI и локальные отчёты, сайт, демо, инструкции, снимки и ограничения. Истекающий CI-артефакт не должен быть единственной копией.
 
 Официальные инструкции: [GitHub releases](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository), [Cloudflare Direct Upload](https://developers.cloudflare.com/pages/get-started/direct-upload/).
+
+## Проверка активированного сайта
+
+Браузерный CI использует site/tests/prepare_browser_release_fixture.py: настоящий путь активации с синтетическими ответами Release и 64-символьным SHA. Его site/build — только тестовая фикстура, НЕ архив размещения. Перед Direct Upload соберите настоящий сайт через build_release_site.py по проверенному PUBLIC-RELEASE-MANIFEST и выполните browser_check.cjs на копии этого результата в site/build. Preview без публичного SHA не заменяет эту проверку. После размещения выполните HTTPS/browser QA production.

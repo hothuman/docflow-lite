@@ -27,3 +27,6 @@ body{background:radial-gradient(ellipse at 85% 0%,#20413944,transparent 800px),v
 @media(max-width:360px){.hero h1{font-size:37px}.hero .lead{font-size:15px}.direction-nav{gap:20px}.direction-nav span{font-size:10px}.direction-nav strong{font-size:11px}.route-switch button{font-size:11px}.contact-grid h2{font-size:30px}}
 @media(pointer:coarse){.route-switch button{min-height:44px}}
 @media print{body,.workflow-band,.contact-section,.download-section{color:#111;background:white}.route-instrument,.ruler,.screen-section:before{display:none}.button{color:#111;background:white}}
+
+/* Release hashes and diagnostic strings must wrap on narrow screens. */
+.fine{overflow-wrap:anywhere}

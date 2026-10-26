@@ -2,7 +2,7 @@
 
 <img src="docs/assets/repository-cover.png" alt="DocFlow — документы и история ремонта на вашем компьютере" width="100%">
 
-[Скачать для Windows](https://github.com/hothuman/docflow-lite/releases) · [Сайт](https://docflow-lite.pages.dev/) · [Начать работу](docs/service/28_QUICK_START.md) · [Документация](docs/README.md)
+[Скачать для Windows](https://github.com/hothuman/docflow-lite/releases/download/v0.3.0a6/DocFlow-Lite-0.3.0a6-Windows-x64-Portable.zip) · [Сайт](https://docflow-lite.pages.dev/) · [Начать работу](docs/service/28_QUICK_START.md) · [Документация](docs/README.md)
 
 [![Проверки приложения](https://github.com/hothuman/docflow-lite/actions/workflows/app-modernization.yml/badge.svg?branch=feature%2Fdocflow-lite-service)](https://github.com/hothuman/docflow-lite/actions/workflows/app-modernization.yml)
 [![Проверки сайта](https://github.com/hothuman/docflow-lite/actions/workflows/website-v2.yml/badge.svg?branch=feature%2Fdocflow-lite-service)](https://github.com/hothuman/docflow-lite/actions/workflows/website-v2.yml)
@@ -13,7 +13,7 @@
 
 Локальное приложение для повторяющейся работы с документами и историей ремонта. **Core** создаёт DOCX из XLSX/CSV и ваших шаблонов. **Service** ведёт клиентов, аппараты, отдельные обращения, сметы и документы в проекте SQLite.
 
-**0.3.0a6 — предварительная версия.** Программа бесплатна для личной и деловой работы по [условиям использования](LICENSE.txt). Индивидуальная настройка — отдельная услуга. Один оператор, локальные данные, без аккаунта и телеметрии.
+**[0.3.0a6 опубликована](https://github.com/hothuman/docflow-lite/releases/tag/v0.3.0a6) — предварительная версия.** Программа бесплатна для личной и деловой работы по [условиям использования](LICENSE.txt). Индивидуальная настройка — отдельная услуга. Один оператор, локальные данные, без аккаунта и телеметрии.
 
 ## Выберите задачу
 
@@ -89,3 +89,5 @@ CI проверяет Windows/Linux, GUI и браузер. Готовый EXE �
 © 2026 Гапоненко Ростислав Дмитриевич. У оригинального продукта собственные [условия](LICENSE.txt); открытая лицензия MIT/GPL на него не назначается. Сторонние библиотеки сохраняют свои права: [THIRD_PARTY.md](THIRD_PARTY.md). Выпуск содержит уведомления, лицензии и соответствующие исходники зависимостей.
 
 Сайт не принимает оплату и заявки, аналитика и индексация выключены. Юридические проекты услуг/обработки данных остаются отдельными от условий программы.
+
+Portable построена из `aeb34dde9af24cf4e265df21e90cd4df1c49a1d5`; [выпускной CI](https://github.com/hothuman/docflow-lite/actions/runs/40300481266) прошёл. Последующие правки сайта и документации не заменяют неизменяемые файлы этого выпуска.
