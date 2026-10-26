@@ -45,3 +45,19 @@ def test_all_five_layouts_rows_without_date_and_original_values_survive(tmp_path
     export_review_csv(report,tmp_path/'decisions.csv')
     assert hashlib.sha256(p.read_bytes()).hexdigest()==before
     with pytest.raises(ServiceError):review_workbook(p,{})
+
+def test_decisions_are_explicit_disjoint_and_keep_the_review_separate():
+    from docflow.service.legacy_review import prepare_history_rows
+    report={'file_sha256':'a'*64,'sheets':[{'sheet':'S','rows':[{'source_key':'a','row':4},{'source_key':'b','row':5}]}]}
+    assert prepare_history_rows(report,[])['unreviewed_source_rows']==2
+    decision={'source_keys':['a','b'],'action':'approve','reviewed_by':'Synthetic operator','reason':'Both rows belong to this confirmed repair',
+              'data':{'repair_number':'R-1','received_at':'2020-01-01','equipment_number':'E-1','model':'Model',
+                      'client_key':'C-1','client_name':'Synthetic','final_total':'0'}}
+    converted=prepare_history_rows(report,[decision])
+    assert len(converted['rows'])==1 and converted['approved_source_rows']==2
+    assert converted['rows'][0]['final_total']=='0'
+    assert '"row": 5' in converted['rows'][0]['source_fragment']
+    assert report['sheets'][0]['rows']==[{'source_key':'a','row':4},{'source_key':'b','row':5}]
+    with pytest.raises(ServiceError):prepare_history_rows(report,[decision,decision])
+    with pytest.raises(ServiceError):prepare_history_rows(report,[{**decision,'reviewed_by':''}])
+    with pytest.raises(ServiceError):prepare_history_rows(report,[{**decision,'source_keys':['unknown']}])

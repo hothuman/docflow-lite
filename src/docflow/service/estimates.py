@@ -192,10 +192,10 @@ def export_specification(store, estimate_id, destination):
         estimate = get_estimate(c, estimate_id)
     p = estimate['payload']; output = io.StringIO(newline=''); writer = csv.writer(output, delimiter=';')
     writer.writerow(['Номер ремонта','Клиент','Смета','Версия','Тип','Наименование','Количество','Единица','Цена ₽','Сумма ₽'])
-    def amount(cents): return f'{cents//100}.{cents%100:02d}'
+    def amount(cents): return 'Неизвестно' if cents is None else f'{cents//100}.{cents%100:02d}'
     for row in p['lines']:
         writer.writerow([csv_text(p['repair']['number']),csv_text(p['client']['name']),estimate['kind'],estimate['version'],
-                         ITEM_KINDS[row['kind']],csv_text(row['name']),row['quantity'],csv_text(row['unit']),amount(row['price_cents']),amount(row['total_cents'])])
+                         ITEM_KINDS[row['kind']],csv_text(row['name']),row['quantity'],csv_text(row['unit']),amount(row['price_cents'] if row.get('price_known',True) else None),amount(row['total_cents'] if row.get('price_known',True) else None)])
     writer.writerow(['','','','','Скидка','','','','',amount(p['totals']['discount'])])
     writer.writerow(['','','','','Итого','','','','',amount(p['totals']['total'])])
     destination = Path(destination); created = False

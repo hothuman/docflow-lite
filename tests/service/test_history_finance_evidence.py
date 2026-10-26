@@ -104,3 +104,15 @@ def test_v4_migration_keeps_a_rollback_copy_and_marks_legacy_finance_unknown(tmp
         assert c.execute('PRAGMA user_version').fetchone()[0]==4
         assert c.execute('SELECT number FROM repair_orders').fetchone()[0]=='R'
         assert not c.execute("SELECT 1 FROM sqlite_master WHERE name='repair_finance_evidence'").fetchall()
+
+def test_unknown_prices_in_specification_and_contact_fields_in_custom_docx(tmp_path):
+    from docx import Document
+    from docflow.service.documents import generate_document
+    from docflow.service.estimates import export_specification
+    s,r,_=imported(tmp_path,{'final_total':'100','client_phone':'+7 (000) 111-22-33','client_contact':'Synthetic contact'})
+    q=freeze_estimate(s,r,'final','Synthetic operator')
+    csv_path=export_specification(s,q,tmp_path/'spec.csv')
+    assert 'Неизвестно' in csv_path.read_text(encoding='utf-8-sig')
+    template=tmp_path/'contact.docx';d=Document();d.add_paragraph('{{client_contact}} / {{client_phone}} / {{expenses_total}}');d.save(template)
+    result=generate_document(s,r,'completion',template=template)
+    assert 'Synthetic contact / +7 (000) 111-22-33' in Document(result).paragraphs[0].text

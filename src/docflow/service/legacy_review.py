@@ -144,3 +144,45 @@ def export_review_csv(report, target):
                 out.writerow([safe(x) for x in [row['source_key'], sheet['sheet'], row['row'], p['received_at'],
                               p['repair_number'], p['costs_cents']['final_total'], ', '.join(row['issues']),
                               '', '', '', '', '', '']])
+
+def prepare_history_rows(report, decisions):
+    """Convert only explicitly approved groups to the existing importer's fields.
+
+    Decisions are separate from machine proposals. Unmentioned rows stay open;
+    no source row can participate in two repairs. This function never writes DB.
+    """
+    import json
+    from .history_import import HISTORY_FIELDS
+    source={r['source_key']:(sheet['sheet'],r) for sheet in report['sheets'] for r in sheet['rows']}
+    used=set();result=[];deferred=[]
+    for decision in decisions:
+        keys=decision.get('source_keys')
+        if not isinstance(keys,list) or not keys or len(keys)!=len(set(keys)):
+            raise ServiceError('Решение должно перечислять неповторяющиеся исходные строки')
+        if set(keys)-source.keys() or set(keys)&used:
+            raise ServiceError('Неизвестная или повторно использованная исходная строка')
+        action=decision.get('action')
+        if action not in ('approve','defer'):
+            raise ServiceError('Явно выберите approve или defer')
+        used.update(keys)
+        if action=='defer':
+            deferred.extend(keys);continue
+        actor=str(decision.get('reviewed_by') or '').strip()
+        note=str(decision.get('reason') or '').strip()
+        if not actor or not note:
+            raise ServiceError('Укажите проверяющего и основание решения')
+        data=dict(decision.get('data') or {})
+        if set(data)-HISTORY_FIELDS.keys():
+            raise ServiceError('Неизвестные поля нормализованной истории')
+        required={'repair_number','received_at','equipment_number','model','client_key','client_name'}
+        if any(not str(data.get(k) or '').strip() for k in required):
+            raise ServiceError('Подтвердите номер/дату обращения, аппарат и отдельный ID клиента')
+        ordered=sorted(keys)
+        data['repair_key']=hashlib.sha256(json.dumps(ordered).encode()).hexdigest()
+        data['source_fragment']=json.dumps({'file_sha256':report['file_sha256'],
+            'rows':[{'sheet':source[k][0],'row':source[k][1]['row'],'source_key':k} for k in ordered],
+            'reviewed_by':actor,'reason':note},ensure_ascii=False)
+        result.append(data)
+    return {'rows':result,'approved_source_rows':sum(len(d['source_keys']) for d in decisions if d.get('action')=='approve'),
+            'deferred_source_rows':len(deferred),'unreviewed_source_rows':len(source)-len(used),
+            'scope':'Approved normalized rows for history_import; no database writes.'}
