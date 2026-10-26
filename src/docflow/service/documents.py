@@ -83,8 +83,11 @@ def create_templates(folder):
                 for border in list(properties.findall(qn('w:pBdr'))): properties.remove(border)
         d.styles['Normal'].font.size=Pt(10)
         d.styles['Normal'].paragraph_format.space_after=Pt(4)
+        d.styles['Normal'].paragraph_format.line_spacing=1.0
         d.styles['Title'].font.size=Pt(20)
         d.styles['Heading 1'].font.size=Pt(12)
+        d.styles['Heading 1'].paragraph_format.space_before=Pt(8)
+        d.styles['Heading 1'].paragraph_format.space_after=Pt(3)
         d.add_paragraph('[[logo]]')
         d.add_paragraph(title,'Title')
         d.add_paragraph('Исполнитель: {{organization_name}}')
