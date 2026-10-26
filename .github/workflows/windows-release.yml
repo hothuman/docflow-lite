@@ -1,4 +1,4 @@
-name: Windows portable prerelease preparation
+name: Windows portable release preparation
 
 on:
   push:
@@ -20,6 +20,10 @@ on:
     inputs:
       prepare_draft:
         description: 'Create a draft prerelease after all checks (never publish)'
+        type: boolean
+        default: false
+      stable_approved:
+        description: 'Owner approved final stable after GO/NO-GO (draft only)'
         type: boolean
         default: false
 
@@ -66,10 +70,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: '3.13.16'
-          architecture: x64
+      - name: Install exact signed CPython SDK without registry changes
+        shell: pwsh
+        run: |
+          $python = ./scripts/install_build_python.ps1
+          $directory = Split-Path $python -Parent
+          $directory >> $env:GITHUB_PATH
       - name: Build, unpack and execute the frozen EXE
         shell: pwsh
         run: ./scripts/build_windows.ps1
@@ -109,17 +115,23 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TARGET: ${{ github.sha }}
           GH_REPO: ${{ github.repository }}
+          STABLE_APPROVED: ${{ inputs.stable_approved }}
         run: |
           set -euo pipefail
           version=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(a|b|rc)[0-9]+$ ]] || { echo 'Expected a prerelease version'; exit 1; }
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+((a|b|rc)[0-9]+)?$ ]] || { echo 'Unsupported release version'; exit 1; }
           tag="v$version"
           notes="docs/release-$tag.md"
           test -f "$notes"
-          python3 scripts/prepare_github_draft.py --directory release --target "$RELEASE_TARGET" --notes "$notes" --output draft-payload.json
+          approval_args=()
+          if [[ "$STABLE_APPROVED" == "true" ]]; then approval_args+=(--stable-approved); fi
+          python3 scripts/prepare_github_draft.py --directory release --target "$RELEASE_TARGET" --notes "$notes" --output draft-payload.json "${approval_args[@]}"
+          prerelease_args=()
+          if python3 -c "import json; raise SystemExit(0 if json.load(open('draft-payload.json'))['prerelease'] else 1)"; then prerelease_args+=(--prerelease); fi
+          release_title=$(python3 -c "import json; print(json.load(open('draft-payload.json'))['name'])")
           gh api "repos/$GH_REPO/releases?per_page=100" > existing-releases.json
           RELEASE_TAG="$tag" python3 -c "import json,os; assert not any(r['tag_name']==os.environ['RELEASE_TAG'] for r in json.load(open('existing-releases.json'))), 'Release already exists; refusing replacement'"
           gh release create "$tag" release/* \
-            --target "$RELEASE_TARGET" --draft --prerelease \
-            --title "DocFlow $tag — Core + Service alpha" \
+            --target "$RELEASE_TARGET" --draft "${prerelease_args[@]}" \
+            --title "$release_title" \
             --notes-file "$notes"

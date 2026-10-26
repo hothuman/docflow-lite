@@ -50,7 +50,8 @@ class ReleasePreparationTests(unittest.TestCase):
         self.assertNotIn("/releases/download/v0.1.1",text)
         self.assertIn("SHA256 Portable: "+"b"*64,text)
         self.assertNotIn("не входит в публичный Release",(self.root/"site/service.html").read_text(encoding="utf-8"))
-        self.assertIn("fieldset disabled",text)
+        self.assertNotIn("<form",text)
+        self.assertIn("Что написать для оценки",text)
         info=json.loads((self.root/"site/build-info.json").read_text(encoding="utf-8"))
         self.assertEqual(info["application_version"],self.version)
         self.assertFalse(info["indexing_enabled"]);self.assertFalse(info["lead_collection_enabled"])
@@ -120,3 +121,16 @@ class ReleasePreparationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"commit differs"):prepare(folder,"c"*40,notes)
         notes.write_text("Other version")
         with self.assertRaisesRegex(ValueError,"notes"):prepare(folder,self.sha,notes)
+
+
+    def test_unmanifested_source_file_blocks_even_when_zip_checksum_is_updated(self):
+        folder=self.fixtures();source=folder/self.manifest['assets'][1]['name']
+        with zipfile.ZipFile(source,'a') as z:z.writestr('docflow-lite/private-untracked.txt',b'synthetic privacy sentinel')
+        self.resum(folder)
+        with self.assertRaisesRegex(ValueError,'source|Source'):candidate.verify(folder)
+
+    def test_unmanifested_bundle_file_blocks_even_when_zip_checksum_is_updated(self):
+        folder=self.fixtures();portable=folder/self.manifest['assets'][0]['name']
+        with zipfile.ZipFile(portable,'a') as z:z.writestr('DocFlow-Lite/_internal/unexpected.dll',b'synthetic unexpected binary')
+        self.resum(folder)
+        with self.assertRaisesRegex(ValueError,'Bundle|bundle'):candidate.verify(folder)

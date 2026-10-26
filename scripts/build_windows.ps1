@@ -1,7 +1,7 @@
 param([string]$Python = 'python')
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
-& $Python -c "import sys; assert sys.version_info[:3] == (3,13,16), 'Use CPython 3.13.16 x64 for this release'"
+& $Python -c "import sys; assert sys.version_info[:3] == (3,14,10), 'Use CPython 3.14.10 x64 for this release'"
 if ($LASTEXITCODE -ne 0) { throw 'Unexpected build interpreter' }
 & $Python -m pip install --require-hashes -r requirements/windows-x64.lock
 if ($LASTEXITCODE -ne 0) { throw 'Pinned dependency installation failed' }

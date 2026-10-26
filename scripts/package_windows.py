@@ -11,6 +11,11 @@ import tomllib
 import zipfile
 from pathlib import Path
 
+from generate_sbom import generate as generate_sbom
+import sys
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"src"))
+from docflow.versioning import stage,is_prerelease
+
 ROOT=Path(__file__).resolve().parents[1]
 VERSION=tomllib.loads((ROOT/'pyproject.toml').read_text(encoding='utf-8'))['project']['version']
 INSTRUCTIONS=ROOT/'docs'/'README-WINDOWS-SERVICE.txt'
@@ -38,11 +43,16 @@ def package(bundle,out,sources):
     assert (bundle/'THIRD-PARTY-LICENSES.json').is_file()
     out.mkdir(parents=True,exist_ok=True)
     instruction_lines=INSTRUCTIONS.read_text(encoding='utf-8').splitlines()
-    instruction_lines[0]=f'DocFlow Lite {VERSION} — Core + Service, предварительный выпуск'
+    instruction_lines[0]=f'DocFlow Lite {VERSION} — Core + Service · {stage(VERSION)}'
+    instruction_lines[2]=('Кандидат стабильной версии. Это ещё не стабильный выпуск.' if stage(VERSION)=='RC' else 'Предварительный выпуск.' if is_prerelease(VERSION) else 'Стабильный выпуск с ограничениями, указанными в документации.')
     (bundle/'README-WINDOWS.txt').write_text('\n'.join(instruction_lines)+'\n',encoding='utf-8')
     shutil.copy2(ROOT/'THIRD_PARTY.md',bundle/'THIRD_PARTY.md')
     shutil.copy2(ROOT/'LICENSE.txt',bundle/'LICENSE.txt')
     shutil.copytree(ROOT/'src/docflow/examples',bundle/'examples',dirs_exist_ok=True)
+    commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
+    sbom=generate_sbom(bundle,VERSION,commit)
+    (bundle/'SBOM.cdx.json').write_bytes((json.dumps(sbom,ensure_ascii=False,indent=2)+'\n').encode())
+    shutil.copy2(bundle/'SBOM.cdx.json',out/'SBOM.cdx.json')
     manifest={str(p.relative_to(bundle)).replace('\\','/'):sha256(p)
               for p in sorted(bundle.rglob('*')) if p.is_file() and p.name!='BUNDLE-SHA256.json'}
     assert not any(p.endswith(('.pem','.key')) for p in manifest)
@@ -62,7 +72,7 @@ def package(bundle,out,sources):
     archive_tree(library_zip,sources,'ThirdParty-Sources')
     info={'version':VERSION,'python':platform.python_version(),'platform':platform.platform(),
           'architecture':platform.machine(),
-          'commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip() if (ROOT/'.git').exists() else None,
+          'commit':commit,
           'runner_os':os.environ.get('RUNNER_OS'),'runner_image':os.environ.get('ImageOS'),
           'runner_image_version':os.environ.get('ImageVersion'),
           'dependencies':{d.metadata['Name']:d.version for d in importlib.metadata.distributions()},

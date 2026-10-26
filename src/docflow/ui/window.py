@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QTextBrowser, QVBoxLayout, QWidget,
 )
 from .. import __version__
+from ..versioning import stage
 from ..batch import BatchResult, Prepared, generate, prepare
 from ..cli import demo_profile
 from ..data import Record, Table, load_table
@@ -87,7 +88,7 @@ class MainWindow(QMainWindow):
         self.rail=QFrame();self.rail.setObjectName('rail');self.rail.setFixedWidth(224)
         nav=QVBoxLayout(self.rail);nav.setContentsMargins(14,22,14,18);nav.setSpacing(8)
         self.brand=text('d/ DocFlow','brand');nav.addWidget(self.brand)
-        self.version_label=text(f'v{__version__} · alpha','version');nav.addWidget(self.version_label)
+        self.version_label=text(f'v{__version__} · {stage(__version__)}','version');nav.addWidget(self.version_label)
         self.mode_picker=QComboBox();self.mode_picker.addItems(['Core · Документы','Service · Мастерская'])
         self.mode_picker.setAccessibleName('Направление DocFlow');nav.addWidget(self.mode_picker)
         self.mode_picker.currentIndexChanged.connect(lambda i:self.navigate(5 if i else getattr(self,'_last_core_page',0)))
@@ -238,7 +239,7 @@ class MainWindow(QMainWindow):
         layout.addStretch()
 
     def _build_about(self):
-        page,layout=self.page();box,body=card('DocFlow Lite',f'Версия {__version__} · Service alpha')
+        page,layout=self.page();box,body=card('DocFlow Lite',f'Версия {__version__} · Core + Service · {stage(__version__)}')
         layout.addWidget(box)
         body.addWidget(text('Локальная генерация Word-документов из XLSX/CSV. Данные и шаблоны не отправляются на сервер.'))
         body.addWidget(text('До 5 000 записей, 100 столбцов и 20 DOCX-шаблонов за запуск. Исходники не перезаписываются.'))
