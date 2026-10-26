@@ -100,6 +100,9 @@ def verify(archive,evidence,release):
         for name in list(env):
             if name.upper().startswith(('PYTHON','QT_','VIRTUAL_ENV')):env.pop(name)
         env['PATH']=str(Path(os.environ['SYSTEMROOT'])/'System32')
+        for variable,folder in [('LOCALAPPDATA','LocalAppData'),('APPDATA','Roaming'),('DOCFLOW_SETTINGS_DIR','Settings')]:
+            target=testroot/folder;target.mkdir(parents=True,exist_ok=True);env[variable]=str(target)
+        result['isolated_user_data_and_settings']=True
         result['runtime_path_contains_python']=False
         for attempt in (1,2):
             ordinary=normal_start(exe,testroot,env)
