@@ -21,8 +21,8 @@ jobs:
           persist-credentials: false
       - name: Offline build, privacy and link regressions
         run: python3 -m unittest discover -s site/tests -v
-      - name: Build static review version
-        run: python3 site/scripts/build_site.py
+      - name: Build offline activated-release layout fixture (never deploy)
+        run: python3 site/tests/prepare_browser_release_fixture.py
       - name: Check browser JavaScript syntax
         run: node --check site/dist/app.js
       - name: Install isolated browser test dependencies
