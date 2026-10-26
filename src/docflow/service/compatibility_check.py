@@ -84,4 +84,10 @@ def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--archive',type=Path,required=True);p.add_argument('--output',type=Path,required=True)
     p.add_argument('--require-windows',action='store_true');args=p.parse_args(argv)
-    return run(args.archive,args.output,args.require_windows)
+    try:
+        return run(args.archive,args.output,args.require_windows)
+    except (ValueError,OSError) as exc:
+        # Invalid diagnostic arguments must not open PyInstaller's crash dialog.
+        # Preserve pre-existing output; a failed invocation never overwrites it.
+        if sys.stderr is not None:print(str(exc),file=sys.stderr)
+        return 2

@@ -64,6 +64,10 @@ class ReleasePreparationTests(unittest.TestCase):
         names=[a["name"] for a in self.manifest["assets"]]
         exe=b"synthetic test executable";license_data=b"{}"
         files={"DocFlow-Lite.exe":exe,"THIRD-PARTY-LICENSES.json":license_data,"LICENSE.txt":b"Synthetic original terms"}
+        if self.version!='0.3.0a6':
+            sbom={'bomFormat':'CycloneDX','specVersion':'1.6','metadata':{'component':{'version':self.version,'properties':[{'name':'docflow:source-commit','value':self.sha}]}}}
+            files['SBOM.cdx.json']=json.dumps(sbom).encode()
+            (folder/'SBOM.cdx.json').write_bytes(files['SBOM.cdx.json'])
         with zipfile.ZipFile(folder/names[0],"w") as z:
             for n,b in files.items():z.writestr("DocFlow-Lite/"+n,b)
             z.writestr("DocFlow-Lite/BUNDLE-SHA256.json",json.dumps({n:candidate.digest(b) for n,b in files.items()}))
@@ -71,7 +75,7 @@ class ReleasePreparationTests(unittest.TestCase):
             z.writestr("docflow-lite/example.txt",b"source")
             z.writestr("docflow-lite/FILE_HASHES.json",json.dumps({"example.txt":candidate.digest(b"source")}))
         with zipfile.ZipFile(folder/names[2],"w") as z:z.writestr("ThirdParty-Sources/example.txt",b"dependency source")
-        (folder/"BUILD-INFO.json").write_text(json.dumps({"version":self.version,"python":"3.13.16","commit":self.sha,"exe_sha256":candidate.digest(exe)}))
+        (folder/"BUILD-INFO.json").write_text(json.dumps({"version":self.version,"python":"3.13.16" if self.version=="0.3.0a6" else "3.14.10","commit":self.sha,"exe_sha256":candidate.digest(exe)}))
         (folder/"README-WINDOWS.txt").write_text("Example instructions")
         (folder/"LICENSE.txt").write_text("Synthetic original terms")
         (folder/"WINDOWS-CI-RESULTS.json").write_text(json.dumps({"status":"passed","runs":[{},{}]}))
@@ -134,3 +138,19 @@ class ReleasePreparationTests(unittest.TestCase):
         with zipfile.ZipFile(portable,'a') as z:z.writestr('DocFlow-Lite/_internal/unexpected.dll',b'synthetic unexpected binary')
         self.resum(folder)
         with self.assertRaisesRegex(ValueError,'Bundle|bundle'):candidate.verify(folder)
+
+    def rc_fixture(self):
+        self.version='1.0.0rc1'
+        for asset in self.manifest['assets']:asset['name']=asset['name'].replace('0.3.0a6',self.version)
+        return self.fixtures()
+
+    def test_rc_requires_sbom_even_when_outer_checksums_are_updated(self):
+        folder=self.rc_fixture();candidate.verify(folder)
+        (folder/'SBOM.cdx.json').unlink();self.resum(folder)
+        with self.assertRaisesRegex(ValueError,'SBOM'):candidate.verify(folder)
+
+    def test_rc_rejects_sbom_from_another_commit(self):
+        folder=self.rc_fixture();sbom=json.loads((folder/'SBOM.cdx.json').read_text())
+        sbom['metadata']['component']['properties'][0]['value']='c'*40
+        (folder/'SBOM.cdx.json').write_text(json.dumps(sbom));self.resum(folder)
+        with self.assertRaisesRegex(ValueError,'SBOM'):candidate.verify(folder)

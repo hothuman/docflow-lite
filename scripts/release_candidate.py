@@ -51,6 +51,7 @@ def verify(directory):
     required = [f"DocFlow-Lite-{version}-{suffix}.zip" for suffix in
                 ("Windows-x64-Portable", "Source", "ThirdParty-Sources")]
     required += ["BUILD-INFO.json", "WINDOWS-CI-RESULTS.json", "README-WINDOWS.txt", "LICENSE.txt"]
+    if version!="0.3.0a6":required.append("SBOM.cdx.json")
     sums = {}
     for line in (directory / "SHA256SUMS.txt").read_text(encoding="utf-8").splitlines():
         if not line.strip():
@@ -78,6 +79,16 @@ def verify(directory):
             safe_name(name)
             if digest(z.read("DocFlow-Lite/" + name)) != value:
                 raise ValueError("Bundle checksum failed: " + name)
+        if version!="0.3.0a6":
+            if 'SBOM.cdx.json' not in manifest:raise ValueError('Missing bundle SBOM')
+            raw=(directory/'SBOM.cdx.json').read_bytes()
+            if raw!=z.read('DocFlow-Lite/SBOM.cdx.json'):raise ValueError('Published and bundled SBOM differ')
+            sbom=json.loads(raw)
+            component=sbom.get('metadata',{}).get('component',{})
+            properties={p.get('name'):p.get('value') for p in component.get('properties',[])}
+            if (sbom.get('bomFormat')!='CycloneDX' or sbom.get('specVersion')!='1.6'
+                or component.get('version')!=version or properties.get('docflow:source-commit')!=info['commit']):
+                raise ValueError('SBOM version/source commit differs from BUILD-INFO')
         virtual = {"DocFlow-Lite/DocFlow-Lite.exe": digest(exe)}
     for name, value in sums.items():
         if name in virtual:
