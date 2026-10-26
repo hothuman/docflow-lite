@@ -270,7 +270,7 @@
   "src/docflow/ui/service/navigation.py": "39b999eea15188903b956f8fe6188ef2777252454bbd28ea60010c353f4d5d2b",
   "src/docflow/ui/service/presentation.py": "d641e8356d87c4909189c886fc4be020785b48ce3fe15693941fed59faba780c",
   "src/docflow/ui/service/profiles.py": "f17fcc224d0f72fb61a7f83f38aad6d738f3884e6ab574f244e946338e057a5f",
-  "src/docflow/ui/service/repair_editor.py": "4794f861c50a3c5fe5c24a2ca42caa92fcd3915998152bee22582d87e1a6da3e",
+  "src/docflow/ui/service/repair_editor.py": "c275b8d76090133f403e612222dca9a8ab78793068452b79fb078384c88604f7",
   "src/docflow/ui/service/widgets.py": "f944d1036651995e42a0d92804d96adfde36af7c02091f0adc7ef8c0f3a4a3a1",
   "src/docflow/ui/service/workspace.py": "7dc432fb3de1d4b1ff21fee8a9bd7c64d376325a4931f0f7fff6b8e83f7f3b53",
   "src/docflow/ui/settings.py": "316732a806063df7388b23afe8eaecb06043dbbcc6740878b7a23394f48114fc",
