@@ -208,7 +208,7 @@
   "site/tests/browser_check.cjs": "f77224b4b0d97788af4d05bc4ef5514c38758bc81dda23ea52367f81b4c5baf9",
   "site/tests/prepare_browser_release_fixture.py": "11121b342efb5455d7b1379075b0af8f174cb357b8c6dec0bc1a77f9a29cdf9a",
   "site/tests/test_offer_pdf.py": "7a60281ba34d7d5f4e355fc8317b9331d5f61a0b8169182eebd2c95c345aa0d9",
-  "site/tests/test_production_collection_gate.py": "0b808b179f3034ca0b6646228fceca52b993aed6c3e3561729df2861ba60c968",
+  "site/tests/test_production_collection_gate.py": "35ae6108820e4367fec04b9f15b23c1d185ade432e5d16aa55cd4d96ddd8d053",
   "site/tests/test_public_url.py": "4193e2ffd030243a02d301c0c4addc68716fb4bd7e614e8cbdb412ba3a5c85b6",
   "site/tests/test_website_v2.py": "84c589837fb41b5ce2391ffe61d90b9b7aeee9e89af85b8a073862b91b49546a",
   "src/docflow/__init__.py": "52979a1202fd4faa6b19458fa35d292af234a30b714a649e240ce86ebb08ec0c",
