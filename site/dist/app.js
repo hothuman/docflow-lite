@@ -20,8 +20,6 @@ if (menuToggle && navigation) {
   });
 }
 // Intake is disabled: no endpoint, persistence, SDK or transmission.
-const requestForm = document.querySelector('#request-form');
-if (requestForm) requestForm.addEventListener('submit', event => event.preventDefault());
 const rows = window.DOCFLOW_DEMO || [];
 const records = document.querySelector('#demo-records');
 const preview = document.querySelector('#demo-preview');

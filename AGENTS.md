@@ -17,7 +17,7 @@
 ## Проверки и поставка
 
 - Основной набор: python -m pytest -q tests site/tests. GUI: tools/qa_layout.py, tools/qa_refinement_ui.py на применимых размерах/масштабах. Сайт: site/tests/browser_check.cjs; сборка site/scripts/build_site.py. Выполняйте команды в подходящей изолированной среде, читайте их параметры перед запуском.
-- Windows-поставка: scripts/build_windows.ps1, CPython 3.13.16 x64, requirements/windows-x64.lock. Локальная сборка на другом Python — отдельное происхождение, не CI-сборка. Проверяйте EXE вне checkout, backup/restore, BUNDLE-SHA256 и состав лицензий.
+- Windows-поставка: scripts/build_windows.ps1, CPython 3.14.10 x64, requirements/windows-x64.lock. Локальная сборка на другом Python — отдельное происхождение, не CI-сборка. Проверяйте EXE вне checkout, backup/restore, BUNDLE-SHA256 и состав лицензий.
 - FILE_HASHES.json — SHA256 исходных файлов без самого манифеста. После изменения отслеживаемых файлов обновляйте его; не включайте артефакты/клиентские файлы. Согласуйте состав Source ZIP с реальной базой сборки.
 - Фактические проверки a6 и ограничения: docs/service/36_A6_TRACKER.md, 37_A6_HANDOFF.md, outputs/DocFlow-0.3.0a6 (в рабочей папке передачи). Историю не выдавайте за свежий прогон.
 - Передавайте Portable, соответствующие исходники и лицензии, preview сайта, инструкции, SHA и ограничения в постоянной папке outputs. Не подменяйте испытание EXE запуском Python-кода.

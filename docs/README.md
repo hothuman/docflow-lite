@@ -1,6 +1,6 @@
 # Документация DocFlow
 
-Core создаёт DOCX из таблиц. Service ведёт локальную историю оборудования и ремонтов. Текущий этап — alpha 0.3.0a6.
+Core создаёт DOCX из таблиц. Service ведёт локальную историю оборудования и ремонтов. Публичная версия — alpha 0.3.0a6. Ветка подготовки — 1.0.0rc1, ещё не stable.
 
 ## Пользователю
 
@@ -17,8 +17,10 @@ Core создаёт DOCX из таблиц. Service ведёт локальну�
 
 - [Разработка](DEVELOPMENT.md) и [архитектура](ARCHITECTURE.md)
 - [Дизайн](service/35_NIGHT_INSTRUMENT.md)
-- [Текущее выполнение](service/39_PUBLIC_PRODUCT.md)
+- [Подготовка stable](release/V1_STABLE_TRACKER.md) и [завершённая a6](service/39_PUBLIC_PRODUCT.md)
 - [Выпуск](OFFICIAL_RELEASE.md) и [хостинг](../site/docs/CLOUDFLARE_PAGES.md)
 - [Изменения](../CHANGELOG.md), [roadmap](../ROADMAP.md), [права](LEGAL_STATUS.md)
 
 Отчёты a1–a5, документы 01–34 в service и старые AUDIT/VERIFICATION сохранены как история. Результаты относятся к указанному commit и сборке. Юридический PR №4 остаётся отдельным проектом.
+
+Коммерческий процесс: [порядок заказа](../sales/06_COMMERCIAL_RUNBOOK.md), [индивидуальный заказ/приёмка](../sales/05_Individual_Order_and_Acceptance.md), [правовая проверка](legal/V1_PR4_REVIEW.md), [решения владельца](legal/V1_OWNER_DECISIONS.md). Это проекты до утверждения обязательного объёма.
