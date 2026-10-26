@@ -21,6 +21,42 @@ def snapshot(path):
         return result
 
 
+
+def assert_upgrade_preserved(original, upgraded):
+    """Check old rows exactly and the explicit v4→v5 additions independently.
+
+    Opening a migrated database is not expected to reproduce the old schema.
+    This acceptance probe supports the public v4 baseline and current v5.
+    """
+    before=snapshot(original);after=snapshot(upgraded)
+    with closing(sqlite3.connect(original.as_uri()+'?mode=ro',uri=True)) as old, closing(sqlite3.connect(upgraded.as_uri()+'?mode=ro',uri=True)) as new:
+        version=old.execute('PRAGMA user_version').fetchone()[0]
+        target=new.execute('PRAGMA user_version').fetchone()[0]
+        assert target==5,'Unexpected target schema'
+        if version==5:
+            assert after==before,'Current-version restore changed stored rows'
+            return after
+        assert version==4,'Upgrade diagnostic baseline must use schema v4 or v5'
+        assert set(after)==set(before)|{'repair_finance_evidence'},'Unexpected table additions/removals'
+        for name,rows in before.items():
+            quoted='"'+name.replace('"','""')+'"'
+            old_columns=[r[1] for r in old.execute('PRAGMA table_info('+quoted+')')]
+            new_columns=[r[1] for r in new.execute('PRAGMA table_info('+quoted+')')]
+            expected=old_columns+(['price_known'] if name=='repair_items' else [])
+            assert new_columns==expected,'Unexpected column change: '+name
+            columns=','.join('"'+c.replace('"','""')+'"' for c in old_columns)
+            assert [list(r) for r in new.execute('SELECT '+columns+' FROM '+quoted+' ORDER BY rowid')]==rows,'Changed original rows: '+name
+        assert all(r[0]==1 for r in new.execute('SELECT price_known FROM repair_items')),'Existing item price flags changed'
+        expected={r[0] for r in old.execute('SELECT DISTINCT repair_id FROM import_records')}
+        evidence=list(new.execute('SELECT repair_id,cost_known,payments_known,note,updated_at FROM repair_finance_evidence'))
+        assert len(evidence)==len(expected) and {r[0] for r in evidence}==expected,'Historical evidence coverage changed'
+        for repair,cost,payments,note,stamp in evidence:
+            assert cost==payments==0,'Historical completeness must remain unknown'
+            assert note=='Исторический импорт прежней версии: полнота стоимости и оплат не подтверждена','Unexpected migration note'
+            assert stamp in {r[0] for r in old.execute('SELECT imported_at FROM import_records WHERE repair_id=?',(repair,))},'Invented migration date'
+    return after
+
+
 def run(archive,output,require_windows=False):
     from PySide6.QtCore import QTimer
     from PySide6.QtWidgets import QApplication,QMessageBox
@@ -48,7 +84,8 @@ def run(archive,output,require_windows=False):
             original=output/'original-snapshot.db';original.write_bytes(z.read('service.db'))
         before=snapshot(original)
         root=restore_backup(archive,output/'Upgraded project')
-        assert snapshot(root/'service.db')==before
+        migrated=assert_upgrade_preserved(original,root/'service.db')
+        proof['checks'].append('old_columns_and_explicit_schema_additions_verified')
         window=MainWindow(service_root=root);window.show();window.navigate(5)
         deadline=time.monotonic()+40
         while window.service_workspace.worker or window.service_workspace._pending_refresh:
@@ -58,7 +95,7 @@ def run(archive,output,require_windows=False):
         assert len(window.service_workspace.cache['repairs'])==len(before['repair_orders'])
         assert window.grab().save(str(output/'upgrade.png'))
         window.close();app.processEvents();window=None
-        assert snapshot(root/'service.db')==before,'Opening the previous project changed stored rows'
+        assert snapshot(root/'service.db')==migrated,'Opening the migrated project changed stored rows'
         proof['checks'].append('previous_database_rows_survive_restore_and_real_gui_open')
         store=ServiceStore(root);repair=store.repairs()[0]['id']
         document=generate_document(store,repair,'completion')
