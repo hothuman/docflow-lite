@@ -202,8 +202,8 @@ def render_service(template_path, values, items, images=(), *, history=(), logo=
                     if group=='history': local=item; fields=HISTORY_FIELDS
                     else:
                         local={'item_no':str(index),'item_name':item['name'],'item_description':item['description'],
-                               'item_quantity':item['quantity'],'item_unit':item['unit'],'item_price':rub(item['price_cents']),
-                               'item_total':rub(item['total_cents']),'item_kind':ITEM_KINDS[item['kind']]}
+                               'item_quantity':item['quantity'],'item_unit':item['unit'],'item_price':rub(item['price_cents'] if item.get('price_known',True) else None),
+                               'item_total':rub(item['total_cents'] if item.get('price_known',True) else None),'item_kind':ITEM_KINDS[item['kind']]}
                         fields=ITEM_FIELDS
                     for p in clone.iter(W+'p'):
                         replace_spans(p,MARKER,lambda m:'')

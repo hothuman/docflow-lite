@@ -17,7 +17,8 @@ def date_text(value):
 def display(key,row):
  value=row.get(key,'')
  if key in MONEY:
-  cents=row.get(key+'_cents',value);return rub(cents) if type(cents) is int else str(value or '—')
+  if value is None:return rub(None)
+  cents=row.get(key+'_cents',value);return rub(cents) if type(cents) is int or cents is None else str(value or '—')
  if key in ('status','old_status','new_status'):return row.get('status_display',STATUSES.get(value,(IMPORT_STATES.get(value,value),''))[0]) if key=='status' else STATUSES.get(value,(value,''))[0] or '—'
  if key=='kind':return KINDS_DISPLAY.get(value,value)
  if key in ('state','state_label'):return STATES.get(value,value)

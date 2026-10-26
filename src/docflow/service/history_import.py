@@ -32,6 +32,9 @@ HISTORY_FIELDS = {
  'status':'Производственный статус', 'notes':'Примечания', 'source_document':'Локальный исходный документ',
  'source_fragment':'Координаты исходного фрагмента', 'item_kind':'Тип отдельной позиции', 'item_name':'Название отдельной позиции',
  'quantity':'Количество позиции', 'unit':'Единица позиции', 'price':'Цена отдельной позиции',
+ 'cost_state':'Полнота стоимости (known / unknown)', 'payment_state':'Полнота оплат (known / unknown)',
+ 'paid_amount':'Учтённая историческая оплата', 'payment_date':'Подтверждённая дата оплаты',
+ 'payment_method':'Источник / способ исторической оплаты', 'payment_note':'Основание исторической оплаты',
 }
 
 
@@ -57,7 +60,10 @@ def import_day(value):
 
 
 def import_money(value):
-    return money(str(value).replace('\u00a0', '').replace(' ', ''))
+    from .legacy_review import legacy_money
+    result=legacy_money(value)
+    if result is None:raise ServiceError('Сумма отсутствует; отсутствие не заменяется нулём')
+    return result
 
 
 def _load(path, sheet):
@@ -109,6 +115,7 @@ def _groups(table, mapping, status_map, default_status):
             try:
                 row = normalize_lines([{'kind':kind, 'name':raw['item_name'], 'quantity':raw.get('quantity') or '1',
                                         'unit':raw.get('unit') or 'шт.', 'price':str(raw.get('price') or '0').replace(' ','').replace('\u00a0','')}])[0]
+                row['price_known']=bool(raw.get('price'))
                 g['lines'].append(row)
             except ServiceError as exc: g['errors'].append(f'Строка {record.row_number}: {exc}')
     for g in groups.values():
@@ -128,8 +135,10 @@ def _groups(table, mapping, status_map, default_status):
                     names = {'work':'Исторические работы','part':'Исторические запчасти','delivery':'Историческая доставка','other':'Другой исторический расход'}
                     value = import_money(d.get(cost,'0'))
                     descr = d.get(description or '', '')
-                    g['lines'] += normalize_lines([{'kind':kind,'name':descr.split('\n')[0][:500] if descr else names[kind],
-                                                   'description':descr,'quantity':'1','unit':'компл.', 'price_cents':value}])
+                    line=normalize_lines([{'kind':kind,'name':descr.split('\n')[0][:500] if descr else names[kind],
+                                           'description':descr,'quantity':'1','unit':'компл.', 'price_cents':value}])[0]
+                    line['price_known']=bool(d.get(cost))
+                    g['lines'].append(line)
             discount = import_money(d.get('discount','0'))
             if d.get('final_total'):
                 expected = import_money(d['final_total'])
@@ -140,6 +149,27 @@ def _groups(table, mapping, status_map, default_status):
                 if calculate(g['lines'],discount)['total'] != expected:
                     raise ServiceError('Сумма позиций и скидки не совпадает с указанным окончательным итогом')
             g['totals'] = calculate(g['lines'],discount); d['discount_cents'] = discount
+            for field in ('cost_state','payment_state'):
+                if d.get(field) and d[field] not in ('known','unknown'):
+                    raise ServiceError('Полнота расчётов: используйте known или unknown')
+            has_amount=bool(d.get('final_total')) or any(d.get(k) for k in ('work_cost','parts_cost','delivery_cost','other_cost'))
+            explicit_prices=all(row.get('values',{}).get(mapping_price,'') not in ('',None)
+                                for row in g['rows']) if (mapping_price := mapping.get('price')) else False
+            unpriced=any(d.get(description) and not d.get(cost) for description,cost in (('works','work_cost'),('parts','parts_cost')))
+            cost_known=bool(d.get('final_total')) or ((has_amount or explicit_prices) and not unpriced)
+            if d.get('cost_state')=='unknown':cost_known=False
+            if d.get('cost_state')=='known' and not cost_known:
+                raise ServiceError('Полная стоимость не подтверждается числовыми полями источника')
+            paid=import_money(d['paid_amount']) if d.get('paid_amount') else 0
+            payments_known=d.get('payment_state')=='known'
+            if payments_known and not d.get('paid_amount'):
+                raise ServiceError('Для полной истории оплат укажите сумму, включая явный 0')
+            d['paid_cents']=paid
+            d['payment_date']=import_day(d['payment_date']) if d.get('payment_date') else ''
+            g['finance_evidence']={'cost_known':cost_known,'payments_known':payments_known}
+            if not cost_known:g['warnings'].append('Стоимость неизвестна: отсутствующие суммы не считаются нулевыми')
+            if not payments_known:g['warnings'].append('История оплат неизвестна или неполна: задолженность не вычисляется')
+            if paid and not d['payment_date']:g['warnings'].append('Дата исторической оплаты неизвестна; текущая дата не подставляется')
             for position, row in enumerate(g['lines']): row['position'] = position
             if len(g['lines']) > 2000: raise ServiceError('Слишком много позиций у одного ремонта')
         except ServiceError as exc: g['errors'].append(str(exc))
@@ -280,9 +310,18 @@ def import_history(store, plan, *, confirmed=False, selected_keys=None):
                 c.execute('INSERT INTO repair_orders(id,number,equipment_id,client_id,received_at,complaint,defects,plan,notes,status,discount_cents,created_at,updated_at,profile_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
                           (repair,text(d['repair_number'],'Номер ремонта',True,100),equipment_cache[eqkey],customer,d['received_at'],
                            text(d.get('complaint')),text(d.get('defects')),text(d.get('plan')),text(d.get('notes')),d['status'],d['discount_cents'],stamp,stamp,active['id']))
+                evidence=g['finance_evidence']
+                c.execute('INSERT INTO repair_finance_evidence VALUES(?,?,?,?,?)',
+                          (repair,int(evidence['cost_known']),int(evidence['payments_known']),
+                           'Исторический импорт; полнота отражает подтверждённые поля источника',stamp))
+                if d['paid_cents']:
+                    c.execute('INSERT INTO payments(id,repair_id,amount_cents,occurred_at,method,kind,comment,created_at) VALUES(?,?,?,?,?,?,?,?)',
+                              (uuid4().hex,repair,d['paid_cents'],d['payment_date'],
+                               text(d.get('payment_method') or 'Историческая запись',limit=300),'payment',
+                               text(d.get('payment_note') or 'Сумма явно указана в подтверждённом источнике'),stamp))
                 for item in g['lines']:
-                    c.execute('INSERT INTO repair_items(id,repair_id,kind,name,description,quantity,unit,price_cents,total_cents,position,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
-                              (uuid4().hex,repair,item['kind'],item['name'],item['description'],item['quantity'],item['unit'],item['price_cents'],item['total_cents'],item['position'],item['notes']))
+                    c.execute('INSERT INTO repair_items(id,repair_id,kind,name,description,quantity,unit,price_cents,total_cents,position,notes,price_known) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+                              (uuid4().hex,repair,item['kind'],item['name'],item['description'],item['quantity'],item['unit'],item['price_cents'],item['total_cents'],item['position'],item['notes'],int(item.get('price_known',True))))
                 c.execute('INSERT INTO repair_status_history(repair_id,old_status,new_status,changed_at,note,source) VALUES(?,?,?,?,?,?)',
                           (repair,'',d['status'],stamp,'Историческая запись; дата приёмки сохранена отдельно','import'))
                 if fresh['options']['copy_documents'] and d.get('source_document'):

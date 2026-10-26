@@ -36,6 +36,8 @@ def normalize_lines(rows):
                        'unit':text(row.get('unit', 'шт.'), 'Единица', True, 30),
                        'price_cents':price, 'total_cents':line_total(q, price),
                        'position':position, 'notes':text(row.get('notes'))})
+        if 'price' not in row and row.get('price_known',True) in (False,0):
+            result[-1]['price_known']=False
     calculate(result)
     return result
 
@@ -103,10 +105,10 @@ def comparison(connection, repair_id):
                 'approved_estimate_id':None, 'changed_from_approved':False}
     lines = [dict(r) for r in connection.execute('SELECT * FROM repair_items WHERE repair_id=? ORDER BY position,rowid', (repair_id,))]
     def content(rows):
-        return [{k:r.get(k,'') for k in ('kind','name','description','quantity','unit','price_cents','total_cents')} for r in rows]
+        return [{k:r.get(k,1 if k=='price_known' else '') for k in ('kind','name','description','quantity','unit','price_cents','total_cents','price_known')} for r in rows]
     changed = bool(approved) and (content(lines) != content(selected['payload']['lines']) or current['discount'] != selected['payload']['totals']['discount'])
     return {'preliminary_total':selected['total'], 'preliminary_id':selected['id'], 'preliminary_state':selected['state'],
-            'final_total':current['total'], 'difference':current['total']-selected['total'],
+            'final_total':current['total'], 'difference':current['total']-selected['total'] if current['total'] is not None else None,
             'approved_estimate_id':approved['id'] if approved else None, 'changed_from_approved':changed}
 
 
@@ -127,6 +129,8 @@ def freeze_estimate(store, repair_id, kind, prepared_by, reason='', request_id=N
         else:
             lines = normalize_lines([dict(x) for x in c.execute('SELECT * FROM repair_items WHERE repair_id=? ORDER BY position,rowid', (repair_id,))])
             quote_totals = totals(c, repair_id); comment = r['notes']
+            if quote_totals['total'] is None:
+                raise ServiceError('Уточните и подтвердите историческую стоимость перед окончательной сметой')
             if comparison(c, repair_id)['changed_from_approved'] and not reason:
                 raise ServiceError('Укажите причину отличия окончательной сметы от согласованной')
         payload = {'repair':r, 'equipment':store.require(c, 'equipment', r['equipment_id']),

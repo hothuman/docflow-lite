@@ -6,7 +6,7 @@ from uuid import uuid4
 from functools import lru_cache
 from .validation import ServiceError,now
 
-SCHEMA_VERSION=4
+SCHEMA_VERSION=5
 MIGRATIONS={1:[
  '''CREATE TABLE clients(id TEXT PRIMARY KEY, kind TEXT NOT NULL, name TEXT NOT NULL, legal_name TEXT NOT NULL DEFAULT '', contact TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN(0,1)), created_at TEXT NOT NULL, updated_at TEXT NOT NULL)''',
  '''CREATE TABLE equipment(id TEXT PRIMARY KEY, number TEXT NOT NULL COLLATE NOCASE UNIQUE, manufacturer TEXT NOT NULL DEFAULT '', model TEXT NOT NULL, kind TEXT NOT NULL DEFAULT '', serial TEXT NOT NULL DEFAULT '', owner_id TEXT NOT NULL REFERENCES clients(id), identifiers TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN(0,1)), created_at TEXT NOT NULL, updated_at TEXT NOT NULL)''',
@@ -50,6 +50,10 @@ MIGRATIONS={1:[
 ],4:[
  'CREATE INDEX estimate_events_version ON estimate_events(estimate_id,id)',
  'CREATE INDEX repairs_received ON repair_orders(received_at)',
+],5:[
+ 'ALTER TABLE repair_items ADD COLUMN price_known INTEGER NOT NULL DEFAULT 1 CHECK(price_known IN(0,1))',
+ '''CREATE TABLE repair_finance_evidence(repair_id TEXT PRIMARY KEY REFERENCES repair_orders(id), cost_known INTEGER NOT NULL CHECK(cost_known IN(0,1)), payments_known INTEGER NOT NULL CHECK(payments_known IN(0,1)), note TEXT NOT NULL, updated_at TEXT NOT NULL)''',
+ "INSERT INTO repair_finance_evidence SELECT DISTINCT repair_id,0,0,'Исторический импорт прежней версии: полнота стоимости и оплат не подтверждена',imported_at FROM import_records GROUP BY repair_id"
 ]}
 
 @lru_cache(maxsize=SCHEMA_VERSION)
