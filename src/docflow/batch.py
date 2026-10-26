@@ -11,7 +11,7 @@ from typing import Callable
 
 from . import __version__
 from .data import Table, load_table
-from .errors import DocFlowError
+from .errors import DocFlowError, GenerationCancelled
 from .profile import Profile
 from .safety import csv_safe, safe_name
 from .templates import Template
@@ -47,16 +47,21 @@ def prepare(profile: Profile) -> Prepared:
     return Prepared(profile, table, templates)
 
 
-def generate(prepared: Prepared, output: Path | str, progress: Callable[[int, int], None] | None = None) -> BatchResult:
+def generate(prepared: Prepared, output: Path | str, progress: Callable[[int, int], None] | None = None, *, cancelled: Callable[[], bool] | None = None) -> BatchResult:
     """Publish one completed directory. A failed record never leaves partial DOCX."""
     output = Path(output).resolve()
     staging = None
+    def check_cancelled():
+        if cancelled and cancelled():
+            raise GenerationCancelled('Генерация отменена; новый пакет не сохранён')
     try:
+        check_cancelled()
         output.mkdir(parents=True, exist_ok=True)
         staging = Path(tempfile.mkdtemp(prefix=".docflow-", dir=output))
         accepted, documents = 0, 0
         issues, records_report = [], []
         for index, record in enumerate(prepared.table.records, 1):
+            check_cancelled()
             values, row_issues = values_for(record, prepared.profile.mapping, prepared.profile.rules)
             label = record.values.get(prepared.profile.name_column, "")
             row_name = f"row_{record.row_number:04d}_{safe_name(label)}"
@@ -66,6 +71,7 @@ def generate(prepared: Prepared, output: Path | str, progress: Callable[[int, in
                 row_dir.mkdir()
                 try:
                     for n, template in enumerate(prepared.templates, 1):
+                        check_cancelled()
                         filename = f"{n:02d}_{safe_name(template.path.stem)}.docx"
                         target = row_dir / filename
                         with target.open("xb") as f:
@@ -73,6 +79,8 @@ def generate(prepared: Prepared, output: Path | str, progress: Callable[[int, in
                             f.flush()
                             os.fsync(f.fileno())
                         row_files.append(f"{row_name}/{filename}")
+                except GenerationCancelled:
+                    raise
                 except OSError:
                     # A storage failure invalidates the entire run, not just a row.
                     raise
@@ -88,6 +96,7 @@ def generate(prepared: Prepared, output: Path | str, progress: Callable[[int, in
             records_report.append({"row": record.row_number, "status": "error" if row_issues else "ok", "files": row_files, "issues": [x.to_dict() for x in row_issues]})
             if progress:
                 progress(index, len(prepared.table.records))
+        check_cancelled()
         total = len(prepared.table.records)
         report = {"version": __version__, "created_at": datetime.now(timezone.utc).isoformat(), "source": prepared.table.source.name, "templates": [x.path.name for x in prepared.templates], "total": total, "accepted": accepted, "rejected": total - accepted, "documents": documents, "records": records_report}
         (staging / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -101,6 +110,7 @@ def generate(prepared: Prepared, output: Path | str, progress: Callable[[int, in
                 else:
                     writer.writerow([item["row"], "ok", "", ""])
         final = output / ("DocFlow_" + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_") + uuid.uuid4().hex[:10])
+        check_cancelled()
         os.rename(staging, final)
         staging = None
         return BatchResult(final, total, accepted, total - accepted, documents, tuple(issues))
