@@ -50,7 +50,8 @@ class ReleasePreparationTests(unittest.TestCase):
         self.assertNotIn("/releases/download/v0.1.1",text)
         self.assertIn("SHA256 Portable: "+"b"*64,text)
         self.assertNotIn("не входит в публичный Release",(self.root/"site/service.html").read_text(encoding="utf-8"))
-        self.assertIn("fieldset disabled",text)
+        self.assertNotIn("<form",text)
+        self.assertIn("Что написать для оценки",text)
         info=json.loads((self.root/"site/build-info.json").read_text(encoding="utf-8"))
         self.assertEqual(info["application_version"],self.version)
         self.assertFalse(info["indexing_enabled"]);self.assertFalse(info["lead_collection_enabled"])
@@ -63,6 +64,10 @@ class ReleasePreparationTests(unittest.TestCase):
         names=[a["name"] for a in self.manifest["assets"]]
         exe=b"synthetic test executable";license_data=b"{}"
         files={"DocFlow-Lite.exe":exe,"THIRD-PARTY-LICENSES.json":license_data,"LICENSE.txt":b"Synthetic original terms"}
+        if self.version!='0.3.0a6':
+            sbom={'bomFormat':'CycloneDX','specVersion':'1.6','metadata':{'component':{'version':self.version,'properties':[{'name':'docflow:source-commit','value':self.sha}]}}}
+            files['SBOM.cdx.json']=json.dumps(sbom).encode()
+            (folder/'SBOM.cdx.json').write_bytes(files['SBOM.cdx.json'])
         with zipfile.ZipFile(folder/names[0],"w") as z:
             for n,b in files.items():z.writestr("DocFlow-Lite/"+n,b)
             z.writestr("DocFlow-Lite/BUNDLE-SHA256.json",json.dumps({n:candidate.digest(b) for n,b in files.items()}))
@@ -70,7 +75,7 @@ class ReleasePreparationTests(unittest.TestCase):
             z.writestr("docflow-lite/example.txt",b"source")
             z.writestr("docflow-lite/FILE_HASHES.json",json.dumps({"example.txt":candidate.digest(b"source")}))
         with zipfile.ZipFile(folder/names[2],"w") as z:z.writestr("ThirdParty-Sources/example.txt",b"dependency source")
-        (folder/"BUILD-INFO.json").write_text(json.dumps({"version":self.version,"python":"3.13.16","commit":self.sha,"exe_sha256":candidate.digest(exe)}))
+        (folder/"BUILD-INFO.json").write_text(json.dumps({"version":self.version,"python":"3.13.16" if self.version=="0.3.0a6" else "3.14.10","commit":self.sha,"exe_sha256":candidate.digest(exe)}))
         (folder/"README-WINDOWS.txt").write_text("Example instructions")
         (folder/"LICENSE.txt").write_text("Synthetic original terms")
         (folder/"WINDOWS-CI-RESULTS.json").write_text(json.dumps({"status":"passed","runs":[{},{}]}))
@@ -120,3 +125,32 @@ class ReleasePreparationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"commit differs"):prepare(folder,"c"*40,notes)
         notes.write_text("Other version")
         with self.assertRaisesRegex(ValueError,"notes"):prepare(folder,self.sha,notes)
+
+
+    def test_unmanifested_source_file_blocks_even_when_zip_checksum_is_updated(self):
+        folder=self.fixtures();source=folder/self.manifest['assets'][1]['name']
+        with zipfile.ZipFile(source,'a') as z:z.writestr('docflow-lite/private-untracked.txt',b'synthetic privacy sentinel')
+        self.resum(folder)
+        with self.assertRaisesRegex(ValueError,'source|Source'):candidate.verify(folder)
+
+    def test_unmanifested_bundle_file_blocks_even_when_zip_checksum_is_updated(self):
+        folder=self.fixtures();portable=folder/self.manifest['assets'][0]['name']
+        with zipfile.ZipFile(portable,'a') as z:z.writestr('DocFlow-Lite/_internal/unexpected.dll',b'synthetic unexpected binary')
+        self.resum(folder)
+        with self.assertRaisesRegex(ValueError,'Bundle|bundle'):candidate.verify(folder)
+
+    def rc_fixture(self):
+        self.version='1.0.0rc1'
+        for asset in self.manifest['assets']:asset['name']=asset['name'].replace('0.3.0a6',self.version)
+        return self.fixtures()
+
+    def test_rc_requires_sbom_even_when_outer_checksums_are_updated(self):
+        folder=self.rc_fixture();candidate.verify(folder)
+        (folder/'SBOM.cdx.json').unlink();self.resum(folder)
+        with self.assertRaisesRegex(ValueError,'SBOM'):candidate.verify(folder)
+
+    def test_rc_rejects_sbom_from_another_commit(self):
+        folder=self.rc_fixture();sbom=json.loads((folder/'SBOM.cdx.json').read_text())
+        sbom['metadata']['component']['properties'][0]['value']='c'*40
+        (folder/'SBOM.cdx.json').write_text(json.dumps(sbom));self.resum(folder)
+        with self.assertRaisesRegex(ValueError,'SBOM'):candidate.verify(folder)

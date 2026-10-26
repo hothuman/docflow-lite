@@ -46,7 +46,7 @@ def wait_idle(window, timeout=15):
 
 
 def run(output, require_windows=False):
-    from PySide6.QtCore import Qt, qVersion
+    from PySide6.QtCore import Qt, QTimer, qVersion
     from PySide6.QtTest import QTest
     from PySide6.QtWidgets import QApplication, QFileDialog, QScrollArea
     from docx import Document
@@ -136,6 +136,31 @@ def run(output, require_windows=False):
         click(window.check_btn)
         assert 'С ошибками: 1' in window.status.text()
         check('bundled_demo_and_validation')
+        # Exercise the changed feature in the actual frozen GUI, not a source-only test.
+        # Qt events are sent directly to our widgets; no desktop-global input.
+        demo_for_cancel=Profile.load(demo_profile())
+        cancel_source=output/'cancel-5000.csv'
+        with cancel_source.open('w',encoding='utf-8-sig',newline='') as stream:
+            writer=csv.writer(stream,delimiter=';');writer.writerow(window.table.headers)
+            row=window.table.records[0].values
+            writer.writerows([[row[h] for h in window.table.headers] for _ in range(5000)])
+        cancel_profile=Profile(cancel_source,demo_for_cancel.templates,demo_for_cancel.mapping,demo_for_cancel.rules,
+                               demo_for_cancel.name_column,'utf-8-sig')
+        window.apply_profile(cancel_profile);wait_idle(window)
+        assert len(window.table.records)==5000
+        cancelled_output=output/'Cancelled run';cancelled_output.mkdir()
+        preserved=cancelled_output/'previous.txt';preserved.write_bytes(b'Previous result is preserved')
+        window.output_path.setText(str(cancelled_output));window.start_generation()
+        QTimer.singleShot(0,window.cancel_btn.click)
+        wait_idle(window)
+        assert window.last_result is None and 'отмен' in window.status.text().lower()
+        assert list(cancelled_output.iterdir())==[preserved]
+        assert preserved.read_bytes()==b'Previous result is preserved'
+        assert window.generate_btn.isEnabled() and not window.cancel_btn.isVisible()
+        assert window.grab().save(str(output/'cancelled.png'))
+        check('cancel_5000_rows_preserves_previous_results_and_cleans_staging')
+        window.apply_profile(demo_for_cancel);wait_idle(window)
+        # The normal demo generation below is also a successful retry after cancellation.
         window.output_path.setText(str(output/'Встроенный пример'))
         click(window.generate_btn)
         result = wait_for_generation()

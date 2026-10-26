@@ -100,7 +100,7 @@ def collect(bundle, sources):
     if unsupported:
         raise RuntimeError('Review corresponding sources for additional Qt DLLs: '+repr(unsupported))
     assert {'Qt6Core','Qt6Gui','Qt6Widgets'}<=set(qt_dlls)
-    notes='''Qt for Python / Qt 6.10.2
+    notes='''Qt for Python / Qt 6.12.0
 
 This portable application uses Qt and PySide6 under LGPLv3. Full LGPLv3,
 GPLv3 and third-party license texts are provided in licenses/.

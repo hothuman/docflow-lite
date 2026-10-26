@@ -4,8 +4,8 @@
 
 [Скачать для Windows](https://github.com/hothuman/docflow-lite/releases/download/v0.3.0a6/DocFlow-Lite-0.3.0a6-Windows-x64-Portable.zip) · [Сайт](https://docflow-lite.pages.dev/) · [Начать работу](docs/service/28_QUICK_START.md) · [Документация](docs/README.md)
 
-[![Проверки приложения](https://github.com/hothuman/docflow-lite/actions/workflows/app-modernization.yml/badge.svg?branch=feature%2Fdocflow-lite-service)](https://github.com/hothuman/docflow-lite/actions/workflows/app-modernization.yml)
-[![Проверки сайта](https://github.com/hothuman/docflow-lite/actions/workflows/website-v2.yml/badge.svg?branch=feature%2Fdocflow-lite-service)](https://github.com/hothuman/docflow-lite/actions/workflows/website-v2.yml)
+[![Проверки приложения](https://github.com/hothuman/docflow-lite/actions/workflows/app-modernization.yml/badge.svg?branch=main)](https://github.com/hothuman/docflow-lite/actions/workflows/app-modernization.yml)
+[![Проверки сайта](https://github.com/hothuman/docflow-lite/actions/workflows/website-v2.yml/badge.svg?branch=main)](https://github.com/hothuman/docflow-lite/actions/workflows/website-v2.yml)
 
 </div>
 
@@ -14,6 +14,8 @@
 Локальное приложение для повторяющейся работы с документами и историей ремонта. **Core** создаёт DOCX из XLSX/CSV и ваших шаблонов. **Service** ведёт клиентов, аппараты, отдельные обращения, сметы и документы в проекте SQLite.
 
 **[0.3.0a6 опубликована](https://github.com/hothuman/docflow-lite/releases/tag/v0.3.0a6) — предварительная версия.** Программа бесплатна для личной и деловой работы по [условиям использования](LICENSE.txt). Индивидуальная настройка — отдельная услуга. Один оператор, локальные данные, без аккаунта и телеметрии.
+
+Готовится публикация **1.0.0** после приёмки RC1 владельцем в Windows/Word. Пока скачивание выше ведёт на неизменяемую a6; новая ссылка включается после проверки опубликованных файлов. Свежий ход работ: [трекер 1.0](docs/release/V1_STABLE_TRACKER.md), [результат кандидата](docs/release/V1_FINAL_REPORT.md) и [GO/NO-GO](docs/release/V1_GO_NO_GO.md).
 
 ## Выберите задачу
 
@@ -61,13 +63,13 @@ Service поддерживает историю отдельных обраще�
 
 ## Настройка под вашу работу
 
-Core и Service alpha бесплатны по условиям поставки. Можно настроить их самостоятельно либо согласовать индивидуальную работу: простой DOCX от 5 000 ₽, до трёх из одной таблицы от 9 000 ₽; Service оценивается по задаче.
+Core и Service бесплатны по условиям поставки. Можно настроить их самостоятельно либо согласовать индивидуальную работу: простой DOCX от 5 000 ₽, до трёх из одной таблицы от 9 000 ₽; Service оценивается по задаче.
 
 До заказа фиксируются входные материалы, объём, результат, цена, срок и приёмка. Для первого обращения достаточно описания без клиентских данных. [Telegram](https://t.me/de1grace) · [docflow.lite@gmail.com](mailto:docflow.lite@gmail.com).
 
 ## Разработка и проверки
 
-Исходники: Python 3.11–3.13; Windows-рецепт закрепляет CPython 3.13.16 x64 и зависимости с SHA256.
+Исходники: Python 3.11–3.14; Windows-рецепт закрепляет CPython 3.14.10 x64 и зависимости с SHA256.
 
 ~~~powershell
 py -3.12 -m venv .venv

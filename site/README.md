@@ -6,7 +6,7 @@
 
 Проверки: python -m pytest -q site/tests; node --check site/dist/app.js. Браузер: npm ci в site, npx playwright install chromium, npm run test:browser.
 
-Core и Service alpha бесплатны по условиям программы. Настройка — отдельная услуга, Service оценивается по задаче. Контакты: https://t.me/de1grace и docflow.lite@gmail.com.
+Core и Service бесплатны по условиям программы. Настройка — отдельная услуга, Service оценивается по задаче. Контакты: https://t.me/de1grace и docflow.lite@gmail.com.
 
 Условия оригинального продукта утверждены владельцем; software.html не заменяет проекты условий услуг и политики. Форма, аналитика, платежи и индексация выключены. Нет backend заявок и локального сохранения формы.
 

@@ -13,10 +13,11 @@ from PySide6.QtWidgets import (
     QTextBrowser, QVBoxLayout, QWidget,
 )
 from .. import __version__
+from ..versioning import stage
 from ..batch import BatchResult, Prepared, generate, prepare
 from ..cli import demo_profile
 from ..data import Record, Table, load_table
-from ..errors import DocFlowError
+from ..errors import DocFlowError, GenerationCancelled
 from ..profile import Profile
 from ..templates import Template
 from ..validation import Rule, values_for, validate_mapping
@@ -46,6 +47,7 @@ class GenerationWorker(QThread):
     advanced=Signal(int,int)
     completed=Signal(object)
     failed=Signal(str)
+    cancelled=Signal()
 
     def __init__(self, prepared:Prepared, output:Path, parent=None):
         super().__init__(parent);self.prepared=prepared;self.output=output
@@ -57,7 +59,8 @@ class GenerationWorker(QThread):
             now=time.monotonic()
             if current==total or now-last>=.05:
                 self.advanced.emit(current,total);last=now
-        try:self.completed.emit(generate(self.prepared,self.output,progress))
+        try:self.completed.emit(generate(self.prepared,self.output,progress,cancelled=self.isInterruptionRequested))
+        except GenerationCancelled:self.cancelled.emit()
         except (DocFlowError,OSError) as exc:record_exception('Core operation',exc);self.failed.emit(friendly_error(exc))
         except Exception as exc:record_exception('Core generation',exc);self.failed.emit(friendly_error(exc))
 
@@ -85,7 +88,7 @@ class MainWindow(QMainWindow):
         self.rail=QFrame();self.rail.setObjectName('rail');self.rail.setFixedWidth(224)
         nav=QVBoxLayout(self.rail);nav.setContentsMargins(14,22,14,18);nav.setSpacing(8)
         self.brand=text('d/ DocFlow','brand');nav.addWidget(self.brand)
-        self.version_label=text(f'v{__version__} · alpha','version');nav.addWidget(self.version_label)
+        self.version_label=text(f'v{__version__} · {stage(__version__)}','version');nav.addWidget(self.version_label)
         self.mode_picker=QComboBox();self.mode_picker.addItems(['Core · Документы','Service · Мастерская'])
         self.mode_picker.setAccessibleName('Направление DocFlow');nav.addWidget(self.mode_picker)
         self.mode_picker.currentIndexChanged.connect(lambda i:self.navigate(5 if i else getattr(self,'_last_core_page',0)))
@@ -119,6 +122,9 @@ class MainWindow(QMainWindow):
         self._build_create();self._build_templates();self._build_mapping();self._build_result();self._build_about();self.pages.addWidget(QWidget())
         self.status=text('Откройте демопример или выберите свои файлы','status');self.status.setAccessibleName('Текущий статус')
         self.footer_layout=QHBoxLayout();self.footer_layout.setSpacing(12);self.footer_layout.addWidget(self.status,1)
+        self.cancel_btn=self.button('Отменить генерацию',self.cancel_generation)
+        self.cancel_btn.setToolTip('Дождаться текущего документа и удалить незавершённый новый пакет')
+        self.cancel_btn.hide();self.footer_layout.addWidget(self.cancel_btn)
         self._pinned_action=None;work.addLayout(self.footer_layout)
         self.navigate(0);self._responsive();self.update_readiness()
 
@@ -233,7 +239,7 @@ class MainWindow(QMainWindow):
         layout.addStretch()
 
     def _build_about(self):
-        page,layout=self.page();box,body=card('DocFlow Lite',f'Версия {__version__} · Service alpha')
+        page,layout=self.page();box,body=card('DocFlow Lite',f'Версия {__version__} · Core + Service · {stage(__version__)}')
         layout.addWidget(box)
         body.addWidget(text('Локальная генерация Word-документов из XLSX/CSV. Данные и шаблоны не отправляются на сервер.'))
         body.addWidget(text('До 5 000 записей, 100 столбцов и 20 DOCX-шаблонов за запуск. Исходники не перезаписываются.'))
@@ -263,7 +269,7 @@ class MainWindow(QMainWindow):
         for b in self.service_nav:b.setVisible(index==5)
         if index==5:self._service_section_changed(self.service_workspace.tabs.currentIndex())
         self.demo_btn.setVisible(index!=5);self.folder_btn.setVisible(index!=5)
-        self.generate_btn.setVisible(index!=5)
+        self.generate_btn.setVisible(index!=5 and self.cancel_btn.isHidden())
         if index==5:
             if not hasattr(self,'_core_status'):self._core_status=self.status.text()
             self.status.setText('Service · выберите оборудование или зарегистрируйте новое обращение')
@@ -314,7 +320,7 @@ class MainWindow(QMainWindow):
         if hasattr(self,'footer_layout') and self._pinned_action!=pinned:
             self.options_layout.removeWidget(self.generate_btn);self.footer_layout.removeWidget(self.generate_btn)
             (self.footer_layout if pinned else self.options_layout).addWidget(self.generate_btn)
-            self.generate_btn.setVisible(self.pages.currentIndex()!=5);self._pinned_action=pinned
+            self.generate_btn.setVisible(self.pages.currentIndex()!=5 and self.cancel_btn.isHidden());self._pinned_action=pinned
         if getattr(self,'_columns',None)==mode:return
         self._columns=mode
         for item in (self.source_card,self.options_card,self.ready_card):self.create_grid.removeWidget(item)
@@ -596,11 +602,29 @@ class MainWindow(QMainWindow):
             if self.worker:self.worker.deleteLater()
             self.worker=GenerationWorker(prepared,Path(self.output_path.text()),self)
             self.worker.advanced.connect(self._progress);self.worker.completed.connect(self.on_result)
-            self.worker.failed.connect(self.error);self.worker.finished.connect(self._generation_finished);self.worker.start()
+            self.worker.failed.connect(self.error);self.worker.cancelled.connect(self._generation_cancelled)
+            self.worker.finished.connect(self._generation_finished)
+            self.generate_btn.hide();self.cancel_btn.setEnabled(True);self.cancel_btn.show();self.worker.start()
         except (DocFlowError,OSError) as exc:self.error(exc)
+
+    @Slot()
+    def cancel_generation(self):
+        if self.worker and self.worker.isRunning():
+            self.worker.requestInterruption();self.cancel_btn.setEnabled(False)
+            self.progress_label.setText('Отмена после текущего документа…')
+            self.status.setText('Отменяю генерацию и очищаю временный пакет…')
+
+    @Slot()
+    def _generation_cancelled(self):
+        self.progress.setValue(0)
+        self.progress_label.setText('Генерация отменена')
+        self.status.setText('Генерация отменена. Измените настройки или запустите снова.')
+        self.result_summary.setText('Генерация отменена; новый пакет не сохранён')
+        self.result_path.setText('Ранее созданные результаты остаются в своих папках.')
 
     @Slot(int,int)
     def _progress(self,current,total):
+        if self.worker and self.worker.isInterruptionRequested():return
         self.progress.setValue(round(current/total*100) if total else 0)
         self.progress_label.setText(f'Обработано записей: {current} / {total}')
         self.status.setText(f'Генерация: {current} / {total} записей')
@@ -608,6 +632,7 @@ class MainWindow(QMainWindow):
     @Slot()
     def _generation_finished(self):
         self.worker.prepared=None
+        self.cancel_btn.hide();self.generate_btn.setVisible(self.pages.currentIndex()!=5)
         self.set_busy(False)
 
     def set_busy(self,busy):

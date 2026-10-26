@@ -45,8 +45,8 @@ const widths=[320,360,390,620,768,860,1024,1280];
      await page.locator('.menu-toggle').click();assert.equal(await page.locator('.menu-toggle').getAttribute('aria-expanded'),'true');await page.keyboard.press('Escape');assert.equal(await page.locator('.menu-toggle').getAttribute('aria-expanded'),'false');
     }
     if(name==='index.html'){
-     assert.notEqual(await page.locator('fieldset').getAttribute('disabled'),null);
-     for(const field of await page.locator('#request-form input, #request-form textarea, #request-form button[type=submit]').all())assert(await field.isDisabled());
+     assert.equal(await page.locator('form, input, textarea, button[type=submit]').count(),0);
+     assert(await page.getByRole('heading',{name:'Что написать для оценки'}).isVisible());
      await page.locator('#demo-records button').last().click();assert.match(await page.locator('#demo-status').innerText(),/пропущена/);
      assert(await page.locator('#demo-template').isDisabled());
      await page.locator('#demo-records button').first().click();assert.equal(await page.locator('#demo-template').isDisabled(),false);

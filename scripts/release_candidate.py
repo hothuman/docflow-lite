@@ -6,6 +6,9 @@ import json
 from pathlib import Path, PurePosixPath
 import re
 import zipfile
+import sys
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"src"))
+from docflow.versioning import stage,is_prerelease
 
 
 def digest(data):
@@ -25,8 +28,10 @@ def checked_zip(path):
         names = z.namelist()
         if len(names) != len(set(names)):
             raise ValueError("Duplicate ZIP entries")
-        for name in names:
-            safe_name(name)
+        for info in z.infolist():
+            safe_name(info.filename)
+            if info.is_dir() or (info.external_attr>>16)&0o170000==0o120000:
+                raise ValueError("Unexpected directory or symlink in ZIP")
         if z.testzip() is not None:
             raise ValueError("ZIP CRC failed")
         return z
@@ -39,13 +44,14 @@ def verify(directory):
     directory = Path(directory)
     info = json.loads((directory / "BUILD-INFO.json").read_text(encoding="utf-8"))
     version = info["version"]
-    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:a|b|rc)[0-9]+", version):
-        raise ValueError("Expected an explicit prerelease version")
-    if info["python"] != "3.13.16" or not re.fullmatch(r"[0-9a-f]{40}", info["commit"]):
+    release_stage=stage(version)
+    expected_python="3.13.16" if version=="0.3.0a6" else "3.14.10"
+    if info["python"] != expected_python or not re.fullmatch(r"[0-9a-f]{40}", info["commit"]):
         raise ValueError("Official candidate requires pinned Python and a full source SHA")
     required = [f"DocFlow-Lite-{version}-{suffix}.zip" for suffix in
                 ("Windows-x64-Portable", "Source", "ThirdParty-Sources")]
     required += ["BUILD-INFO.json", "WINDOWS-CI-RESULTS.json", "README-WINDOWS.txt", "LICENSE.txt"]
+    if version!="0.3.0a6":required.append("SBOM.cdx.json")
     sums = {}
     for line in (directory / "SHA256SUMS.txt").read_text(encoding="utf-8").splitlines():
         if not line.strip():
@@ -66,10 +72,23 @@ def verify(directory):
         manifest = json.loads(z.read("DocFlow-Lite/BUNDLE-SHA256.json"))
         if not manifest or "THIRD-PARTY-LICENSES.json" not in manifest or "LICENSE.txt" not in manifest:
             raise ValueError("Missing bundle provenance/licenses")
+        expected_bundle={"DocFlow-Lite/"+n for n in manifest}|{"DocFlow-Lite/BUNDLE-SHA256.json"}
+        if set(z.namelist())!=expected_bundle:
+            raise ValueError("Bundle contains unmanifested or missing files")
         for name, value in manifest.items():
             safe_name(name)
             if digest(z.read("DocFlow-Lite/" + name)) != value:
                 raise ValueError("Bundle checksum failed: " + name)
+        if version!="0.3.0a6":
+            if 'SBOM.cdx.json' not in manifest:raise ValueError('Missing bundle SBOM')
+            raw=(directory/'SBOM.cdx.json').read_bytes()
+            if raw!=z.read('DocFlow-Lite/SBOM.cdx.json'):raise ValueError('Published and bundled SBOM differ')
+            sbom=json.loads(raw)
+            component=sbom.get('metadata',{}).get('component',{})
+            properties={p.get('name'):p.get('value') for p in component.get('properties',[])}
+            if (sbom.get('bomFormat')!='CycloneDX' or sbom.get('specVersion')!='1.6'
+                or component.get('version')!=version or properties.get('docflow:source-commit')!=info['commit']):
+                raise ValueError('SBOM version/source commit differs from BUILD-INFO')
         virtual = {"DocFlow-Lite/DocFlow-Lite.exe": digest(exe)}
     for name, value in sums.items():
         if name in virtual:
@@ -86,6 +105,9 @@ def verify(directory):
         source_manifest = json.loads(z.read("docflow-lite/FILE_HASHES.json"))
         if not source_manifest:
             raise ValueError("Empty corresponding source manifest")
+        expected_source={"docflow-lite/"+n for n in source_manifest}|{"docflow-lite/FILE_HASHES.json"}
+        if set(z.namelist())!=expected_source:
+            raise ValueError("Source contains unmanifested or missing files")
         for name, value in source_manifest.items():
             safe_name(name)
             if digest(z.read("docflow-lite/" + name)) != value:
@@ -97,7 +119,7 @@ def verify(directory):
     if results.get("status") != "passed" or len(results.get("runs", [])) != 2:
         raise ValueError("Frozen runtime checks are incomplete")
     return {"status": "passed", "version": version, "build_commit": info["commit"],
-            "python": info["python"], "exe_sha256": info["exe_sha256"],
+            "python": info["python"], "stage": release_stage, "exe_sha256": info["exe_sha256"],
             "assets": [{"name": n, "sha256": sums[n], "size": (directory/n).stat().st_size}
                        for n in required]}
 
