@@ -24,3 +24,5 @@ Core создаёт DOCX из таблиц. Service ведёт локальну�
 Отчёты a1–a5, документы 01–34 в service и старые AUDIT/VERIFICATION сохранены как история. Результаты относятся к указанному commit и сборке. Юридический PR №4 остаётся отдельным проектом.
 
 Коммерческий процесс: [порядок заказа](../sales/06_COMMERCIAL_RUNBOOK.md), [индивидуальный заказ/приёмка](../sales/05_Individual_Order_and_Acceptance.md), [правовая проверка](legal/V1_PR4_REVIEW.md), [решения владельца](legal/V1_OWNER_DECISIONS.md). Это проекты до утверждения обязательного объёма.
+
+Подготовка 1.0: [итог](release/V1_FINAL_REPORT.md), [GO/NO-GO](release/V1_GO_NO_GO.md), [адресная приёмка](release/V1_OWNER_ACCEPTANCE.md), [варианты канала](legal/V1_CHANNEL_OPTIONS.md).

@@ -4,8 +4,8 @@
 
 [Скачать для Windows](https://github.com/hothuman/docflow-lite/releases/download/v0.3.0a6/DocFlow-Lite-0.3.0a6-Windows-x64-Portable.zip) · [Сайт](https://docflow-lite.pages.dev/) · [Начать работу](docs/service/28_QUICK_START.md) · [Документация](docs/README.md)
 
-[![Проверки приложения](https://github.com/hothuman/docflow-lite/actions/workflows/app-modernization.yml/badge.svg?branch=feature%2Fdocflow-lite-service)](https://github.com/hothuman/docflow-lite/actions/workflows/app-modernization.yml)
-[![Проверки сайта](https://github.com/hothuman/docflow-lite/actions/workflows/website-v2.yml/badge.svg?branch=feature%2Fdocflow-lite-service)](https://github.com/hothuman/docflow-lite/actions/workflows/website-v2.yml)
+[![Проверки приложения](https://github.com/hothuman/docflow-lite/actions/workflows/app-modernization.yml/badge.svg?branch=main)](https://github.com/hothuman/docflow-lite/actions/workflows/app-modernization.yml)
+[![Проверки сайта](https://github.com/hothuman/docflow-lite/actions/workflows/website-v2.yml/badge.svg?branch=main)](https://github.com/hothuman/docflow-lite/actions/workflows/website-v2.yml)
 
 </div>
 
@@ -15,7 +15,7 @@
 
 **[0.3.0a6 опубликована](https://github.com/hothuman/docflow-lite/releases/tag/v0.3.0a6) — предварительная версия.** Программа бесплатна для личной и деловой работы по [условиям использования](LICENSE.txt). Индивидуальная настройка — отдельная услуга. Один оператор, локальные данные, без аккаунта и телеметрии.
 
-Ветка подготовки: **1.0.0rc1**, кандидат для проверок. Публичной стабильной 1.0 пока нет; скачивание выше ведёт на неизменяемую a6. Свежий ход работ: [трекер 1.0](docs/release/V1_STABLE_TRACKER.md).
+Ветка подготовки: **1.0.0rc1**, кандидат для проверок. Публичной стабильной 1.0 пока нет; скачивание выше ведёт на неизменяемую a6. Свежий ход работ: [трекер 1.0](docs/release/V1_STABLE_TRACKER.md), [результат кандидата](docs/release/V1_FINAL_REPORT.md) и [GO/NO-GO](docs/release/V1_GO_NO_GO.md).
 
 ## Выберите задачу
 
