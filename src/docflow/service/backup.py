@@ -8,7 +8,7 @@ import hashlib, json, os, sqlite3, tempfile, zipfile, shutil
 import sys
 from uuid import uuid4
 from .attachments import safe_path,digest,MAX_ATTACHMENT
-from .database import Database,SCHEMA_VERSION
+from .database import Database,SCHEMA_VERSION,validate_schema
 from .validation import ServiceError,now
 
 MAX_BACKUP=5*1024**3
@@ -34,10 +34,14 @@ def _publish_new_tree(stage,destination):
     else:raise ServiceError('Система не поддерживает безопасное восстановление в новую папку')
 
 def _check_tree(folder):
-    db=Database(folder/'service.db')
-    with db.connection() as c:
+    # Inspection must never migrate or create a missing/empty backup database.
+    with closing(sqlite3.connect((folder/'service.db').as_uri()+'?mode=ro',uri=True)) as c:
+        c.row_factory=sqlite3.Row
+        c.execute('PRAGMA trusted_schema=OFF')
+        version=c.execute('PRAGMA user_version').fetchone()[0]
+        validate_schema(c,version)
         if c.execute('PRAGMA integrity_check').fetchone()[0]!='ok' or c.execute('PRAGMA foreign_key_check').fetchall():raise ServiceError('Нарушена целостность резервной базы')
-        for table in ('attachments','generated_documents','managed_files'):
+        for table in ('attachments','generated_documents',*(('managed_files',) if version>=3 else ())):
             for r in c.execute(f'SELECT path,sha256 FROM {table}'):
                 f=safe_path(folder,r['path'])
                 if not f.is_file() or digest(f)!=r['sha256']:raise ServiceError('Файл резервной копии отсутствует или изменён')
@@ -49,7 +53,9 @@ def create_backup(store,destination):
     temporary=destination.with_name('.'+destination.name+'.'+uuid4().hex+'.tmp')
     with store.lock,tempfile.TemporaryDirectory(prefix='docflow-backup-') as temp:
         stage=Path(temp)
-        with store.db.connection() as src,closing(sqlite3.connect(stage/'service.db')) as dst:src.backup(dst)
+        with store.db.connection() as src,closing(sqlite3.connect(stage/'service.db')) as dst:
+            validate_schema(src,src.execute('PRAGMA user_version').fetchone()[0])
+            src.backup(dst)
         files={'service.db':stage/'service.db'}
         with closing(sqlite3.connect(stage/'service.db')) as c:
             c.row_factory=sqlite3.Row
@@ -118,10 +124,19 @@ def restore_backup(archive,destination):
                             if size>info.file_size:raise ServiceError('Повреждённое вложение')
                             h.update(part);dst.write(part)
                     if size!=files[name]['size'] or h.hexdigest()!=files[name]['sha256']:raise ServiceError('Контрольная сумма резервной копии не совпала')
+            with closing(sqlite3.connect((stage/'service.db').as_uri()+'?mode=ro',uri=True)) as c:
+                source_version=c.execute('PRAGMA user_version').fetchone()[0]
+                if source_version!=manifest['schema']:
+                    raise ServiceError('Версия базы не совпадает с манифестом резервной копии')
             _check_tree(stage)
+            if source_version<SCHEMA_VERSION:
+                # Migrate only after the original schema, checksums and links passed.
+                # Database keeps a pre-migration SQLite copy; original ZIP is unchanged.
+                Database(stage/'service.db')
+                _check_tree(stage)
             # Materialize only after all files and references have passed.
             _publish_new_tree(stage,destination)
             # TemporaryDirectory may clean a now absent directory; this is supported.
             return destination
         except ServiceError:raise
-        except (OSError,ValueError,KeyError,zipfile.BadZipFile,RuntimeError,TypeError) as exc:raise ServiceError('Восстановление отменено: повреждённая или недоступная копия') from exc
+        except (OSError,ValueError,KeyError,zipfile.BadZipFile,RuntimeError,TypeError,sqlite3.Error) as exc:raise ServiceError('Восстановление отменено: повреждённая или недоступная копия') from exc

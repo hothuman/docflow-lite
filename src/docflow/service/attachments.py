@@ -1,7 +1,7 @@
 """Validated local media. Generated IDs determine paths, never supplied filenames."""
 from pathlib import Path, PurePosixPath
 from uuid import uuid4
-import hashlib, os, shutil, struct
+import hashlib, os, shutil, struct, re
 from ..safety import check_archive,read_bounded
 from ..templates import parse,W
 from .validation import ServiceError,text,now
@@ -23,11 +23,15 @@ def copy_bounded(source,target,limit=MAX_ATTACHMENT):
         raise
 
 def safe_path(root,relative):
-    root=Path(root).absolute();r=PurePosixPath(str(relative))
+    root=Path(root).absolute();raw=str(relative);r=PurePosixPath(raw)
+    if raw!=r.as_posix():raise ServiceError('Неоднозначный путь')
+    for part in r.parts:
+        if part.endswith((' ','.')) or re.fullmatch(r'(?i)(CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|COM[1-9¹²³]|LPT[1-9¹²³])(?:\..*)?',part) or any(ord(ch)<32 or ch in '<>"|?*' for ch in part):
+            raise ServiceError('Недопустимое имя файла Windows')
     if r.is_absolute() or not r.parts or any(x in ('..','.') or ':' in x or '\\' in x for x in r.parts):raise ServiceError('Небезопасный путь')
     target=root.joinpath(*r.parts)
     for p in (target,*target.parents):
-        if p.is_symlink():raise ServiceError('Символические ссылки не поддерживаются')
+        if p.is_symlink() or getattr(p,'is_junction',lambda:False)():raise ServiceError('Символические ссылки не поддерживаются')
         if p==root:break
     if not target.resolve().is_relative_to(root.resolve()):raise ServiceError('Выход из папки проекта')
     return target

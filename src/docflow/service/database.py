@@ -3,6 +3,7 @@ from contextlib import contextmanager,closing
 from pathlib import Path
 import sqlite3
 from uuid import uuid4
+from functools import lru_cache
 from .validation import ServiceError,now
 
 SCHEMA_VERSION=4
@@ -51,9 +52,43 @@ MIGRATIONS={1:[
  'CREATE INDEX repairs_received ON repair_orders(received_at)',
 ]}
 
+@lru_cache(maxsize=SCHEMA_VERSION)
+def _expected_schema(version):
+    """Derive supported schemas from the same migrations, never the input file."""
+    with closing(sqlite3.connect(':memory:')) as c:
+        for v in range(1, version + 1):
+            for statement in MIGRATIONS[v]:
+                c.execute(statement)
+        tables = {}
+        for (name,) in c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"):
+            tables[name] = (tuple(tuple(r) for r in c.execute(f'PRAGMA table_info("{name}")')),
+                            tuple(tuple(r) for r in c.execute(f'PRAGMA foreign_key_list("{name}")')))
+        guards = {(kind, name): ' '.join(sql.split()).casefold() for kind, name, sql in
+                  c.execute("SELECT type,name,sql FROM sqlite_master WHERE type IN ('index','trigger') AND sql IS NOT NULL")}
+        return tables, guards
+
+
+def validate_schema(connection, version):
+    """Read-only structural validation. Does not initialize or migrate a database."""
+    if type(version) is not int or not 1 <= version <= SCHEMA_VERSION:
+        raise ServiceError('Неизвестная или пустая база проекта; используйте проверенную копию')
+    tables, guards = _expected_schema(version)
+    for name, expected in tables.items():
+        actual = (tuple(tuple(r) for r in connection.execute(f'PRAGMA table_info("{name}")')),
+                  tuple(tuple(r) for r in connection.execute(f'PRAGMA foreign_key_list("{name}")')))
+        if actual != expected:
+            raise ServiceError('Структура базы повреждена; исходные данные не изменены')
+    objects = {(kind, name): ' '.join(sql.split()).casefold() for kind, name, sql in
+               connection.execute("SELECT type,name,sql FROM sqlite_master WHERE type IN ('index','trigger') AND sql IS NOT NULL")}
+    if any(objects.get(key) != value for key, value in guards.items()):
+        raise ServiceError('Нарушена структура индексов или защиты истории; используйте проверенную копию')
+
+
 class Database:
     def __init__(self,path):
         self.path=Path(path)
+        existed=self.path.exists()
+        if existed and self.path.stat().st_size==0:raise ServiceError('База пуста; исходный файл не изменён. Восстановите проверенную копию')
         if self.path.is_symlink(): raise ServiceError('База не должна быть символической ссылкой')
         self.path.parent.mkdir(parents=True,exist_ok=True)
         try:
@@ -62,6 +97,7 @@ class Database:
                 if c.execute('PRAGMA foreign_key_check').fetchall(): raise ServiceError('Нарушены связи базы; исходные данные не изменены')
                 version=c.execute('PRAGMA user_version').fetchone()[0]
                 if version>SCHEMA_VERSION: raise ServiceError('База создана более новой версией программы')
+                if existed:validate_schema(c,version)
                 if version and version<SCHEMA_VERSION:
                     backup=self.path.with_name(self.path.name+f'.before-v{version+1}-{uuid4().hex}.bak')
                     with backup.open('xb'): pass
@@ -76,6 +112,7 @@ class Database:
                         for statement in MIGRATIONS[v]:c.execute(statement)
                         c.execute(f'PRAGMA user_version={v}')
                     if c.execute('PRAGMA foreign_key_check').fetchall(): raise ServiceError('Миграция нарушает связи; выполнен откат')
+                    validate_schema(c,SCHEMA_VERSION)
                     c.commit()
                 except Exception:c.rollback();raise
                 c.execute('PRAGMA journal_mode=WAL')
@@ -87,6 +124,7 @@ class Database:
         try:
             c=sqlite3.connect(self.path,timeout=10)
             c.row_factory=sqlite3.Row
+            c.execute('PRAGMA trusted_schema=OFF')
             c.execute('PRAGMA foreign_keys=ON');c.execute('PRAGMA busy_timeout=10000')
             if write:c.execute('BEGIN IMMEDIATE')
             yield c
