@@ -54,6 +54,9 @@ class ReleasePreparationTests(unittest.TestCase):
         info=json.loads((self.root/"site/build-info.json").read_text(encoding="utf-8"))
         self.assertEqual(info["application_version"],self.version)
         self.assertFalse(info["indexing_enabled"]);self.assertFalse(info["lead_collection_enabled"])
+        self.assertNotIn("v0.1.1",(self.root/"site/terms.html").read_text(encoding="utf-8"))
+        self.assertNotIn("Подготовительная alpha",(self.root/"site/service.html").read_text(encoding="utf-8"))
+        self.assertIn("software.html",(self.root/"site/terms.html").read_text(encoding="utf-8"))
         self.assertIn("connect-src 'none'",(self.root/"site/_headers").read_text(encoding="utf-8"))
     def fixtures(self):
         folder=self.root/"assets";folder.mkdir()
