@@ -188,7 +188,7 @@ def _append_heading(document, value, level):
 def render_service(template_path, values, items, images=(), *, history=(), logo=None):
     template=Template.load(template_path)
     document=Document(io.BytesIO(template.raw)); extra={}; count=0
-    stories=list(_stories(document));sequence={id(item):str(index) for index,item in enumerate(items,1)}
+    stories=list(_stories(document));item_sequence=0
     for root,_ in stories:
         # Optional default expense sections disappear only when genuinely empty.
         # Custom tables without this explicit marker keep their header rows.
@@ -219,7 +219,8 @@ def render_service(template_path, values, items, images=(), *, history=(), logo=
                     count+=1; clone=copy.deepcopy(row)
                     if group=='history': local=item; fields=HISTORY_FIELDS
                     else:
-                        local={'item_no':str(index),'item_index':sequence[id(item)],'item_name':item['name'],'item_description':item['description'],
+                        item_sequence+=1
+                        local={'item_no':str(index),'item_index':str(item_sequence),'item_name':item['name'],'item_description':item['description'],
                                'item_quantity':item['quantity'],'item_unit':item['unit'],'item_price':rub(item['price_cents'] if item.get('price_known',True) else None),
                                'item_total':rub(item['total_cents'] if item.get('price_known',True) else None),'item_kind':ITEM_KINDS[item['kind']]}
                         fields=ITEM_FIELDS

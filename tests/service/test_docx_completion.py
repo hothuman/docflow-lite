@@ -100,7 +100,8 @@ def test_optional_global_item_index_keeps_per_group_numbering_compatible(tmp_pat
  t=d.add_table(rows=1,cols=2);t.cell(0,0).text='[[items:part]]{{item_no}} / {{item_index}}';t.cell(0,1).text='{{item_name}}'
  p=tmp_path/'template.docx';d.save(p)
  from docflow.service.estimates import normalize_lines
- lines=normalize_lines([{'kind':'work','name':'Work','price':'1'},{'kind':'part','name':'Part','price':'2'}])
+ lines=normalize_lines([{'kind':'work','name':'Work','price':'1'},{'kind':'part','name':'Part','price':'2'},{'kind':'work','name':'Second work','price':'3'}])
  result=Document(io.BytesIO(render_service(p,{},lines,[])))
  assert result.tables[0].cell(0,0).text=='1 / 1'
- assert result.tables[1].cell(0,0).text=='1 / 2'
+ assert result.tables[0].cell(1,0).text=='2 / 2'
+ assert result.tables[1].cell(0,0).text=='1 / 3'
