@@ -1,0 +1,11 @@
+{
+  "build_commit": "ea2ed3ad5a515ee32dce611f5bdef177141b5eb8",
+  "origin": "Original CI Portable from workflow40357372433, local native Windows self-test; only synthetic data",
+  "exe_sha256": "6722416d79aa91910734f209be132b9c5d9dd498b8c6b44cdd368ca8edb11c56",
+  "images": {
+    "core-review.png": "622922ede45c26dbbb1621e17227cbc66b76073b899c487b98cbdfae2805d2aa",
+    "service.png": "58cf73197e90702b8fd61e25d395672170283119b6dc9fb55a1752e48dd73781",
+    "service-repair.png": "16a422cebcfee5cee10ee30f08e5317dd81e0786b28b1738b8b0d6fdcff4d7eb"
+  },
+  "core_source": "QA-Native/\u0417\u0430\u043f\u0443\u0441\u043a 1/mapping.png"
+}

@@ -77,4 +77,8 @@ def test_site_activation_checks_exact_stage_and_immutable_published_bytes(tmp_pa
     assert info['application_version']==version and info['public_prerelease']==prerelease
     assert '/releases/download/v'+version+'/' in text and 'SHA256 Portable: '+'b'*64 in text
     assert 'alpha 0.3.0a6' not in text and '<form' not in text
+    service=(tmp_path/'verified/service.html').read_text(encoding='utf-8')
+    assert '0.3.0a6' not in service and 'DOCFLOW / ALPHA' not in service
+    assert version in service and 'НАСТОЯЩИЙ ИНТЕРФЕЙС / НОВАЯ ALPHA' not in service
+    assert all('\\' not in name for name in info['file_sha256'])
     assert not info['lead_collection_enabled'] and not info['indexing_enabled']

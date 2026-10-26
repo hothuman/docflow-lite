@@ -13,3 +13,5 @@ Core и Service бесплатны по условиям программы. Н�
 PDF услуг обновлён для Core/Service и рабочего email. Его генератор build_offer_pdf.py требует reportlab и Carlito; для обычной статической сборки эти зависимости не нужны. Веб-сборка использует уже проверенный PDF и его хеш.
 
 Публикация и откат: ../docs/OFFICIAL_RELEASE.md и docs/CLOUDFLARE_PAGES.md. Исторические отчёты Website 2.0 не являются проверкой нового deployment.
+
+Публичная программа 1.0.0: immutable Release v1.0.0, exact target ea2ed3ad5a515ee32dce611f5bdef177141b5eb8. Публикационный сайт строится по реально проверенным download/SHA, имеет новые снимки итогового EXE; source caption tokens преобразует build_release_site.py. Обычная offline-сборка не является подтверждением публичной загрузки. Коммерческие условия остаются проектом.

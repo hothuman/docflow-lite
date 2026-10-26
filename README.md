@@ -2,9 +2,9 @@
 
 <img src="docs/assets/repository-cover.png" alt="DocFlow — документы и история ремонта на вашем компьютере" width="100%">
 
-[Скачать для Windows](https://github.com/hothuman/docflow-lite/releases/download/v0.3.0a6/DocFlow-Lite-0.3.0a6-Windows-x64-Portable.zip) · [Сайт](https://docflow-lite.pages.dev/) · [Начать работу](docs/service/28_QUICK_START.md) · [Документация](docs/README.md)
+[Скачать для Windows](https://github.com/hothuman/docflow-lite/releases/download/v1.0.0/DocFlow-Lite-1.0.0-Windows-x64-Portable.zip) · [Сайт](https://docflow-lite.pages.dev/) · [Начать работу](docs/service/28_QUICK_START.md) · [Документация](docs/README.md)
 
-[![Проверки приложения](https://github.com/hothuman/docflow-lite/actions/workflows/app-modernization.yml/badge.svg?branch=main)](https://github.com/hothuman/docflow-lite/actions/workflows/app-modernization.yml)
+[![Проверки приложения](https://github.com/hothuman/docflow-lite/actions/workflows/windows-release.yml/badge.svg?branch=main)](https://github.com/hothuman/docflow-lite/actions/workflows/windows-release.yml)
 [![Проверки сайта](https://github.com/hothuman/docflow-lite/actions/workflows/website-v2.yml/badge.svg?branch=main)](https://github.com/hothuman/docflow-lite/actions/workflows/website-v2.yml)
 
 </div>
@@ -13,9 +13,9 @@
 
 Локальное приложение для повторяющейся работы с документами и историей ремонта. **Core** создаёт DOCX из XLSX/CSV и ваших шаблонов. **Service** ведёт клиентов, аппараты, отдельные обращения, сметы и документы в проекте SQLite.
 
-**[0.3.0a6 опубликована](https://github.com/hothuman/docflow-lite/releases/tag/v0.3.0a6) — предварительная версия.** Программа бесплатна для личной и деловой работы по [условиям использования](LICENSE.txt). Индивидуальная настройка — отдельная услуга. Один оператор, локальные данные, без аккаунта и телеметрии.
+**[1.0.0 опубликована](https://github.com/hothuman/docflow-lite/releases/tag/v1.0.0) — стабильный выпуск.** Программа бесплатна для личной и деловой работы по [условиям использования](LICENSE.txt). Индивидуальная настройка — отдельная услуга. Один оператор, локальные данные, без аккаунта и телеметрии.
 
-Готовится публикация **1.0.0** после приёмки RC1 владельцем в Windows/Word. Пока скачивание выше ведёт на неизменяемую a6; новая ссылка включается после проверки опубликованных файлов. Свежий ход работ: [трекер 1.0](docs/release/V1_STABLE_TRACKER.md), [результат кандидата](docs/release/V1_FINAL_REPORT.md) и [GO/NO-GO](docs/release/V1_GO_NO_GO.md).
+RC1 принят владельцем в Windows/Word без замечаний. Итоговый Portable заново собран из main и проверен отдельно; точная база и SHA — в BUILD-INFO и [отчёте выпуска](docs/release/V1_PUBLISHED.md). Предыдущая a6 сохранена в истории. Коммерческий маршрут данных и условия услуг остаются отдельными незакрытыми задачами.
 
 ## Выберите задачу
 
@@ -36,7 +36,7 @@
 
 ## Первый запуск Windows
 
-1. Откройте [Releases](https://github.com/hothuman/docflow-lite/releases) и выберите нужный предварительный выпуск. v0.1.1 содержит только Core; Core + Service относятся к серии 0.3.
+1. Откройте [Releases](https://github.com/hothuman/docflow-lite/releases) и выберите нужный предварительный выпуск. v0.1.1 содержит только Core; актуальная 1.0.0 включает Core + Service.
 2. Скачайте Windows x64 Portable и сравните SHA256 с манифестом **того же выпуска**.
 3. Распакуйте весь ZIP. Папка _internal должна оставаться рядом с DocFlow-Lite.exe. Перед запуском ознакомьтесь с LICENSE.txt.
 4. Начните со встроенного Core-демо либо отдельного Service-демопроекта. Не используйте реальные клиентские данные для знакомства.
@@ -92,4 +92,4 @@ CI проверяет Windows/Linux, GUI и браузер. Готовый EXE �
 
 Сайт не принимает оплату и заявки, аналитика и индексация выключены. Юридические проекты услуг/обработки данных остаются отдельными от условий программы.
 
-Portable построена из `aeb34dde9af24cf4e265df21e90cd4df1c49a1d5`; [выпускной CI](https://github.com/hothuman/docflow-lite/actions/runs/40300481266) прошёл. Последующие правки сайта и документации не заменяют неизменяемые файлы этого выпуска.
+Portable 1.0.0 построена из `ea2ed3ad5a515ee32dce611f5bdef177141b5eb8`; [выпускной CI](https://github.com/hothuman/docflow-lite/actions/runs/40357372433) прошёл. Portable SHA256: `7a6aaef4270845f0df3018c9ccc71ff631215cf126c1ab8f04478625fcf18bf1`. Последующие изменения сайта/документации не заменяют неизменяемые файлы этого выпуска.
