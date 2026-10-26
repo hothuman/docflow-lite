@@ -1,3 +1,5 @@
+> Исторический отчёт RC1 до последующего разрешения владельца. Программа 1.0.0 уже опубликована; актуальный результат: [V1_PUBLISHED.md](V1_PUBLISHED.md). Коммерческий GO по-прежнему отдельный.
+
 # DocFlow 1.0 — результат подготовки
 
 **BLOCKED для stable; RC1 готов для проверки владельцем.** Постоянный комплект: outputs/DocFlow-1.0.0rc1-Review в рабочей папке передачи. Публичные [a6](https://github.com/hothuman/docflow-lite/releases/tag/v0.3.0a6) и [сайт](https://docflow-lite.pages.dev/) сохранены; [PR8](https://github.com/hothuman/docflow-lite/pull/8) остаётся draft, PR4 не объединён.

@@ -43,7 +43,7 @@ def build(output: Path, public_url: str = '', index_home: bool = False) -> dict:
         if index_home:
             headers = stage / '_headers'
             headers.write_text(headers.read_text(encoding='utf-8').replace('  X-Robots-Tag: noindex, follow\n', ''), encoding='utf-8')
-        file_hashes = {str(p.relative_to(stage)):sha256(p.read_bytes()).hexdigest() for p in sorted(stage.rglob('*')) if p.is_file()}
+        file_hashes = {p.relative_to(stage).as_posix():sha256(p.read_bytes()).hexdigest() for p in sorted(stage.rglob('*')) if p.is_file()}
         info = {'website_version':'4.0','application_version':'0.1.1','review_application_version':'0.3.0a6','public_url':home or None,
                 'indexing_enabled':index_home,'lead_collection_enabled':False,'file_sha256':file_hashes}
         (stage / 'build-info.json').write_text(json.dumps(info, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')

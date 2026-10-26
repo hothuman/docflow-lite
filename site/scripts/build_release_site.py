@@ -93,13 +93,17 @@ def activate(output, manifest, fetch=get_json, hash_url=download_hash):
         label=('Кандидат '+version if prerelease else 'Стабильная версия '+version)
         replacements={old:new.replace('Публичная alpha 0.3.0a6',label).replace('публичной alpha 0.3.0a6',label).replace('alpha 0.3.0a6',label).replace('0.3.0a6',version) for old,new in replacements.items()}
         replacements['ПУБЛИЧНЫЙ ПРЕДВАРИТЕЛЬНЫЙ ВЫПУСК']='ПУБЛИЧНЫЙ ПРЕДВАРИТЕЛЬНЫЙ ВЫПУСК' if prerelease else 'СТАБИЛЬНЫЙ ВЫПУСК'
+        replacements['НАСТОЯЩИЙ ИНТЕРФЕЙС / НОВАЯ ALPHA']='НАСТОЯЩИЙ ИНТЕРФЕЙС'
+        replacements['DOCFLOW / ALPHA 0.3.0a6']='DOCFLOW / '+('RC ' if prerelease else '')+version
+        # Version-bearing captions/alt text must match the verified download too.
+        replacements['0.3.0a6']=version
     for page in Path(output).glob("*.html"):
         text = page.read_text(encoding="utf-8")
         for old, new in replacements.items():
             text = text.replace(old, new)
         page.write_text(text, encoding="utf-8")
-    info.update(application_version=version, public_prerelease=is_prerelease(version), release_verification=proof, source_commit=manifest["release_target"])
-    info["file_sha256"] = {str(p.relative_to(output)):hashlib.sha256(p.read_bytes()).hexdigest()
+    info.update(application_version=version, review_application_version=version, public_prerelease=is_prerelease(version), release_verification=proof, source_commit=manifest["release_target"])
+    info["file_sha256"] = {p.relative_to(output).as_posix():hashlib.sha256(p.read_bytes()).hexdigest()
                            for p in sorted(Path(output).rglob("*")) if p.is_file() and p.name != "build-info.json"}
     (Path(output)/"build-info.json").write_text(json.dumps(info,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
     return proof

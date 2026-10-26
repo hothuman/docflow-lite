@@ -1,6 +1,6 @@
 # Документация DocFlow
 
-Core создаёт DOCX из таблиц. Service ведёт локальную историю оборудования и ремонтов. Публичная версия — alpha 0.3.0a6. Ветка подготовки — 1.0.0rc1, ещё не stable.
+Core создаёт DOCX из таблиц. Service ведёт локальную историю оборудования и ремонтов. Публичная версия — стабильная 1.0.0. [Результат выпуска](release/V1_PUBLISHED.md). Исторические RC/alpha-отчёты относятся к своим сборкам.
 
 ## Пользователю
 
@@ -25,4 +25,4 @@ Core создаёт DOCX из таблиц. Service ведёт локальну�
 
 Коммерческий процесс: [порядок заказа](../sales/06_COMMERCIAL_RUNBOOK.md), [индивидуальный заказ/приёмка](../sales/05_Individual_Order_and_Acceptance.md), [правовая проверка](legal/V1_PR4_REVIEW.md), [решения владельца](legal/V1_OWNER_DECISIONS.md). Это проекты до утверждения обязательного объёма.
 
-Подготовка 1.0: [итог](release/V1_FINAL_REPORT.md), [GO/NO-GO](release/V1_GO_NO_GO.md), [адресная приёмка](release/V1_OWNER_ACCEPTANCE.md), [варианты канала](legal/V1_CHANNEL_OPTIONS.md).
+История подготовки 1.0: [итог](release/V1_FINAL_REPORT.md), [GO/NO-GO](release/V1_GO_NO_GO.md), [адресная приёмка](release/V1_OWNER_ACCEPTANCE.md), [варианты канала](legal/V1_CHANNEL_OPTIONS.md).
