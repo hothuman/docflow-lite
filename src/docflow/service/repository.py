@@ -115,7 +115,6 @@ class ServiceStore:
         for f in ('received_at','started_at','completed_at','issued_at'):
             if f in data:
                 values[f]=day(data[f])
-                if f=='received_at' and not values[f]:raise ServiceError('Дата приёмки обязательна')
         if 'status' in data:
             if data['status'] not in STATUSES:raise ServiceError('Неизвестный статус')
             values['status']=data['status']
@@ -125,6 +124,8 @@ class ServiceStore:
         if 'discount' in data:values['discount_cents']=money(data['discount'])
         with self.lock,self.db.connection(True) as c:
             old=self.require(c,'repair_orders',key)
+            if not values.get('received_at',old['received_at']) and values.get('status',old['status'])!='historical':
+                raise ServiceError('Дата приёмки обязательна для рабочего обращения; неизвестная дата допускается только в архиве')
             if expected_revision is not None and old['revision']!=expected_revision:raise ServiceError('Запись уже изменена. Откройте свежую версию, чтобы не потерять изменения')
             if not values:return old['revision']
             gross=c.execute('SELECT COALESCE(SUM(total_cents),0) FROM repair_items WHERE repair_id=?',(key,)).fetchone()[0]

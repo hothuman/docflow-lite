@@ -50,7 +50,8 @@ def workbook_sheets(path):
     finally: wb.close()
 
 
-def import_day(value):
+def import_day(value, *, allow_unknown=False):
+    if allow_unknown and not str(value or '').strip():return ''
     value = text(value, 'Дата', True, 40)
     try:
         if len(value) == 10 and value[4] == '-': return day(value)
@@ -121,7 +122,6 @@ def _groups(table, mapping, status_map, default_status):
     for g in groups.values():
         d = g['data']
         try:
-            d['received_at'] = import_day(d.get('received_at',''))
             if d.get('client_kind') and d['client_kind'] not in ('organization','individual','entrepreneur'): raise ServiceError('Неизвестный тип клиента')
             production = d.get('status','')
             if production:
@@ -129,6 +129,7 @@ def _groups(table, mapping, status_map, default_status):
                 d['status'] = status_map[production]
             else: d['status'] = default_status
             if d['status'] not in STATUSES: raise ServiceError('Выберите производственный статус для пустых исходных значений')
+            d['received_at'] = import_day(d.get('received_at',''),allow_unknown=d['status']=='historical')
             for kind,description,cost in (('work','works','work_cost'),('part','parts','parts_cost'),('delivery',None,'delivery_cost'),('other',None,'other_cost')):
                 if d.get(description or '') or d.get(cost):
                     if any(x['kind']==kind for x in g['lines']): raise ServiceError('Для одного типа указаны и отдельные позиции, и общий итог; выберите один формат')
