@@ -15,6 +15,24 @@ from docx import Document
 
 ROOT=Path(__file__).resolve().parents[1]
 
+REQUIRED_COMPLETION_CHECKS = frozenset({
+    'native_profile_form_numbering_status_labels',
+    'native_five_page_history_wizard_900_101_305_900_fourth_two_owners_and_replay',
+    'native_draft_versions_manual_approval_actual_expenses_and_both_quote_docx',
+    'native_individual_image_choice_order_captions_and_docx',
+    'completion_backup_restore_profiles_history_quotes_and_selected_images',
+    'native_historical_unknown_finance_and_explicit_reconciliation',
+    'native_photo_append_without_english_heading_styles',
+})
+
+
+def assert_completion_checks(checks):
+    assert isinstance(checks,list), 'Missing native completion results'
+    assert len(checks)==len(REQUIRED_COMPLETION_CHECKS), 'Native completion suite count differs'
+    assert {c.get('name') for c in checks}==REQUIRED_COMPLETION_CHECKS, 'Missing, duplicate or unexpected native completion scenario'
+    assert all(c.get('passed') is True for c in checks), 'Native completion scenario failed'
+
+
 
 def normal_start(exe,cwd,env):
     """Exercise the ordinary entrypoint/event loop, with no diagnostic flag."""
@@ -132,7 +150,7 @@ def verify(archive,evidence,release):
         assert service_run.returncode==0 and service['status']=='passed',service
         assert service['frozen'] and service['qt_platform']=='windows'
         assert service['completion']['status']=='passed'
-        assert len(service['completion']['checks'])==5 and all(c['passed'] for c in service['completion']['checks'])
+        assert_completion_checks(service['completion']['checks'])
         assert service['refinement']['status']=='passed'
         assert len(service['refinement']['checks'])==3 and all(c['passed'] for c in service['refinement']['checks'])
         layout=service['refinement']['layout']

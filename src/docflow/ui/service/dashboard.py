@@ -11,6 +11,7 @@ class Dashboard(QWidget):
   super().__init__(workspace);self.workspace=workspace;self.setObjectName('servicePage')
   outer=QVBoxLayout(self);outer.setContentsMargins(0,0,0,0)
   scroll=QScrollArea();scroll.setWidgetResizable(True);body=QWidget();layout=QVBoxLayout(body);layout.setContentsMargins(0,8,4,8);layout.setSpacing(18);scroll.setWidget(body);outer.addWidget(scroll)
+  self.finance_hint=text('','muted');self.finance_hint.setWordWrap(True);layout.addWidget(self.finance_hint)
   self.actions=ActionBar();layout.addWidget(self.actions)
   self.new_button=button(self.actions,'Новый ремонт',workspace.new_repair,primary=True)
   self.equipment_button=button(self.actions,'Добавить оборудование',workspace.new_equipment)
@@ -58,6 +59,7 @@ class Dashboard(QWidget):
   self.overview_grid.setColumnStretch(0,3);self.overview_grid.setColumnStretch(1,1 if wide else 0)
  def resizeEvent(self,event):super().resizeEvent(event);self.arrange()
  def install(self,data):
+  n=data.get('finance_unknown',0);self.finance_hint.setText(f'Исторических обращений с неполными расчётами: {n}. Они не включены в остаток к оплате.');self.finance_hint.setVisible(n>0)
   for key,label in self.values.items():label.setText(rub(data[key]) if key=='debt' else str(data[key]))
   rows=[{**r,'equipment_label':r['equipment_number']+' · '+r['model']} for r in data['recent_repairs']]
   self.recent.install(rows);self.recent.setFixedHeight(min(380,52+max(2,len(rows))*38));self.empty.setVisible(not rows);self.recent.setVisible(bool(rows));self.empty_filler.setVisible(True);self.onboarding.setVisible(not rows)

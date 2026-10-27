@@ -42,7 +42,7 @@ class RepairDialog(QDialog):
             button(bar,'Добавить',lambda _,g=group:self.with_saved(lambda:self.item(g)));button(bar,'Изменить',lambda _,g=group:self.with_saved(lambda:self.item(g,True)));button(bar,'Удалить',lambda _,g=group:self.with_saved(lambda:self.delete_item(g)),danger=True)
         p=QWidget();layout=QVBoxLayout(p);form=QFormLayout();layout.addLayout(form);self.add_field(form,'discount','Скидка, ₽','text')
         label=QLabel('Только внутренние записи. Программа не проводит платежи и не выдаёт чеки. Ошибочная запись исправляется аннулированием с причиной и новой корректной записью.');label.setWordWrap(True);layout.addWidget(label)
-        bar=FlowLayout();layout.addLayout(bar);button(bar,'Учесть оплату / возврат',lambda:self.with_saved(self.payment));button(bar,'Исправить ошибочную запись',lambda:self.with_saved(self.void_payment))
+        bar=FlowLayout();layout.addLayout(bar);button(bar,'Учесть оплату / возврат',lambda:self.with_saved(self.payment));button(bar,'Исправить ошибочную запись',lambda:self.with_saved(self.void_payment));button(bar,'Сверить полноту истории',lambda:self.with_saved(self.financial_evidence))
         self.grids['payments']=Grid([('occurred_at','Дата'),('kind','Вид'),('amount','Сумма'),('method','Способ'),('voided','Состояние'),('void_reason','Причина'),('comment','Комментарий')]);layout.addWidget(self.grids['payments']);self.tabs.addTab(p,'Финансы')
         from .estimates import EstimatesPanel
         self.estimates=EstimatesPanel(self);self.tabs.addTab(self.estimates,'Сметы')
@@ -52,7 +52,7 @@ class RepairDialog(QDialog):
         p=QWidget();layout=QVBoxLayout(p);bar=FlowLayout();layout.addLayout(bar);self.doc_kind=QComboBox()
         for k,title in KINDS.items():self.doc_kind.addItem(title,k)
         bar.addWidget(self.doc_kind);button(bar,'Создать DOCX',lambda:self.with_saved(self.generate));self.images=QCheckBox('Выбрать изображения, порядок и подписи (до 10)');self.image_choices=[];layout.addWidget(self.images)
-        custom=QHBoxLayout();layout.addLayout(custom);self.template_path=QLineEdit();self.template_path.setPlaceholderText('Встроенная нейтральная форма');self.template_path.setReadOnly(True);custom.addWidget(self.template_path);button(custom,'Свой DOCX',self.pick_template);button(custom,'Сбросить',self.template_path.clear)
+        custom=QHBoxLayout();layout.addLayout(custom);self.template_path=QLineEdit();self.template_path.setPlaceholderText('Без своего DOCX: форма профиля или встроенная');self.template_path.setReadOnly(True);custom.addWidget(self.template_path);button(custom,'Свой DOCX',self.pick_template);button(custom,'Сбросить',self.template_path.clear)
         self.grids['documents']=Grid([('kind','Тип'),('version','Версия'),('created_at','Создано'),('path','Путь')]);layout.addWidget(self.grids['documents']);bar2=FlowLayout();layout.addLayout(bar2);button(bar2,'Открыть версию',self.open_document);button(bar2,'Сохранить копию',self.export_document);self.tabs.addTab(p,'Документы')
         scroll=QScrollArea();scroll.setWidgetResizable(True);p=QWidget();form=QFormLayout(p);form.setFormAlignment(Qt.AlignmentFlag.AlignTop);scroll.setWidget(p)
         for key,label,kind in [('status','Производство',[(k,v[0]) for k,v in STATUSES.items()]),('started_at','Начало ДД.ММ.ГГГГ','date'),('completed_at','Завершение ДД.ММ.ГГГГ','date'),('issued_at','Выдача ДД.ММ.ГГГГ','date'),('issued_accessories','Комплектация при выдаче','long'),('handover','Сведения о передаче (только факты)','long'),('status_note','Причина изменения статуса','text')]:self.add_field(form,key,label,kind)
@@ -95,7 +95,7 @@ class RepairDialog(QDialog):
         self.state_frame.setVisible(self.height()>=640)
         self.estimates.install(s)
         for group in ('work','part','delivery','other'):
-            rows=[{**x,'price':rub(x['price_cents']),'total':x['total_cents']} for x in s['repair_items'] if x['kind']==group];self.grids[group].install(rows)
+            rows=[{**x,'price':rub(x['price_cents'] if x.get('price_known',True) else None),'total':x['total_cents'] if x.get('price_known',True) else None} for x in s['repair_items'] if x['kind']==group];self.grids[group].install(rows)
         self.grids['payments'].install([{**x,'amount':rub(x['amount_cents'])} for x in s['payments']]);self.grids['attachments'].install(s['attachments']);self.grids['documents'].install(s['generated_documents']);self.grids['history'].install(s['repair_status_history']);self.dirty=False;self.dirty_label.setText('Сохранено');self.save_button.setEnabled(False)
     def values(self):return {k:(w.storage_text() if isinstance(w,DateField) else w.currentData() if isinstance(w,QComboBox) else w.toPlainText() if isinstance(w,QPlainTextEdit) else w.text()) for k,w in self.fields.items()}
     def save(self,after=None):
@@ -127,7 +127,7 @@ class RepairDialog(QDialog):
         if edit and not row:return
         fields=[('name','Наименование *','text'),('description','Описание','long'),('quantity','Количество (до 4 знаков)','text'),('unit','Единица','text'),('price','Цена за единицу, ₽','text'),('notes','Примечание','long')]
         if self.snapshot['estimate_comparison']['approved_estimate_id']:fields.append(('change_reason','Причина изменения согласованного объёма *','long'))
-        values={**row,'price':amount(row['price_cents'])} if row else {'quantity':'1','unit':'шт.','price':'0'}
+        values={**row,'price':amount(row['price_cents']) if row.get('price_known',True) else ''} if row else {'quantity':'1','unit':'шт.','price':'0'}
         from ...service.finance import ITEM_KINDS
         d=FieldsDialog(ITEM_KINDS[kind],fields,values,self)
         if d.exec()==QDialog.DialogCode.Accepted:
@@ -146,6 +146,18 @@ class RepairDialog(QDialog):
         if d.exec()==QDialog.DialogCode.Accepted:
             v=d.values();s=self.store;r=self.key;request=uuid4().hex
             self.mutate(lambda:s.add_payment(r,v['amount'],v['kind'],v['method'],v['occurred_at'],v['comment'],request))
+    def financial_evidence(self):
+        t=self.snapshot['totals']
+        d=FieldsDialog('Полнота исторических расчётов',[
+            ('cost','Стоимость',[('unknown','Неизвестна / неполная'),('known','Проверена полностью')]),
+            ('paid','История оплат',[('unknown','Неизвестна / неполная'),('known','Проверена полностью')]),
+            ('reason','Кто сверил и на каком основании *','long')],
+            {'cost':'known' if t.get('cost_known',True) else 'unknown',
+             'paid':'known' if t.get('payments_known',True) else 'unknown'},self)
+        if d.exec()==QDialog.DialogCode.Accepted:
+            v=d.values();revision=self.revision
+            self.mutate(lambda:self.store.set_financial_evidence(self.key,v['cost']=='known',v['paid']=='known',v['reason'],expected_revision=revision))
+
     def void_payment(self):
         row=self.selected('payments')
         if not row or row['voided']:return

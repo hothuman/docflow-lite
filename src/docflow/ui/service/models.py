@@ -1,5 +1,6 @@
 """Virtual localized tables; raw identities and payloads stay out of search."""
 import html
+import re
 from PySide6.QtCore import QAbstractTableModel,Qt
 from PySide6.QtGui import QColor
 from ...service.statuses import STATUSES
@@ -21,12 +22,12 @@ class RowsModel(QAbstractTableModel):
    return '<qt>'+'<br>'.join(html.escape(x) for x in lines)+'</qt>'
   if role==Qt.ItemDataRole.TextAlignmentRole and key in MONEY|{'quantity','version'}:return Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignVCenter
   if role==Qt.ItemDataRole.ForegroundRole:
-   if key=='status':return QColor({key:COLORS['warning'] if key in ('accepted','approval','parts') else COLORS['info'] if key in ('diagnostics','repair') else COLORS['success'] if key=='ready' else COLORS['muted'] for key in STATUSES}.get(value,COLORS['text']))
+   if key=='status':return QColor({key:COLORS['warning'] if key in ('accepted','approval','parts','repair') else COLORS['info'] if key=='diagnostics' else COLORS['success'] if key in ('ready','issued','closed') else COLORS['muted'] for key in STATUSES}.get(value,COLORS['text']))
    if key=='balance' and type(value) is int and value>0:return QColor(COLORS['error'])
   return None
  def headerData(self,section,orientation,role=Qt.ItemDataRole.DisplayRole):
   if role in (Qt.ItemDataRole.DisplayRole,Qt.ItemDataRole.ToolTipRole):return self.columns[section][1] if orientation==Qt.Orientation.Horizontal else str(section+1)
  def install(self,rows):
   self.beginResetModel();self.rows=list(rows)
-  searchable={key for key,title in self.columns}|{'manufacturer','model','serial','equipment_number','client','name','legal_name','contact','phone','email','complaint','defects','plan','item_text','notes','number','description','comment','path'}
-  self.search=[' '.join(str(row.get(key,'')) for key in searchable)+' '+' '.join(display(key,row) for key,title in self.columns) for row in self.rows];self.endResetModel()
+  searchable={key for key,title in self.columns}|{'manufacturer','model','serial','equipment_number','client','client_phone','client_contact','client_email','name','legal_name','contact','phone','email','complaint','defects','plan','item_text','notes','number','description','comment','path'}
+  self.search=[' '.join(str(row.get(key,'')) for key in searchable)+' '+' '.join(display(key,row) for key,title in self.columns) for row in self.rows];self.search=[value+' '+re.sub(r'\D','',str(row.get('client_phone') or row.get('phone') or '')) for value,row in zip(self.search,self.rows)];self.endResetModel()

@@ -34,6 +34,7 @@ def line_total(qty, price_cents):
     if result>9000000000000000: raise ServiceError('Слишком большая сумма позиции')
     return int(result)
 def rub(cents):
+    if cents is None:return 'Неизвестно'
     sign='−' if cents<0 else ''
     return sign+f'{abs(cents)//100:,}'.replace(',',' ')+f',{abs(cents)%100:02d} ₽'
 def day(value):

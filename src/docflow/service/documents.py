@@ -4,6 +4,7 @@ Templates retain their sections, story parts, tables and embedded graphics.
 Only explicit variables/row prototypes/logo markers are changed. No expressions.
 """
 import bisect
+from datetime import datetime
 import copy
 import io
 import json
@@ -34,7 +35,7 @@ KINDS = {
     'estimate_final':'Окончательная смета', 'warranty':'Гарантийный талон',
 }
 MARKER = re.compile(r'\[\[items:(work|part|delivery|other|history)\]\]')
-ITEM_FIELDS = {'item_no','item_name','item_description','item_quantity','item_unit','item_price','item_total','item_kind'}
+ITEM_FIELDS = {'item_no','item_name','item_description','item_quantity','item_unit','item_price','item_total','item_kind','item_index'}
 ALIASES = {'n':'item_no','name':'item_name','qty':'item_quantity','unit':'item_unit','price':'item_price','sum':'item_total'}
 ITEM_FIELDS.update(ALIASES)
 HISTORY_FIELDS = {'history_number','history_date','history_client','history_complaint','history_defects',
@@ -167,10 +168,27 @@ def _image_width(path, section, caption=True, reserve_inches=None):
     return int(min(width,height*image.px_width/image.px_height))
 
 
+def _append_heading(document, value, level):
+    # Customer templates can contain localized styles or no heading styles.
+    # Apply a built-in style only when it exists; never replace their style set.
+    paragraph=document.add_paragraph()
+    try:
+        paragraph.style=document.styles['Heading '+str(level)]
+        paragraph.add_run(value)
+    except KeyError:
+        run=paragraph.add_run(value);run.bold=True
+        run.font.size=Pt(14 if level==1 else 12)
+        run.font.color.rgb=RGBColor(0,0,0)
+        outline=OxmlElement('w:outlineLvl');outline.set(qn('w:val'),str(level-1))
+        paragraph._p.get_or_add_pPr().append(outline)
+    paragraph.paragraph_format.keep_with_next=True
+    return paragraph
+
+
 def render_service(template_path, values, items, images=(), *, history=(), logo=None):
     template=Template.load(template_path)
     document=Document(io.BytesIO(template.raw)); extra={}; count=0
-    stories=list(_stories(document))
+    stories=list(_stories(document));item_sequence=0
     for root,_ in stories:
         # Optional default expense sections disappear only when genuinely empty.
         # Custom tables without this explicit marker keep their header rows.
@@ -201,9 +219,10 @@ def render_service(template_path, values, items, images=(), *, history=(), logo=
                     count+=1; clone=copy.deepcopy(row)
                     if group=='history': local=item; fields=HISTORY_FIELDS
                     else:
-                        local={'item_no':str(index),'item_name':item['name'],'item_description':item['description'],
-                               'item_quantity':item['quantity'],'item_unit':item['unit'],'item_price':rub(item['price_cents']),
-                               'item_total':rub(item['total_cents']),'item_kind':ITEM_KINDS[item['kind']]}
+                        item_sequence+=1
+                        local={'item_no':str(index),'item_index':str(item_sequence),'item_name':item['name'],'item_description':item['description'],
+                               'item_quantity':item['quantity'],'item_unit':item['unit'],'item_price':rub(item['price_cents'] if item.get('price_known',True) else None),
+                               'item_total':rub(item['total_cents'] if item.get('price_known',True) else None),'item_kind':ITEM_KINDS[item['kind']]}
                         fields=ITEM_FIELDS
                     for p in clone.iter(W+'p'):
                         replace_spans(p,MARKER,lambda m:'')
@@ -229,14 +248,14 @@ def render_service(template_path, values, items, images=(), *, history=(), logo=
                     p.getparent().remove(p)
     if len(images)>10: raise ServiceError('Для документа выберите не более десяти изображений')
     if images:
-        document.add_paragraph('Приложение с изображениями','Heading 1').paragraph_format.page_break_before=True
+        _append_heading(document,'Приложение с изображениями',1).paragraph_format.page_break_before=True
         previous_stage=None
         for index,image in enumerate(images):
             path,caption=image[:2]; stage=image[2] if len(image)>2 else ''
             if Path(path).stat().st_size>10*1024**2:
                 raise ServiceError('Изображение для DOCX больше 10 MiB; подготовьте уменьшенную копию')
             if stage and stage!=previous_stage:
-                heading=document.add_paragraph(stage,'Heading 2')
+                heading=_append_heading(document,stage,2)
                 if index:heading.paragraph_format.page_break_before=True
                 previous_stage=stage
             else:heading=None
@@ -301,12 +320,16 @@ def generate_document(store, repair_id, kind, template=None, image_ids=(), *, es
         values={k:str(v if v is not None else '') for k,v in r.items()}
         comparison=(quote['payload'].get('comparison') or snapshot['estimate_comparison']) if quote else snapshot['estimate_comparison']
         values.update({'repair_number':r['number'],'equipment_number':eq['number'],'equipment_model':eq['model'],'equipment_serial':eq['serial'],
-                       'client_name':client['name'],'status':organization.get('status_labels',{}).get(r['status'],STATUSES[r['status']][0]),
+                       'client_name':client['name'],'client_contact':client.get('contact',''),'client_phone':client.get('phone',''),
+                       'client_email':client.get('email',''),'client_legal_name':client.get('legal_name',''),
+                       'equipment_manufacturer':eq.get('manufacturer',''),'equipment_kind':eq.get('kind',''),
+                       'equipment_identifiers':eq.get('identifiers',''),'status':organization.get('status_labels',{}).get(r['status'],STATUSES[r['status']][0]),
                        'organization_name':organization['organization_name'],'organization_details':organization['details'],
                        'organization_contact':organization['contact'],'warranty_terms':organization['warranty_terms'] or '____________________',
                        **{key:rub(amounts.get(key,0)) for key in ('discount','total','paid','balance')},
                        'work_total':rub(amounts['work']),'parts_total':rub(amounts['parts']),
                        'delivery_total':rub(amounts.get('delivery',0)),'other_total':rub(amounts.get('other',0)),
+                       'expenses_total':rub(sum(amounts.get(k,0) for k in ('parts','delivery','other'))) if all(amounts.get(k,0) is not None for k in ('parts','delivery','other')) else 'Неизвестно',
                        'approved_preliminary_total':rub(comparison['preliminary_total']) if comparison['approved_estimate_id'] else 'не зафиксирован',
                        'estimate_difference':rub(comparison['difference']) if comparison['approved_estimate_id'] else 'не определена'})
         if quote:
@@ -314,6 +337,13 @@ def generate_document(store, repair_id, kind, template=None, image_ids=(), *, es
             values.update({'estimate_version':str(quote['version']),'estimate_date':quote['created_at'],
                            'estimate_prepared_by':quote['prepared_by'],'estimate_state':states[quote['state']],
                            'estimate_reason':quote['reason'],'estimate_comment':quote['payload']['comment']})
+        for field in ('received_at','completed_at','issued_at','started_at'):
+            raw_date=r.get(field,'')
+            try:formatted=datetime.fromisoformat(raw_date).strftime('%d.%m.%Y') if raw_date else ''
+            except ValueError:formatted=raw_date
+            values[field.removesuffix('_at')+'_date']=formatted
+        if quote:
+            values['estimate_day']=datetime.fromisoformat(quote['created_at']).strftime('%d.%m.%Y')
         choices=image_choices if image_choices is not None else [{'id':key} for key in image_ids]
         if len({x['id'] for x in choices})!=len(choices): raise ServiceError('Одно изображение выбрано несколько раз')
         images=[]; selection=[]
