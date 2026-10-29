@@ -27,6 +27,7 @@ from .attachments import safe_path, attachment_path, digest
 from .finance import ITEM_KINDS
 from .validation import ServiceError, rub, now, text
 from .statuses import STATUSES
+from .record_text import repair_display, readable_field, BUSINESS_FIELDS
 
 KINDS = {
     'intake':'Акт приёмки оборудования', 'completion':'Акт выполненных работ',
@@ -104,6 +105,9 @@ def create_templates(folder):
         if kind in ('defects','completion','combined','estimate_preliminary','estimate_final'):
             d.add_paragraph('Дефектовка','Heading 1'); d.add_paragraph('{{defects}}')
             d.add_paragraph('План: {{plan}}')
+        if kind in ('completion','combined'):
+            d.add_paragraph('[[optional:source_works]]Работы из источника','Heading 1')
+            d.add_paragraph('{{source_works}}')
         quote=kind.startswith('estimate_')
         if quote:
             d.add_paragraph('Версия {{estimate_version}} · Подготовлена {{estimate_date}} · {{estimate_prepared_by}}')
@@ -194,6 +198,15 @@ def render_service(template_path, values, items, images=(), *, history=(), logo=
         # Custom tables without this explicit marker keep their header rows.
         for p in list(root.iter(W+'p')):
             content=''.join(t.text for t in paragraph_nodes(p))
+            if '[[optional:source_works]]' in content:
+                following=p.getnext()
+                if following is None or following.tag!=W+'p' or '{{source_works}}' not in ''.join(t.text for t in paragraph_nodes(following)):
+                    raise ServiceError('Необязательные работы из источника должны предшествовать их тексту')
+                if not values.get('source_works'):
+                    following.getparent().remove(following);p.getparent().remove(p)
+                else:
+                    replace_spans(p,re.compile(r'\[\[optional:source_works\]\]'),lambda m:'')
+                continue
             optional=re.search(r'\[\[optional:(delivery|other)\]\]',content)
             if optional:
                 group=optional.group(1)
@@ -295,9 +308,20 @@ def _history(store, repair):
     result=[]
     for row in rows:
         if row['id']==repair['id']: continue
-        def listing(kind): return '\n'.join(x['name']+(': '+x['description'] if x['description'] and x['description']!=x['name'] else '') for x in items.get(row['id'],[]) if x['kind']==kind)
+        row=repair_display(row)
+        def listing(kind):
+            result=[]
+            for x in items.get(row['id'],[]):
+                if x['kind']!=kind:continue
+                name=readable_field(x['name'],'name').text
+                description=readable_field(x['description'],'description').text
+                result.append(name+(': '+description if description and description!=name else ''))
+            return '\n'.join(result)
+        work_text=listing('work')
+        if row['source_works']:
+            work_text+='\nРаботы из источника: '+row['source_works']
         result.append({'history_number':row['number'],'history_date':row['received_at'],'history_client':row['client'],
-                       'history_complaint':row['complaint'],'history_defects':row['defects'],'history_works':listing('work'),
+                       'history_complaint':row['complaint'],'history_defects':row['defects'],'history_works':work_text.strip(),
                        'history_parts':listing('part'),'history_total':rub(row['total']),'history_status':row['status_display'],'history_notes':row['notes']})
     return result
 
@@ -318,6 +342,9 @@ def generate_document(store, repair_id, kind, template=None, image_ids=(), *, es
             if quote['repair_id']!=repair_id or quote['kind']!=expected: raise ServiceError('Выбрана другая смета или другой ремонт')
             p=quote['payload']; r=p['repair']; eq=p['equipment']; client=p['client']; organization=p['profile']; items=p['lines']; amounts=p['totals']
         values={k:str(v if v is not None else '') for k,v in r.items()}
+        shown=repair_display(r)
+        values.update({key:shown[key] for key in BUSINESS_FIELDS})
+        values['source_works']=shown['source_works']
         comparison=(quote['payload'].get('comparison') or snapshot['estimate_comparison']) if quote else snapshot['estimate_comparison']
         values.update({'repair_number':r['number'],'equipment_number':eq['number'],'equipment_model':eq['model'],'equipment_serial':eq['serial'],
                        'client_name':client['name'],'client_contact':client.get('contact',''),'client_phone':client.get('phone',''),
@@ -336,7 +363,7 @@ def generate_document(store, repair_id, kind, template=None, image_ids=(), *, es
             states={'prepared':'Подготовлена','sent':'Передача отмечена вручную','approved':'Согласование отмечено вручную','rejected':'Отклонение отмечено вручную','withdrawn':'Отметка отозвана'}
             values.update({'estimate_version':str(quote['version']),'estimate_date':quote['created_at'],
                            'estimate_prepared_by':quote['prepared_by'],'estimate_state':states[quote['state']],
-                           'estimate_reason':quote['reason'],'estimate_comment':quote['payload']['comment']})
+                           'estimate_reason':quote['reason'],'estimate_comment':readable_field(quote['payload']['comment']).text})
         for field in ('received_at','completed_at','issued_at','started_at'):
             raw_date=r.get(field,'')
             try:formatted=datetime.fromisoformat(raw_date).strftime('%d.%m.%Y') if raw_date else ''
@@ -355,7 +382,7 @@ def generate_document(store, repair_id, kind, template=None, image_ids=(), *, es
             images.append((attachment_path(store,item['id']),caption,stage))
             selection.append({'id':item['id'],'sha256':item['sha256'],'caption':caption,'stage':stage})
         relative_template=organization.get('template_paths',{}).get(kind)
-        path=Path(template) if template else (safe_path(store.root,relative_template) if relative_template else create_templates(safe_path(store.root,'templates/default-v3'))[kind])
+        path=Path(template) if template else (safe_path(store.root,relative_template) if relative_template else create_templates(safe_path(store.root,'templates/default-v4'))[kind])
         logo=safe_path(store.root,organization['logo_path']) if organization.get('logo_path') else None
         for file in (path if relative_template and not template else None,logo):
             if file:
@@ -366,7 +393,9 @@ def generate_document(store, repair_id, kind, template=None, image_ids=(), *, es
         with zipfile.ZipFile(io.BytesIO(raw.raw)) as z:
             has_history=any('[[items:history]]' in ''.join(t.text or '' for t in parse(z.read(n)).iter(W+'t')) for n in z.namelist() if STORY.fullmatch(n))
         if has_history: history=_history(store,r)
-        rendered=render_service(path,values,items,images,history=history,logo=logo)
+        shown_items=[{**item,**{key:readable_field(item.get(key,''),key).text
+                              for key in ('name','description','notes')}} for item in items]
+        rendered=render_service(path,values,shown_items,images,history=history,logo=logo)
         metadata={'repair_revision':r['revision'],'template_sha256':digest(path),'estimate_id':quote['id'] if quote else None,
                   'estimate_sha256':quote['payload_sha256'] if quote else None,'profile_id':organization['id'],'images':selection}
         target=None; created=False

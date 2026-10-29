@@ -29,5 +29,5 @@ class RowsModel(QAbstractTableModel):
   if role in (Qt.ItemDataRole.DisplayRole,Qt.ItemDataRole.ToolTipRole):return self.columns[section][1] if orientation==Qt.Orientation.Horizontal else str(section+1)
  def install(self,rows):
   self.beginResetModel();self.rows=list(rows)
-  searchable={key for key,title in self.columns}|{'manufacturer','model','serial','equipment_number','client','client_phone','client_contact','client_email','name','legal_name','contact','phone','email','complaint','defects','plan','item_text','notes','number','description','comment','path'}
+  searchable={key for key,title in self.columns}|{'manufacturer','model','serial','equipment_number','client','client_phone','client_contact','client_email','name','legal_name','contact','phone','email','complaint','defects','plan','item_text','notes','number','previous_numbers','description','comment','path'}
   self.search=[' '.join(str(row.get(key,'')) for key in searchable)+' '+' '.join(display(key,row) for key,title in self.columns) for row in self.rows];self.search=[value+' '+re.sub(r'\D','',str(row.get('client_phone') or row.get('phone') or '')) for value,row in zip(self.search,self.rows)];self.endResetModel()

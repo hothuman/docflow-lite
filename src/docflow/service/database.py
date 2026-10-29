@@ -89,7 +89,22 @@ def validate_schema(connection, version):
 
 
 class Database:
-    def __init__(self,path):
+    @staticmethod
+    def migration_required(path):
+        """Read-only preflight for a GUI decision before opening older projects."""
+        path=Path(path).absolute()
+        if not path.exists():return None
+        wal=path.with_name(path.name+'-wal')
+        if wal.exists() and wal.stat().st_size:
+            raise ServiceError('Закройте прежнюю программу перед открытием проекта: журнал SQLite ещё содержит изменения')
+        try:
+            with closing(sqlite3.connect(path.as_uri()+'?mode=ro&immutable=1',uri=True)) as c:
+                version=c.execute('PRAGMA user_version').fetchone()[0]
+                validate_schema(c,version)
+                return version if version<SCHEMA_VERSION else None
+        except sqlite3.Error as exc:
+            raise ServiceError('Не удалось проверить базу; исходный файл не изменён') from exc
+    def __init__(self,path,*,allow_upgrade=True):
         self.path=Path(path)
         existed=self.path.exists()
         if existed and self.path.stat().st_size==0:raise ServiceError('База пуста; исходный файл не изменён. Восстановите проверенную копию')
@@ -102,6 +117,8 @@ class Database:
                 version=c.execute('PRAGMA user_version').fetchone()[0]
                 if version>SCHEMA_VERSION: raise ServiceError('База создана более новой версией программы')
                 if existed:validate_schema(c,version)
+                if version and version<SCHEMA_VERSION and not allow_upgrade:
+                    raise ServiceError('Нужно обновление схемы. Создайте отдельную обновлённую копию проекта после подтверждения; исходная база не изменена')
                 if version and version<SCHEMA_VERSION:
                     backup=self.path.with_name(self.path.name+f'.before-v{version+1}-{uuid4().hex}.bak')
                     with backup.open('xb'): pass

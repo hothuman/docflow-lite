@@ -26,11 +26,11 @@ def search_records(rows,query,fields):
     return [row for row in rows if matches(row)]
 
 class ServiceStore:
-    def __init__(self,root=None):
+    def __init__(self,root=None,*,allow_upgrade=True):
         self.root=Path(root or default_root()).absolute()
         if self.root.is_symlink():raise ServiceError('Каталог проекта не должен быть ссылкой')
         self.root.mkdir(parents=True,exist_ok=True)
-        self.lock=threading.RLock(); self.db=Database(self.root/'service.db')
+        self.lock=threading.RLock(); self.db=Database(self.root/'service.db',allow_upgrade=allow_upgrade)
     @staticmethod
     def audit(c,entity,key,action,detail=''):
         c.execute('INSERT INTO operations(entity,entity_id,action,detail,created_at) VALUES(?,?,?,?,?)',(entity,key,action,detail,now()))
@@ -73,7 +73,7 @@ class ServiceStore:
             self.require(c,table,key)
             if archived:
                 if table=='clients' and c.execute('SELECT 1 FROM equipment WHERE owner_id=? AND archived=0',(key,)).fetchone():raise ServiceError('Сначала перенесите или архивируйте оборудование клиента')
-                if table=='equipment' and c.execute("SELECT 1 FROM repair_orders WHERE equipment_id=? AND status NOT IN('issued','closed','cancelled')",(key,)).fetchone():raise ServiceError('Есть незавершённый ремонт; сначала закройте его')
+                if table=='equipment' and c.execute("SELECT 1 FROM repair_orders WHERE equipment_id=? AND status NOT IN('issued','closed','cancelled','historical')",(key,)).fetchone():raise ServiceError('Есть незавершённый ремонт; сначала закройте его')
             c.execute(f'UPDATE {table} SET archived=?,updated_at=? WHERE id=?',(int(archived),now(),key));self.audit(c,table,key,'archive',str(archived))
     def clients(self,query='',archived=False):
         with self.db.connection() as c:
@@ -83,7 +83,7 @@ class ServiceStore:
         with self.db.connection() as c:
             rows=[dict(r) for r in c.execute('SELECT e.*,c.name AS owner FROM equipment e JOIN clients c ON c.id=e.owner_id WHERE e.archived=? ORDER BY e.updated_at DESC',(int(archived),))]
             if active:
-                ids={r[0] for r in c.execute("SELECT equipment_id FROM repair_orders WHERE status NOT IN('issued','closed','cancelled')")};rows=[r for r in rows if r['id'] in ids]
+                ids={r[0] for r in c.execute("SELECT equipment_id FROM repair_orders WHERE status NOT IN('issued','closed','cancelled','historical')")};rows=[r for r in rows if r['id'] in ids]
         return search_records(rows,query,('number','manufacturer','model','kind','serial','identifiers','notes','owner'))
     def create_repair(self,equipment_id,number='',complaint='',request_id=None,client_id=None):
         key=request_id or uuid4().hex
@@ -103,12 +103,32 @@ class ServiceStore:
                 number=suggested
             client_id=client_id or eq['owner_id']
             if self.require(c,'clients',client_id)['archived']:raise ServiceError('Клиент архивирован')
-            if any(x[0].casefold()==number.casefold() for x in c.execute('SELECT number FROM repair_orders')):raise ServiceError('Номер ремонта уже существует')
+            from .numbering import used_numbers,advance_sequence
+            if number.casefold() in used_numbers(c):raise ServiceError('№ ремонта уже использован, в том числе в истории переименования. Выберите другой номер')
             stamp=now()
             c.execute('INSERT INTO repair_orders(id,number,equipment_id,client_id,received_at,complaint,created_at,updated_at,profile_id) VALUES(?,?,?,?,?,?,?,?,?)',(key,number,equipment_id,client_id,stamp[:10],complaint,stamp,stamp,profile_id))
             c.execute('INSERT INTO repair_status_history(repair_id,old_status,new_status,changed_at,source) VALUES(?,?,?,?,?)',(key,'','accepted',stamp,'create'))
             self.audit(c,'repair',key,'create')
+            advance_sequence(c,number)
         return key
+    def preview_repair_number(self):
+        """Non-reserving preview: cancelling a form consumes no number."""
+        from .profiles import next_number
+        with self.db.connection() as c:return next_number(c)[0]
+    def rename_repair(self,key,new_number,reason='',expected_revision=None):
+        from .numbering import used_numbers,advance_sequence
+        new_number=text(new_number,'№ ремонта',True,100)
+        with self.lock,self.db.connection(True) as c:
+            old=self.require(c,'repair_orders',key)
+            if expected_revision is not None and old['revision']!=expected_revision:
+                raise ServiceError('Запись уже изменена. Откройте свежую версию')
+            if new_number==old['number']:return old['revision']
+            if new_number.casefold() in used_numbers(c):
+                raise ServiceError('№ ремонта уже использован, в том числе в истории переименования. Выберите другой номер')
+            c.execute('UPDATE repair_orders SET number=?,revision=revision+1,updated_at=? WHERE id=?',(new_number,now(),key))
+            self.audit(c,'repair',key,'renumber',json.dumps({'before':old['number'],'after':new_number,'reason':text(reason)},ensure_ascii=False))
+            advance_sequence(c,new_number)
+            return old['revision']+1
     def save_repair(self,key,data,expected_revision=None):
         fields=('complaint','accessories','condition','defects','plan','approval_note','issued_accessories','handover','notes')
         values={f:text(data[f],f) for f in fields if f in data}
@@ -163,17 +183,20 @@ class ServiceStore:
             params=[]
             for clause,value in (('r.equipment_id=?',equipment_id),('r.status=?',status),('r.received_at>=?',lower),('r.received_at<=?',upper)):
                 if value:sql+=' AND '+clause;params.append(value)
-            if active:sql+=" AND r.status NOT IN ('issued','closed','cancelled')"
+            if active:sql+=" AND r.status NOT IN ('issued','closed','cancelled','historical')"
             sql+=f' ORDER BY r.received_at {order},r.created_at {order},r.rowid {order}'
             rows=[dict(r) for r in c.execute(sql,params)]
             labels={r['id']:json.loads(r['data_json']).get('status_labels',{}) for r in c.execute('SELECT id,data_json FROM organization_profiles')}
+            from .numbering import aliases
+            previous=aliases(c)
             for r in rows:
+                r['previous_numbers']=' '.join(previous.get(r['id'],[]))
                 r.update(calculate([{'kind':kind,'total_cents':r[column]} for kind,column in (('work','work_cents'),('part','parts_cents'),('delivery','delivery_cents'),('other','other_cents'))],r['discount_cents'],r['paid_cents']))
                 if r['cost_known'] is not None:
                     r.update(apply_evidence(r, r))
                 apply_unknown_prices(r,r['unknown_kinds'].split(','))
                 r['status_display']=labels.get(r['profile_id'],{}).get(r['status'],STATUSES[r['status']][0])
-        return search_records(rows,query,('number','equipment_number','model','serial','manufacturer','client','client_phone','client_contact','client_email','received_at','complaint','accessories','condition','defects','plan','approval','approval_note','status','status_display','started_at','completed_at','issued_at','issued_accessories','handover','notes','item_text'))
+        return search_records(rows,query,('number','previous_numbers','equipment_number','model','serial','manufacturer','client','client_phone','client_contact','client_email','received_at','complaint','accessories','condition','defects','plan','approval','approval_note','status','status_display','started_at','completed_at','issued_at','issued_accessories','handover','notes','item_text'))
     def snapshot(self,key):
         with self.db.connection() as c:
             r=self.require(c,'repair_orders',key)
