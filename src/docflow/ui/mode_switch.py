@@ -16,6 +16,8 @@ class ModeSwitch(QWidget):
         changed=index!=self._index;self._index=index;self.buttons[index].setChecked(True)
         if changed:self.currentIndexChanged.emit(index)
     def eventFilter(self,obj,event):
+        if event.type()==QEvent.Type.KeyPress and event.key() in (Qt.Key.Key_Return,Qt.Key.Key_Enter):
+            self.setCurrentIndex(self.buttons.index(obj));return True
         if event.type()==QEvent.Type.KeyPress and event.key() in (Qt.Key.Key_Left,Qt.Key.Key_Right,Qt.Key.Key_Up,Qt.Key.Key_Down):
             index=1-self._index;self.setCurrentIndex(index);self.buttons[index].setFocus();return True
         return super().eventFilter(obj,event)

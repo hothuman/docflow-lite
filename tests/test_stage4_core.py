@@ -4,6 +4,15 @@ from PySide6.QtWidgets import QApplication
 from docflow.gui import MainWindow
 from docflow.release_check import wait_idle
 
+def test_visible_modes_enter_space_keyboard():
+    from docflow.ui.mode_switch import ModeSwitch
+    app=QApplication.instance()
+    switch=ModeSwitch();switch.show();app.processEvents()
+    QTest.keyClick(switch.buttons[1],Qt.Key.Key_Return);assert switch.currentIndex()==1
+    QTest.keyClick(switch.buttons[0],Qt.Key.Key_Space);assert switch.currentIndex()==0
+    QTest.keyClick(switch.buttons[0],Qt.Key.Key_Right);assert switch.currentIndex()==1
+    switch.close()
+
 def test_full_check_is_not_inferred_from_mapping_or_preview(tmp_path):
     w=MainWindow();w.show();w.load_demo();wait_idle(w)
     try:

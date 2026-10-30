@@ -129,6 +129,7 @@ class MainWindow(QMainWindow):
         self.work=QWidget();self.work.setObjectName('work');outer.addWidget(self.work,1)
         work=QVBoxLayout(self.work);work.setContentsMargins(22,20,22,12);work.setSpacing(10)
         mode_row=QHBoxLayout();mode_row.addWidget(self.mode_picker,1);self.about_button=self.button('О программе',lambda:self.navigate(4));mode_row.addWidget(self.about_button);work.addLayout(mode_row)
+        self.mode_help=text('Документы: таблица → Word. Мастерская: клиенты, аппараты и ремонты.','muted');work.addWidget(self.mode_help)
         header=QHBoxLayout();titles=QVBoxLayout();titles.setSpacing(5)
         self.breadcrumb=text('CORE / LITE · ДОКУМЕНТЫ','eyebrow');titles.addWidget(self.breadcrumb)
         self.title=text(self.PAGE_NAMES[0],'title');titles.addWidget(self.title)
@@ -152,6 +153,8 @@ class MainWindow(QMainWindow):
         self.core_next=self.button('Выбрать таблицу',self.core_next_step,primary=True);self.footer_layout.addWidget(self.core_next)
         self._pinned_action=None;work.addLayout(self.footer_layout)
         self.navigate(5 if self._saved_mode else self._last_core_page);self._responsive();self.update_readiness()
+        from PySide6.QtGui import QShortcut,QKeySequence
+        self.profile_shortcut=QShortcut(QKeySequence.StandardKey.Save,self);self.profile_shortcut.activated.connect(lambda:self.save_profile(background=True) if self.pages.currentIndex()<4 and self.table and not self._busy else None)
 
     def button(self,title,callback,kind=None,primary=False):
         button=QPushButton(title)
@@ -283,6 +286,7 @@ class MainWindow(QMainWindow):
         service=self.pages.currentIndex()==5
         compact=self.width()<760 or self.height()<600
         self.rail.setVisible(not compact);self.rail.setFixedWidth(204)
+        self.mode_help.setVisible(self.height()>=600)
         self.version_label.setVisible(self.height()>=650);self.local_note.setVisible(self.height()>=700)
         self.breadcrumb.hide();self.subtitle.setVisible(self.height()>=600)
         self.work.layout().setContentsMargins(12 if compact else 22,10,12 if compact else 22,10)
@@ -296,9 +300,7 @@ class MainWindow(QMainWindow):
         self.status.setVisible(not service and self.height()>=500)
         self.about_button.setVisible(compact)
         if hasattr(self,'core_next'):
-            self.core_next.setVisible(self.pages.currentIndex()<3)
             if self._pinned_action is None:self.footer_layout.addWidget(self.generate_btn);self._pinned_action=True
-            self.generate_btn.setVisible(self.pages.currentIndex()==3 and self.cancel_btn.isHidden())
 
     def active_templates(self):return [t for t in self.templates if t.path in self._active_paths]
 

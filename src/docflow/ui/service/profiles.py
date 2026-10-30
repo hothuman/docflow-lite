@@ -12,16 +12,26 @@ class ProfileDialog(QDialog):
     def __init__(self,workspace):
         super().__init__(workspace);self.workspace=workspace;self.setWindowTitle('Локальные профили организаций');fit_dialog(self,900,600)
         layout=QVBoxLayout(self);label=QLabel('Активный профиль применяется к новым ремонтам. Старые ремонты сохраняют связь со своим профилем, сохранённые сметы — снимок реквизитов. Пустые реквизиты не заполняются автоматически.');label.setWordWrap(True);layout.addWidget(label)
+        self.empty=QLabel('Организация ещё не настроена. Встроенные документы будут явно обозначены как нейтральные. Начните с «Настроить организацию».');self.empty.setWordWrap(True);layout.addWidget(self.empty)
         self.grid=Grid([('name','Профиль'),('active_label','Состояние'),('organization_name','Исполнитель'),('number_prefix','Префикс'),('contact','Контакт'),('logo_path','Логотип')]);layout.addWidget(self.grid)
         bar=FlowLayout();layout.addLayout(bar)
-        for title,fn in [('Добавить',lambda:self.edit(False)),('Изменить',lambda:self.edit(True)),('Сделать активным',self.activate),('Нейтральный профиль',lambda:self.activate(True)),('Выбрать шаблон',self.template),('Логотип',self.logo)]:button(bar,title,fn)
+        button(bar,'Настроить организацию',self.setup,primary=True)
+        self.selection_tools=[]
+        for title,fn in [('Дополнительные поля',lambda:self.edit(True)),('Сделать активным',self.activate),('Выбрать шаблон',self.template),('Логотип',self.logo)]:self.selection_tools.append(button(bar,title,fn))
+        button(bar,'Нейтральный профиль',lambda:self.activate(True));self.grid.selectionModel().currentRowChanged.connect(self.update_tools)
         button(layout,'Закрыть',self.accept);self.refresh()
     def refresh(self):
         store=self.workspace.store
         def query():
             with store.db.connection() as c:active=profile(c,active=True)['id']
             return [{**p,'active_label':'Активный' if p['id']==active else 'Сохранённый'} for p in profiles(store)]
-        self.workspace.run(query,self.grid.install)
+        def installed(rows):self.grid.install(rows);self.empty.setVisible(not rows);self.grid.setVisible(bool(rows));self.update_tools()
+        self.workspace.run(query,installed)
+    def update_tools(self,*args):
+        for control in self.selection_tools:control.setEnabled(self.grid.selected() is not None)
+    def setup(self):
+        from .organization_setup import OrganizationWizard
+        self.workspace.modal(OrganizationWizard(self.workspace));self.refresh()
     def edit(self,existing=False):
         row=self.grid.selected() if existing else None
         if existing and not row:return

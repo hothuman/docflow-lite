@@ -162,7 +162,7 @@ def run(output, require_windows=False):
         window.apply_profile(demo_for_cancel);wait_idle(window)
         # The normal demo generation below is also a successful retry after cancellation.
         window.output_path.setText(str(output/'Встроенный пример'))
-        click(window.generate_btn)
+        window.navigate(3);app.processEvents();click(window.generate_btn)
         result = wait_for_generation()
         check('bundled_demo_generation',directory=str(result.directory),documents=4)
 
@@ -210,7 +210,7 @@ def run(output, require_windows=False):
             with dialog_choice(QFileDialog,'getExistingDirectory',str(output/('Документы '+extension))):
                 click(window.output_btn)
             window.last_result=None
-            click(window.generate_btn)
+            window.navigate(3);app.processEvents();click(window.generate_btn)
             result=wait_for_generation()
             assert all(hashlib.sha256(p.read_bytes()).hexdigest()==sha for p,sha in before.items())
             check('unicode_spaces_'+extension,directory=str(result.directory),documents=4,

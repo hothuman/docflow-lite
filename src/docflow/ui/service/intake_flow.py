@@ -7,6 +7,8 @@ from .widgets import button
 from ..flow import FlowLayout
 
 class IntakeDialog(QDialog):
+    @property
+    def dirty(self):return bool(self.complaint.toPlainText() or self.name.text() or self.number.text() or self.model.text() or self.phone.text() or self.other_client.isChecked())
     def __init__(self,workspace,equipment=None):
         super().__init__(workspace);self.workspace=workspace;self.request_id=uuid4().hex;self.setWindowTitle('Принять оборудование в ремонт');fit_dialog(self,720,680)
         out=QVBoxLayout(self);scroll=QScrollArea();scroll.setWidgetResizable(True);body=QWidget();form=QFormLayout(body);form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow);form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows);scroll.setWidget(body);out.addWidget(scroll,1)

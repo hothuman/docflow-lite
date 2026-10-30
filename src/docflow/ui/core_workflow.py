@@ -32,13 +32,17 @@ def build_result(w):
 
 def readiness(w,valid,message):
     loaded=bool(w.table);w.empty_card.setVisible(not loaded);w.source_card.setVisible(loaded);w.result_card.setVisible(bool(w.last_result))
+    w.template_list.setVisible(bool(w.templates));w.mapping_table.setVisible(loaded and bool(w.active_templates()))
     checked=w._full_check is not None and w._full_check[0]==w.validation_signature()
     states=[loaded,bool(w.active_templates()),checked,bool(w.last_result)]
     for i,(b,complete) in enumerate(zip(w.route_buttons,states)):
         b.setProperty('complete',complete);b.setChecked(w.pages.currentIndex()==i);b.setEnabled(not w._busy);b.style().unpolish(b);b.style().polish(b);b.setToolTip('Готово' if complete else 'Ещё не завершено')
-    page=w.pages.currentIndex();w.core_next.setVisible(page<3);w.generate_btn.setVisible(page==3 and w.cancel_btn.isHidden())
+    page=w.pages.currentIndex();w.core_next.setVisible(page<3 or page==3 and not valid);w.generate_btn.setVisible(page==3 and valid and w.cancel_btn.isHidden())
     title=('Выбрать таблицу' if not loaded else 'К шаблонам →','Добавить шаблон Word' if not w.active_templates() else 'К проверке полей →','Проверить все строки' if not checked else 'К созданию документов →')[min(page,2)]
-    w.core_next.setText(title);w.core_next.setEnabled(not w._busy and (page!=2 or valid));w.generate_btn.setEnabled(valid and not w._busy)
+    if not loaded:title='Выбрать таблицу'
+    elif not w.active_templates():title='Добавить шаблон Word'
+    elif page==3 and not valid:title='Проверить связь полей →'
+    w.core_next.setText(title);w.core_next.setEnabled(not w._busy and (page!=2 or valid or not loaded or not w.active_templates()));w.generate_btn.setEnabled(valid and not w._busy)
     state=('Таблица не выбрана' if not loaded else f'Таблица: {len(w.table.records)} строк')+' · '+('Шаблон не выбран' if not w.active_templates() else f'Шаблонов: {len(w.active_templates())}')
     w.core_state.setText(state)
     feedback=(f'Все {w._full_check[2]} строк проверены. С ошибками: {w._full_check[1]}.' if checked else 'Поля связаны. Все строки ещё не проверены.' if valid else message)
@@ -46,6 +50,8 @@ def readiness(w,valid,message):
 
 def next_step(w):
     page=w.pages.currentIndex()
+    if not w.table:w.navigate(0);w.select_data();return
+    if not w.active_templates():w.navigate(1);w.select_templates();return
     if page==0:
         if w.table:w.navigate(1)
         else:w.select_data()
@@ -55,3 +61,4 @@ def next_step(w):
     elif page==2:
         if w._full_check and w._full_check[0]==w.validation_signature():w.navigate(3)
         else:w.check_all()
+    elif page==3:w.navigate(2)

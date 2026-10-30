@@ -88,9 +88,9 @@ def test_source_work_survives_note_edit_without_becoming_operational_work():
 def test_history_detail_labels_source_work_and_never_invents_plan():
     from docflow.ui.service.history import HistoryDialog
     raw=json.dumps(source_envelope(),ensure_ascii=False)
-    row={'notes':raw,'received_at':'2026-10-29','complaint':'','defects':'','plan':'','item_text':''}
+    row={'notes':raw,'received_at':'2026-10-29','complaint':'','defects':'','plan':'','item_text':'','number':'H-1','client':'Учебный'}
     captured=[]
-    fake=SimpleNamespace(grid=SimpleNamespace(selected=lambda:row),detail=SimpleNamespace(setPlainText=captured.append))
+    fake=SimpleNamespace(grid=SimpleNamespace(selected=lambda:row),selected_rows=lambda:[row],selection_heading=SimpleNamespace(setText=lambda _:None),detail=SimpleNamespace(setPlainText=captured.append))
     HistoryDialog.selected_detail(fake)
     assert 'Работы из источника: Очистка контакта' in captured[0]
     assert 'План: Очистка контакта' not in captured[0]
