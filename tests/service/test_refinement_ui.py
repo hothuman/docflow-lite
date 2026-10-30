@@ -180,3 +180,25 @@ def test_a5_application_palette_contrast():
  for foreground,background in [('text','surface'),('muted','background'),('success','surface'),('error','surface')]:
   a,b=sorted((lum(COLORS[foreground]),lum(COLORS[background])));assert (b+.05)/(a+.05)>=4.5
  a,b=sorted((lum(COLORS['accentText']),lum(COLORS['accent'])));assert (b+.05)/(a+.05)>=4.5
+
+
+def test_compact_finance_keeps_amounts_visible_when_headers_are_wider(ui):
+ app,*_=ui
+ from PySide6.QtGui import QFont
+ columns=[('number','Ремонт №'),('client','Клиент'),('status','Статус'),('total','Стоимость'),('paid','Учтено оплат'),('balance','Остаток к оплате'),('financial_status','Расчёты')]
+ grid=Grid(columns);grid.setFont(QFont('Sans Serif',12))
+ rows=[{'number':'1000','client':'Учебный клиент','status':'repair','total':170050,'paid':100000,'balance':70050}, {'number':'1001','total':None,'paid':None,'balance':None}]
+ grid.install(rows)
+ fm=grid.fontMetrics()
+ from docflow.ui.service.presentation import display
+ amount_widths=[max(fm.horizontalAdvance(display(key,row)) for row in rows)+26 for key in ('total','paid','balance')]
+ # Enough room for all values, but not for three full-length headers.
+ width=sum(amount_widths)+max(48,fm.horizontalAdvance('1001')+26)+12
+ grid.resize(width,250);grid.show();app.processEvents();grid.fit_columns();app.processEvents()
+ for col,minimum in zip((3,4,5),amount_widths):
+  assert not grid.isColumnHidden(col)
+  assert grid.columnWidth(col)>=minimum
+  assert grid.columnViewportPosition(col)+grid.columnWidth(col)<=grid.viewport().width()
+ assert grid.records.headerData(5,Qt.Orientation.Horizontal,Qt.ItemDataRole.ToolTipRole)=='Остаток к оплате'
+ assert grid._user_widths=={}
+ grid.close()

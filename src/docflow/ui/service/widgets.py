@@ -21,10 +21,10 @@ class Grid(QTableView):
    self.preferences_saved=save_widths(self.settings_key,self._user_widths)
    if not self.preferences_saved:self.horizontalHeader().setToolTip('Ширина изменена для текущего окна. Не удалось сохранить настройки: проверьте доступ к папке конфигурации.')
  def cache_widths(self):
-  fm=self.fontMetrics();self._preferred={};self._minimum={}
+  fm=self.fontMetrics();self._preferred={};self._minimum={};self._content_minimum={}
   for i,(key,title) in enumerate(self.records.columns):
    if key in MONEY:
-    values=[display(key,r) for r in self.records.rows];longest=max(values,key=len,default='9 999,00 ₽');width=max(105,fm.horizontalAdvance(longest)+26)
+    values=[display(key,r) for r in self.records.rows];content=max((fm.horizontalAdvance(value) for value in values),default=fm.horizontalAdvance('9 999,00 ₽'))+26;self._content_minimum[i]=max(48,content);width=max(105,content)
    elif key in ('status','state','state_label','financial_status'):width=164
    elif key.endswith('_at'):width=134
    elif key in ('number','equipment_number'):width=105
@@ -46,6 +46,18 @@ class Grid(QTableView):
     if extra<=0:break
     if self.records.columns[i][0] not in MONEY and i not in self._user_widths:
      amount=min(extra,max(0,widths[i]-self._minimum.get(i,75)));widths[i]-=amount;extra-=amount
+   # At high DPI the header may be wider than its values. Keep every
+   # amount visible before preserving full headers or preferred user widths.
+   # Header tooltips retain the full labels; preferences are not overwritten.
+   extra=sum(widths[i] for i in visible)-available
+   for i in visible:
+    if extra<=0:break
+    key=self.records.columns[i][0]
+    if key in MONEY:minimum=self._content_minimum[i]
+    elif key in ('number','equipment_number'):
+     minimum=max(48,max((self.fontMetrics().horizontalAdvance(display(key,r)) for r in self.records.rows),default=22)+26)
+    else:continue
+    amount=min(extra,max(0,widths[i]-minimum));widths[i]-=amount;extra-=amount
    remaining=available-sum(widths[i] for i in visible)
    if remaining>0 and visible:
     stretch=next((i for i in visible if self.records.columns[i][0] in ('name','model','equipment_label','client')),visible[0]);widths[stretch]+=remaining
