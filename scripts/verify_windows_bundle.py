@@ -21,7 +21,7 @@ def assert_stage3_checks(report):
     assert report['status']=='passed' and report['frozen'] and report['qt_platform']=='windows'
     assert len(report['checks'])==6 and {c['name'] for c in report['checks']}==REQUIRED_STAGE3_CHECKS
     assert all(c['passed'] is True for c in report['checks']) and report['backup_restore'] is True
-    assert len(report['layout'])==3 and all(c['footer_visible'] for c in report['layout'])
+    assert len(report['layout'])==3 and all(c['footer_visible'] and c['actual_logical']==c['size'] for c in report['layout'])
 
 REQUIRED_STAGE2_CHECKS=frozenset({'first_intake','repeat_intake','estimate_approval','act_without_excel','issue_payment_history'})
 

@@ -31,13 +31,14 @@ def exercise(ui,app,output,idle):
     config=dialog.config();api.save_profile(ui.store,'Synthetic',config)
     cases=[]
     for width,height in ((560,420),(820,620),(1060,740)):
-        dialog.resize(width,height);app.processEvents();app.processEvents()
-        assert dialog.width()==width and dialog.height()==height,(width,height,dialog.size().toTuple())
+        available=dialog.screen().availableGeometry();target=(min(width,max(420,available.width()-40)),min(height,max(300,available.height()-60)))
+        dialog.resize(*target);app.processEvents();app.processEvents()
+        assert dialog.size().toTuple()==target,(target,dialog.size().toTuple())
         dialog.import_scroll.ensureWidgetVisible(dialog.apply_button);app.processEvents();apply_position=dialog.apply_button.mapTo(dialog.import_scroll.viewport(),QPoint());assert dialog.import_scroll.viewport().rect().contains(apply_position+QPoint(dialog.apply_button.width()-1,dialog.apply_button.height()-1))
         for control in dialog.findChildren(QPushButton):
             if control.text()=='Закрыть':
                 point=control.mapTo(dialog,QPoint());assert dialog.rect().contains(point+QPoint(control.width()-1,control.height()-1))
-        dialog.grab().save(str(output/f'catalog-{width}.png'));cases.append({'size':[width,height],'footer_visible':True})
+        dialog.grab().save(str(output/f'catalog-{width}.png'));cases.append({'requested_size':[width,height],'size':list(target),'actual_logical':list(dialog.size().toTuple()),'available_screen':[available.width(),available.height()],'footer_visible':True})
     checks.append('compact_catalog_layouts');dialog.accept();ui.dialogs.remove(dialog)
     key=ui.store.intake(client={'name':'Учебный клиент'},equipment={'number':'CAT-001','model':'Учебный аппарат'});editor=RepairDialog(ui,ui.store.snapshot(key));ui.dialogs.append(editor);editor.show();draft=DraftDialog(editor);ui.dialogs.append(draft);draft.show();timer=QTimer();visited=[]
     def choose():
