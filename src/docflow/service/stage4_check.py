@@ -16,7 +16,7 @@ CHECKS=frozenset({'visible_modes_keyboard_memory','empty_core_demo_full_check',
 def exercise(window,app,output,idle):
     from PySide6.QtCore import Qt,QItemSelectionModel,QPoint
     from PySide6.QtTest import QTest
-    from PySide6.QtWidgets import QComboBox,QListWidget,QScrollArea,QWizard
+    from PySide6.QtWidgets import QComboBox,QListWidget,QScrollArea,QWizard,QWidget
     from ..release_check import wait_idle
     from ..cli import demo_profile
     from ..profile import Profile
@@ -101,7 +101,9 @@ def exercise(window,app,output,idle):
             editor.tabs.setCurrentIndex(stage);app.processEvents();app.processEvents()
             for w in (editor.save_button,editor.next_button,editor.tabs.stage_bar):
                 assert w.isVisible();p=w.mapTo(editor,QPoint());assert editor.rect().contains(p) and editor.rect().contains(p+QPoint(w.width()-1,w.height()-1))
-            assert not editor.body_scroll.horizontalScrollBar().maximum()
+            if editor.body_scroll.horizontalScrollBar().maximum():
+                capture('layout-failure',editor)
+                raise AssertionError({'size':target,'stage':stage,'horizontal_max':editor.body_scroll.horizontalScrollBar().maximum(),'wide_widgets':[(type(w).__name__,getattr(w,'text',lambda:'')()[:100],w.minimumSizeHint().width(),w.width()) for w in editor.findChildren(QWidget) if w.minimumSizeHint().width()>target[0]-40]})
         capture('repair-compact-'+str(size[0]),editor);layouts.append({'requested':list(size),'actual':list(target),'stages':5,'footer_visible':True})
     editor.accept();ui.dialogs.remove(editor)
     for size in ((560,420),(820,620),(1060,740)):
@@ -111,7 +113,7 @@ def exercise(window,app,output,idle):
         capture('main-compact-'+str(size[0]),window)
     passed('compact_footer_and_accessible_controls',layouts=len(layouts))
     assert {c['name'] for c in checks}==CHECKS and len(checks)==len(CHECKS)
-    return {'status':'passed','checks':checks,'layout':layouts,'backup_restore':True,'word_checked':False,'printer_checked':False,'owner_acceptance':False,'scope':'Automated Qt widget routes; synthetic fixtures; no human speed or independent UX acceptance'}
+    return {'status':'passed','checks':checks,'layout':layouts,'scale_factor':float(os.environ.get('QT_SCALE_FACTOR','1')),'device_pixel_ratio':window.devicePixelRatioF(),'backup_restore':True,'word_checked':False,'printer_checked':False,'owner_acceptance':False,'scope':'Automated Qt widget routes; synthetic fixtures; no human speed or independent UX acceptance'}
 
 def run(output,require_windows=False):
     from PySide6.QtWidgets import QApplication

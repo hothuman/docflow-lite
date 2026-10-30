@@ -63,4 +63,17 @@ def test_incomplete_profile_blocks_custom_form_without_writing(app,tmp_path):
         editor=RepairDialog(w,w.store.snapshot(repair));editor.template_path.setText(str(tmp_path/'custom.docx'));editor.generate();assert not w.store.documents() and 'Документ не создан' in editor.document_status.text();editor.accept()
     finally:dispose(app,w)
 
+def test_generated_document_path_cannot_widen_inactive_repair_page(app,tmp_path):
+    from test_stage1_upgrade_copy import idle,dispose
+    from docflow.ui.service.workspace import ServiceWorkspace
+    from docflow.ui.service.repair_editor import RepairDialog
+    w=ServiceWorkspace(root=tmp_path/'p');idle(app,w);repair=w.store.intake(client={'name':'Учебный'},equipment={'number':'A-01','model':'Учебная'})
+    try:
+        editor=RepairDialog(w,w.store.snapshot(repair));editor.show();editor.document_status.setText('Документ сохранён. Файл: C:/'+('ДлинныйПутьБезПробелов'*40)+'.docx');editor.resize(560,420)
+        for stage in range(5):
+            editor.tabs.setCurrentIndex(stage);app.processEvents();app.processEvents()
+            assert editor.width()==560 and editor.body_scroll.horizontalScrollBar().maximum()==0
+        editor.accept()
+    finally:dispose(app,w)
+
 from test_stage1_upgrade_copy import app

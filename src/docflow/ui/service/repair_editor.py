@@ -77,7 +77,13 @@ class RepairDialog(QDialog):
         for key,label,kind in [('started_at','Начало ДД.ММ.ГГГГ','date'),('completed_at','Завершение ДД.ММ.ГГГГ','date'),('issued_at','Выдача ДД.ММ.ГГГГ','date'),('issued_accessories','Комплектация при выдаче','long'),('handover','Сведения о передаче (только факты)','long'),('status_note','Причина изменения статуса','text')]:self.add_field(form,key,label,kind)
         self.grids['history']=Grid([('changed_at','Когда'),('old_status','Было'),('new_status','Стало'),('note','Примечание'),('source','Источник')]);form.addRow(self.grids['history']);self.issue_button=button(form,'Выдать оборудование',self.issue);self.tabs.addTab(scroll,'Статус и история')
         self.dirty_label=text('','muted');root_layout.addWidget(self.dirty_label);bar=FlowLayout();root_layout.addLayout(bar);self.next_button=button(bar,'Далее',self.next_step,primary=True);self.quick_document_button=button(bar,'Сформировать акт',lambda:self.with_saved(self.quick_document));self.save_button=button(bar,'Сохранить',self.save);button(bar,'Закрыть',self.close);self.tabs.currentChanged.connect(self.update_step_actions)
-        for label in self.findChildren(QLabel):label.setTextFormat(Qt.TextFormat.PlainText)
+        for label in self.findChildren(QLabel):
+            label.setTextFormat(Qt.TextFormat.PlainText)
+            if label.wordWrap():
+                # Paths and long organization names must wrap to the viewport.
+                # QLabel's minimumSizeHint otherwise widens even inactive pages
+                # through QStackedWidget (reproduced in the extracted EXE).
+                label.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred)
         from PySide6.QtGui import QShortcut,QKeySequence
         self.save_shortcut=QShortcut(QKeySequence.StandardKey.Save,self);self.save_shortcut.activated.connect(lambda:self.save() if self.dirty else None)
         self.install(snapshot)
