@@ -300,7 +300,8 @@ class MainWindow(QMainWindow):
         service=self.pages.currentIndex()==5
         self.breadcrumb.setVisible(self.height()>=600)
         self.status.setVisible(not service);self.subtitle.setVisible(not(service and self.height()<600))
-        if self.service_workspace:self.service_workspace.location.setVisible(self.height()>=600)
+        # The project identity/result is essential even in a compact window.
+        if self.service_workspace:self.service_workspace.location.setVisible(True)
         compact=self.width()<1050
         self.rail.layout().setContentsMargins(9 if compact else 14,12 if compact else 22,9 if compact else 14,12 if compact else 18)
         self.rail.layout().setSpacing(2 if compact else 8)
