@@ -91,7 +91,7 @@ class ServiceWorkspace(QWidget):
         groups=[('Рабочий проект','Данные хранятся отдельно от программы. Переключение не удаляет текущий проект.',[
             ('Открыть другой проект',self.choose_project),('Открыть папку проекта',self.open_folder),('Профили организаций',self.organization_profiles)]),
             ('Импорт и начало работы','Связи оборудования и обращений подтверждаются перед импортом.',[
-            ('Исторический импорт XLSX / CSV',self.import_history),('Импорт оборудования XLSX / CSV',self.import_equipment),('Word → проверочный CSV',self.review_docx),('Проверить связи без изменений',self.diagnose_links),('Создать отдельное демо',self.demo)]),
+            ('Каталог из XLSX / CSV',self.open_catalog),('Настроить стартовые действия',self.customize_dashboard),('Исторический импорт XLSX / CSV',self.import_history),('Импорт оборудования XLSX / CSV',self.import_equipment),('Word → проверочный CSV',self.review_docx),('Проверить связи без изменений',self.diagnose_links),('Создать отдельное демо',self.demo)]),
             ('Резервное копирование','Копия включает базу и связанные файлы. Восстановление — в новую папку. Архив не зашифрован.',[
             ('Быстрый старт: ремонт за 5 минут',self.quick_help),('История действий / диагностика',self.diagnostics),('Создать резервную копию',self.backup),('Восстановить в новую папку',self.restore)])]
         for title,note,actions in groups:
@@ -286,6 +286,13 @@ class ServiceWorkspace(QWidget):
             self.archive_buttons[key].setText(f'Показать архив ({archive_count})');self.archive_buttons[key].setVisible(bool(archive_count) and not archived)
         elif not visible:
             label.setText({'repairs':'Ремонтов пока нет. Создайте первое обращение.','finance':'Финансовых записей пока нет. Откройте ремонт для учёта расчётов.','documents':'Документы ещё не создавались.','estimates':'Нет сохранённых смет. Откройте ремонт и подготовьте расчёт.'}[key])
+    @needs_project
+    def open_catalog(self):
+        from .catalog import CatalogDialog
+        self.modal(CatalogDialog(self))
+    def customize_dashboard(self):
+        from .dashboard_preferences import show_editor
+        show_editor(self)
     @needs_project
     def start_intake(self,equipment=None):
         from .intake import IntakeDialog
