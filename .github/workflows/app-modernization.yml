@@ -2,7 +2,7 @@ name: DocFlow application review
 
 on:
   pull_request:
-    branches: [main, feature/clintek-stage-1-fixes]
+    branches: [main, feature/clintek-stage-1-fixes, feature/clintek-stage-2-ux]
     paths: ['src/**', 'tests/**', 'tools/**', 'scripts/**', 'packaging/**', 'requirements/**', 'pyproject.toml', 'FILE_HASHES.json', 'docs/**', '.github/workflows/app-modernization.yml']
   workflow_dispatch:
 

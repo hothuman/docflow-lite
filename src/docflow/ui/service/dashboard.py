@@ -16,6 +16,10 @@ class Dashboard(QWidget):
   self.search_button=button(self.actions,'Найти оборудование / ремонт',workspace.search_all)
   self.continue_button=button(self.actions,'Продолжить работу',workspace.continue_repair)
   self.documents_button=button(self.actions,'Документы',lambda:workspace.tabs.setCurrentIndex(5))
+  self.catalog_button=button(self.actions,'Каталог',workspace.open_catalog);self.backup_button=button(self.actions,'Резервная копия',workspace.backup)
+  self.action_buttons={'new':self.new_button,'search':self.search_button,'continue':self.continue_button,'documents':self.documents_button,'catalog':self.catalog_button,'backup':self.backup_button}
+  self.apply_actions()
+  self.preference_note=text(self.preference_warning,'muted');self.preference_note.setWordWrap(True);self.preference_note.setVisible(bool(self.preference_warning));layout.addWidget(self.preference_note)
   for control in (self.new_button,self.search_button,self.continue_button,self.documents_button):control.setMinimumHeight(50)
   self.cards=[];self.values={};self.metric_grid=QGridLayout();layout.addLayout(self.metric_grid)
   for key,title in [('active','В работе'),('ready','Готовы к выдаче'),('attention','Требует внимания')]:
@@ -30,6 +34,16 @@ class Dashboard(QWidget):
   for key,title in [('equipment','Аппаратов'),('debt','Подтверждённый остаток'),('approval','Согласование'),('parts','Запчасти')]:
    value=text('—','muted');value.setAccessibleName(title);value.setToolTip(title);self.values[key]=value;holder=QVBoxLayout();holder.addWidget(text(title,'muted'));holder.addWidget(value);bar.addLayout(holder)
   layout.addWidget(self.totals);self._columns=0;self.arrange()
+ def apply_actions(self):
+  from .dashboard_preferences import load_actions
+  order,warning=load_actions();self.preference_warning=warning
+  while self.actions.flow.count():self.actions.flow.takeAt(0)
+  for key,control in self.action_buttons.items():control.setVisible(key in order)
+  for key in order:self.actions.addWidget(self.action_buttons[key])
+  from PySide6.QtWidgets import QWidget
+  for a,b in zip(order,order[1:]):QWidget.setTabOrder(self.action_buttons[a],self.action_buttons[b])
+  self.actions.updateGeometry()
+  if hasattr(self,'preference_note'):self.preference_note.setText(warning);self.preference_note.setVisible(bool(warning))
  def arrange(self):
   columns=3 if self.width()>=600 else 1
   if columns==self._columns:return

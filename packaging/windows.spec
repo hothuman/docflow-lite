@@ -17,7 +17,7 @@ a = Analysis(
     binaries=[],
     datas=collect_data_files('docflow') + collect_data_files('docx'),
     hiddenimports=[], hookspath=[], hooksconfig={}, runtime_hooks=[],
-    excludes=['pytest','tkinter','PySide6.QtQml','PySide6.QtQuick',
+    excludes=['experiments','repair_text_parser','pytest','tkinter','PySide6.QtQml','PySide6.QtQuick',
               'PySide6.QtQuickWidgets','PySide6.QtWebEngineCore'],
     noarchive=False,
 )

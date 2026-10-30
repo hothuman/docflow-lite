@@ -49,6 +49,7 @@ def package(bundle,out,sources):
     shutil.copy2(ROOT/'THIRD_PARTY.md',bundle/'THIRD_PARTY.md')
     shutil.copy2(ROOT/'LICENSE.txt',bundle/'LICENSE.txt')
     shutil.copytree(ROOT/'src/docflow/examples',bundle/'examples',dirs_exist_ok=True)
+    if (ROOT/'examples/catalog').is_dir():shutil.copytree(ROOT/'examples/catalog',bundle/'examples/catalog',dirs_exist_ok=True)
     commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
     sbom=generate_sbom(bundle,VERSION,commit)
     (bundle/'SBOM.cdx.json').write_bytes((json.dumps(sbom,ensure_ascii=False,indent=2)+'\n').encode())

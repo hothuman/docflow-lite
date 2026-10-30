@@ -15,6 +15,14 @@ from docx import Document
 
 ROOT=Path(__file__).resolve().parents[1]
 
+REQUIRED_STAGE3_CHECKS=frozenset({'file_preview_apply_replay','catalog_to_quote_snapshot_docx','catalog_update_preserves_history','catalog_profiles_backup_restore','dashboard_presets_reset_restart','compact_catalog_layouts'})
+
+def assert_stage3_checks(report):
+    assert report['status']=='passed' and report['frozen'] and report['qt_platform']=='windows'
+    assert len(report['checks'])==6 and {c['name'] for c in report['checks']}==REQUIRED_STAGE3_CHECKS
+    assert all(c['passed'] is True for c in report['checks']) and report['backup_restore'] is True
+    assert len(report['layout'])==3 and all(c['footer_visible'] and c['actual_logical']==c['size'] for c in report['layout'])
+
 REQUIRED_STAGE2_CHECKS=frozenset({'first_intake','repeat_intake','estimate_approval','act_without_excel','issue_payment_history'})
 
 def assert_stage2_checks(report):
@@ -195,6 +203,13 @@ def verify(archive,evidence,release):
         stage2=json.loads((stage2_output/'STAGE2-SELF-TEST.json').read_text(encoding='utf-8'))
         assert stage2_run.returncode==0,stage2
         assert_stage2_checks(stage2);result['stage2']=stage2
+        result['stage3']=[]
+        for scale in ('1','1.25','1.5','2'):
+            stage3_output=evidence/('Stage3-'+scale)
+            stage3_run=subprocess.run([str(exe),'--stage3-self-test','--require-windows','--output',str(stage3_output)],cwd=testroot,env={**env,'QT_SCALE_FACTOR':scale},capture_output=True,timeout=180)
+            stage3=json.loads((stage3_output/'STAGE3-SELF-TEST.json').read_text(encoding='utf-8'))
+            assert stage3_run.returncode==0,stage3
+            assert_stage3_checks(stage3);result['stage3'].append({'scale':scale,**stage3})
     result['status']='passed'
     result['limits']=['Automated native Windows runner, not manual Windows 10/11 acceptance',
                       'Native folder picker cancellation tested at 100%/200%; other file selections supplied by harness',

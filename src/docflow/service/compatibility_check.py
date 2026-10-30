@@ -23,21 +23,28 @@ def snapshot(path):
 
 
 def assert_upgrade_preserved(original, upgraded):
-    """Check old rows exactly and the explicit v4→v5 additions independently.
+    """Check old rows exactly and explicit v4→v5→v6 additions independently.
 
     Opening a migrated database is not expected to reproduce the old schema.
-    This acceptance probe supports the public v4 baseline and current v5.
+    Supports the public v4 baseline, Stage2 v5 and current v6.
     """
     before=snapshot(original);after=snapshot(upgraded)
     with closing(sqlite3.connect(original.as_uri()+'?mode=ro',uri=True)) as old, closing(sqlite3.connect(upgraded.as_uri()+'?mode=ro',uri=True)) as new:
         version=old.execute('PRAGMA user_version').fetchone()[0]
         target=new.execute('PRAGMA user_version').fetchone()[0]
-        assert target==5,'Unexpected target schema'
-        if version==5:
+        from .database import SCHEMA_VERSION
+        assert target==SCHEMA_VERSION,'Unexpected target schema'
+        catalog={'catalog_items','catalog_profiles','catalog_imports'}
+        if version<SCHEMA_VERSION:assert all(not after[name] for name in catalog),'New catalog tables must start empty'
+        if version==SCHEMA_VERSION:
             assert after==before,'Current-version restore changed stored rows'
             return after
-        assert version==4,'Upgrade diagnostic baseline must use schema v4 or v5'
-        assert set(after)==set(before)|{'repair_finance_evidence'},'Unexpected table additions/removals'
+        if version==5:
+            assert set(after)==set(before)|catalog
+            for name,rows in before.items():assert after[name]==rows,'Changed stage2 rows: '+name
+            return after
+        assert version==4,'Upgrade diagnostic baseline must use schema v4, v5 or current'
+        assert set(after)==set(before)|{'repair_finance_evidence'}|catalog,'Unexpected table additions/removals'
         for name,rows in before.items():
             quoted='"'+name.replace('"','""')+'"'
             old_columns=[r[1] for r in old.execute('PRAGMA table_info('+quoted+')')]

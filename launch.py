@@ -7,6 +7,9 @@ if not getattr(sys, "frozen", False):
 
 
 def main():
+    if len(sys.argv)>1 and sys.argv[1]=='--stage3-self-test':
+        from docflow.service.stage3_check import main as stage3_check
+        return stage3_check(sys.argv[2:])
     if len(sys.argv)>1 and sys.argv[1]=='--stage2-self-test':
         from docflow.service.stage2_check import main as stage2_check
         return stage2_check(sys.argv[2:])
@@ -30,5 +33,7 @@ def main():
 
 
 if __name__ == "__main__":
+    from multiprocessing import freeze_support
+    freeze_support()
     raise SystemExit(main())
 

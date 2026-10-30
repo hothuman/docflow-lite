@@ -6,7 +6,7 @@ from uuid import uuid4
 from functools import lru_cache
 from .validation import ServiceError,now
 
-SCHEMA_VERSION=5
+SCHEMA_VERSION=6
 MIGRATIONS={1:[
  '''CREATE TABLE clients(id TEXT PRIMARY KEY, kind TEXT NOT NULL, name TEXT NOT NULL, legal_name TEXT NOT NULL DEFAULT '', contact TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN(0,1)), created_at TEXT NOT NULL, updated_at TEXT NOT NULL)''',
  '''CREATE TABLE equipment(id TEXT PRIMARY KEY, number TEXT NOT NULL COLLATE NOCASE UNIQUE, manufacturer TEXT NOT NULL DEFAULT '', model TEXT NOT NULL, kind TEXT NOT NULL DEFAULT '', serial TEXT NOT NULL DEFAULT '', owner_id TEXT NOT NULL REFERENCES clients(id), identifiers TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN(0,1)), created_at TEXT NOT NULL, updated_at TEXT NOT NULL)''',
@@ -54,6 +54,13 @@ MIGRATIONS={1:[
  'ALTER TABLE repair_items ADD COLUMN price_known INTEGER NOT NULL DEFAULT 1 CHECK(price_known IN(0,1))',
  '''CREATE TABLE repair_finance_evidence(repair_id TEXT PRIMARY KEY REFERENCES repair_orders(id), cost_known INTEGER NOT NULL CHECK(cost_known IN(0,1)), payments_known INTEGER NOT NULL CHECK(payments_known IN(0,1)), note TEXT NOT NULL, updated_at TEXT NOT NULL)''',
  "INSERT INTO repair_finance_evidence SELECT DISTINCT repair_id,0,0,'Исторический импорт прежней версии: полнота стоимости и оплат не подтверждена',imported_at FROM import_records GROUP BY repair_id"
+ ],6:[
+ "CREATE TABLE catalog_items(source TEXT NOT NULL, external_key TEXT NOT NULL, sku TEXT NOT NULL DEFAULT '', payload_json TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(source,external_key))",
+ "CREATE UNIQUE INDEX catalog_sku ON catalog_items(source,sku) WHERE sku<>''",
+ 'CREATE TABLE catalog_profiles(name TEXT PRIMARY KEY, config_json TEXT NOT NULL, updated_at TEXT NOT NULL)',
+ 'CREATE TABLE catalog_imports(id INTEGER PRIMARY KEY, source TEXT NOT NULL, file_sha256 TEXT NOT NULL, report_json TEXT NOT NULL, created_at TEXT NOT NULL)',
+ "CREATE TRIGGER catalog_log_immutable_update BEFORE UPDATE ON catalog_imports BEGIN SELECT RAISE(ABORT,'Catalog import logs are immutable'); END",
+ "CREATE TRIGGER catalog_log_immutable_delete BEFORE DELETE ON catalog_imports BEGIN SELECT RAISE(ABORT,'Catalog import logs are immutable'); END"
 ]}
 
 @lru_cache(maxsize=SCHEMA_VERSION)

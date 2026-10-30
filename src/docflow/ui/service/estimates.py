@@ -21,7 +21,7 @@ class DraftDialog(QDialog):
         source=editor.snapshot['preliminary_draft'];self.revision=source['revision'];self.lines=[dict(x) for x in source['lines']]
         outer=QVBoxLayout(self);scroll=QScrollArea();scroll.setWidgetResizable(True);body=QWidget();layout=QVBoxLayout(body);scroll.setWidget(body);outer.addWidget(scroll,1);note=QLabel('Черновик не меняет фактические работы и задолженность. После сохранения создайте неизменяемую версию сметы.');note.setWordWrap(True);layout.addWidget(note)
         bar=FlowLayout();layout.addLayout(bar)
-        for title,fn in [('Добавить',self.add),('Изменить',self.edit),('Удалить',self.remove),('Выше',lambda:self.move(-1)),('Ниже',lambda:self.move(1))]:button(bar,title,fn)
+        for title,fn in [('Добавить',self.add),('Из каталога',self.from_catalog),('Изменить',self.edit),('Удалить',self.remove),('Выше',lambda:self.move(-1)),('Ниже',lambda:self.move(1))]:button(bar,title,fn)
         self.grid=Grid([('kind','Тип'),('name','Наименование'),('description','Описание'),('quantity','Количество'),('unit','Ед.'),('price','Цена'),('total','Сумма')]);layout.addWidget(self.grid,1)
         self.total_label=QLabel();self.total_label.setObjectName('section');self.total_label.setWordWrap(True);self.total_label.setAccessibleName('Итог предварительного черновика');layout.addWidget(self.total_label)
         self.discount=QLineEdit(amount(source['discount_cents']) if source['revision'] else editor.snapshot['profile']['default_discount']);self.discount.setAccessibleName('Скидка предварительной сметы');layout.addWidget(QLabel('Скидка, ₽'));layout.addWidget(self.discount)
@@ -36,12 +36,18 @@ class DraftDialog(QDialog):
         d=FieldsDialog('Позиция предварительного расчёта',[('kind','Тип',list(ITEM_KINDS.items())),('name','Наименование *','text'),('description','Описание','long'),('quantity','Количество','text'),('unit','Ед.','text'),('price','Цена, ₽','text')],{**row,'price':amount(row['price_cents'])},self)
         if d.exec()==QDialog.DialogCode.Accepted:
             from ...service.estimates import normalize_lines
-            try:value=normalize_lines([d.values()])[0]
+            try:value=normalize_lines([{**row,**d.values()}])[0]
             except Exception as exc:QMessageBox.warning(self,'Расчёт',str(exc));return
             if index is None:self.lines.append(value)
             else:self.lines[index]=value
             self.changed();self.install()
     def add(self):self.change()
+    def from_catalog(self):
+        from .catalog import CatalogPicker
+        d=CatalogPicker(self.editor.store,self)
+        if d.exec()==QDialog.DialogCode.Accepted:
+            if len(self.lines)>=2000:QMessageBox.warning(self,'Расчёт','Допускается до 2000 позиций');return
+            self.lines.append(d.value);self.changed();self.install()
     def edit(self):
         row=self.grid.selected()
         if row:self.change(int(row['id']))
