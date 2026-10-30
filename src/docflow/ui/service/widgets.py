@@ -35,7 +35,10 @@ class Grid(QTableView):
   if self._sizing or not self.records.columns:return
   self._sizing=True
   try:
-   available=max(100,self.viewport().width()-2);visible=list(range(len(self.records.columns)));widths={i:self._user_widths.get(i,self._preferred.get(i,130)) for i in visible}
+   available=max(100,self.viewport().width()-2);compact=available<420
+   if self.property('compactMoney')!=compact:
+    self.setProperty('compactMoney',compact);self.style().unpolish(self);self.style().polish(self)
+   visible=list(range(len(self.records.columns)));widths={i:self._user_widths.get(i,self._preferred.get(i,130)) for i in visible}
    secondary=('description','complaint','notes','void_reason','source','path','logo_path','contact','email','phone','legal_name','serial','prepared_by','client','financial_status','status','state','state_label','received_at','created_at','changed_at','method','unit','kind','defects','item_text')
    for key in secondary:
     if sum(widths[i] for i in visible)<=available:break
@@ -53,11 +56,16 @@ class Grid(QTableView):
    for i in visible:
     if extra<=0:break
     key=self.records.columns[i][0]
-    if key in MONEY:minimum=self._content_minimum[i]
+    if key in MONEY:minimum=max(48,self._content_minimum[i]-(16 if compact else 0))
     elif key in ('number','equipment_number'):
      minimum=max(48,max((self.fontMetrics().horizontalAdvance(display(key,r)) for r in self.records.rows),default=22)+26)
     else:continue
     amount=min(extra,max(0,widths[i]-minimum));widths[i]-=amount;extra-=amount
+   if compact:
+    for i in visible:
+     if extra<=0:break
+     if self.records.columns[i][0] not in MONEY:
+      amount=min(extra,max(0,widths[i]-48));widths[i]-=amount;extra-=amount
    remaining=available-sum(widths[i] for i in visible)
    if remaining>0 and visible:
     stretch=next((i for i in visible if self.records.columns[i][0] in ('name','model','equipment_label','client')),visible[0]);widths[stretch]+=remaining

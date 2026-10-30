@@ -197,7 +197,9 @@ def test_compact_finance_keeps_amounts_visible_when_headers_are_wider(ui):
  grid.resize(width,250);grid.show();app.processEvents();grid.fit_columns();app.processEvents()
  for col,minimum in zip((3,4,5),amount_widths):
   assert not grid.isColumnHidden(col)
-  assert grid.columnWidth(col)>=minimum
+  # Compact cells use 2px side padding; the whole value still fits with 10px
+  # allowance. Wider tables retain the previous 26px allowance.
+  assert grid.columnWidth(col)>=minimum-(16 if grid.property('compactMoney') else 0)
   assert grid.columnViewportPosition(col)+grid.columnWidth(col)<=grid.viewport().width()
  assert grid.records.headerData(5,Qt.Orientation.Horizontal,Qt.ItemDataRole.ToolTipRole)=='Остаток к оплате'
  assert grid._user_widths=={}

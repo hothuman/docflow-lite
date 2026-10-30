@@ -3,7 +3,7 @@ from pathlib import Path
 from uuid import uuid4
 from PySide6.QtCore import QUrl,Qt
 from PySide6.QtGui import QImageReader,QPixmap,QDesktopServices
-from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QFormLayout,QLabel,QTabWidget,QLineEdit,QPlainTextEdit,QComboBox,QScrollArea,QWidget,QFileDialog,QInputDialog,QMessageBox,QCheckBox,QFrame)
+from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QFormLayout,QLabel,QTabWidget,QLineEdit,QPlainTextEdit,QComboBox,QScrollArea,QWidget,QFileDialog,QInputDialog,QMessageBox,QCheckBox,QFrame,QSizePolicy)
 from ...service.validation import rub
 from ...service.statuses import STATUSES,APPROVALS
 from ...service.documents import KINDS,generate_document
@@ -23,7 +23,7 @@ class RepairDialog(QDialog):
     def __init__(self,workspace,snapshot):
         super().__init__(workspace);self.workspace=workspace;self.store=workspace.store;self.snapshot=snapshot;self.key=snapshot['repair']['id'];self.dirty=False;self.fields={};self.grids={}
         self.setWindowTitle('Ремонт '+snapshot['repair']['number']);fit_dialog(self,1060,740)
-        outer=QVBoxLayout(self);outer.setSpacing(14)
+        root_layout=QVBoxLayout(self);scroller=QScrollArea();scroller.setWidgetResizable(True);content=QWidget();scroller.setWidget(content);root_layout.addWidget(scroller,1);outer=QVBoxLayout(content);outer.setContentsMargins(0,0,0,0);outer.setSpacing(14)
         passport=QFrame();passport.setObjectName('card');passport_layout=QVBoxLayout(passport);passport_layout.setContentsMargins(12,8,12,8)
         self.identity=QLabel();self.identity.setWordWrap(True);self.heading=text('','section');passport_layout.addWidget(self.heading);passport_layout.addWidget(self.identity)
         number_bar=FlowLayout();passport_layout.addLayout(number_bar)
@@ -43,7 +43,7 @@ class RepairDialog(QDialog):
         self.state_frame=QFrame();self.state_frame.setObjectName('repairState');state_layout=QHBoxLayout(self.state_frame);state_layout.setContentsMargins(12,8,12,8)
         self.state_hint=text('','muted');self.state_hint.setAccessibleName('Текущий этап и следующий шаг');state_layout.addWidget(self.state_hint,1)
         self.status_action=button(state_layout,'Статус и история',self.open_status);outer.addWidget(self.state_frame)
-        status_form=QFormLayout();passport_layout.addLayout(status_form);self.add_field(status_form,'status','Статус ремонта',[(k,v[0]) for k,v in STATUSES.items()]);self.tabs=RepairNavigation();self.tabs.setUsesScrollButtons(False);outer.addWidget(self.tabs,1)
+        status_form=QFormLayout();passport_layout.addLayout(status_form);self.add_field(status_form,'status','Статус ремонта',[(k,v[0]) for k,v in STATUSES.items()]);self.tabs=RepairNavigation();self.tabs.setUsesScrollButtons(False);self.tabs.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Ignored);self.tabs.setMinimumHeight(0);outer.addWidget(self.tabs,1)
         sections=[('Приёмка',[('received_at','Дата ДД.ММ.ГГГГ','date'),('complaint','Жалоба','long'),('accessories','Комплектация','long'),('condition','Внешнее состояние','long'),('notes','Примечания','long')]),('Дефектовка',[('defects','Неисправности','long'),('plan','План работ','long')]),('Согласование',[('approval','Согласование',[(v,v) for v in APPROVALS]),('approval_note','Комментарий к согласованию','long')])]
         for title,fields in sections:
             scroll=QScrollArea();scroll.setWidgetResizable(True);body=QWidget();body_layout=QVBoxLayout(body);body_layout.setContentsMargins(0,0,0,0);form=QFormLayout();body_layout.addLayout(form);body_layout.addStretch(1);form.setFormAlignment(Qt.AlignmentFlag.AlignTop);form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow);form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows);scroll.setWidget(body);self.tabs.addTab(scroll,title)
@@ -73,7 +73,7 @@ class RepairDialog(QDialog):
         scroll=QScrollArea();scroll.setWidgetResizable(True);p=QWidget();form=QFormLayout(p);form.setFormAlignment(Qt.AlignmentFlag.AlignTop);scroll.setWidget(p)
         for key,label,kind in [('started_at','Начало ДД.ММ.ГГГГ','date'),('completed_at','Завершение ДД.ММ.ГГГГ','date'),('issued_at','Выдача ДД.ММ.ГГГГ','date'),('issued_accessories','Комплектация при выдаче','long'),('handover','Сведения о передаче (только факты)','long'),('status_note','Причина изменения статуса','text')]:self.add_field(form,key,label,kind)
         self.grids['history']=Grid([('changed_at','Когда'),('old_status','Было'),('new_status','Стало'),('note','Примечание'),('source','Источник')]);form.addRow(self.grids['history']);self.issue_button=button(form,'Выдать оборудование',self.issue,primary=True);self.tabs.addTab(scroll,'Статус и история')
-        bar=FlowLayout();outer.addLayout(bar);self.dirty_label=text('','muted');bar.addWidget(self.dirty_label);self.next_button=button(bar,'Далее',self.next_step);self.quick_document_button=button(bar,'Сформировать акт',lambda:self.with_saved(self.quick_document));self.save_button=button(bar,'Сохранить ремонт',self.save,primary=True);button(bar,'Закрыть',self.close)
+        bar=FlowLayout();root_layout.addLayout(bar);self.dirty_label=text('','muted');bar.addWidget(self.dirty_label);self.next_button=button(bar,'Далее',self.next_step);self.quick_document_button=button(bar,'Сформировать акт',lambda:self.with_saved(self.quick_document));self.save_button=button(bar,'Сохранить ремонт',self.save,primary=True);button(bar,'Закрыть',self.close)
         for label in self.findChildren(QLabel):label.setTextFormat(Qt.TextFormat.PlainText)
         from PySide6.QtGui import QShortcut,QKeySequence
         self.save_shortcut=QShortcut(QKeySequence.StandardKey.Save,self);self.save_shortcut.activated.connect(lambda:self.save() if self.dirty else None)

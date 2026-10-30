@@ -43,3 +43,15 @@ def test_compact_estimates_keep_total_and_repair_number_visible(app):
     grid.resize(340,200);grid.install([{'number':'1000','client':'Учебный клиент','kind':'preliminary','version':1,'state':'approved','total':120000}]);grid.show();app.processEvents();grid.fit_columns();app.processEvents()
     for column in (0,5):assert not grid.isColumnHidden(column) and grid.columnViewportPosition(column)+grid.columnWidth(column)<=grid.viewport().width()
     grid.close()
+
+def test_first_show_respects_requested_card_size_and_footer(app,tmp_path):
+    from PySide6.QtCore import QPoint
+    workspace=ServiceWorkspace(root=tmp_path/'project');idle(app,workspace)
+    try:
+        key=workspace.store.intake(client={'name':'Synthetic'},equipment={'number':'1','model':'Synthetic'})
+        editor=RepairDialog(workspace,workspace.store.snapshot(key));editor.resize(560,420);editor.show();app.processEvents();app.processEvents()
+        assert editor.width()==560 and editor.height()==420
+        for control in (editor.save_button,editor.quick_document_button):
+            point=control.mapTo(editor,QPoint());assert editor.rect().contains(point+QPoint(control.width()-1,control.height()-1))
+        editor.accept()
+    finally:dispose(app,workspace)
