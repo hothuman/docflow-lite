@@ -33,3 +33,13 @@ def test_project_opening_evidence_requires_real_frozen_native_cancellation(chang
     elif change=='missing':report['checks'].pop()
     else:report['checks'][0]['passed']=False
     with pytest.raises(AssertionError):verifier.assert_project_loading_checks(report)
+
+
+@pytest.mark.parametrize('change',['none','source','missing','failed'])
+def test_stage2_verifier_requires_all_five_frozen_routes(change):
+    report={'status':'passed','frozen':True,'qt_platform':'windows','backup_restore':True,'checks':[{'name':n,'passed':True} for n in verifier.REQUIRED_STAGE2_CHECKS]}
+    if change=='none':verifier.assert_stage2_checks(report);return
+    if change=='source':report['frozen']=False
+    elif change=='missing':report['checks'].pop()
+    else:report['checks'][0]['passed']=False
+    with pytest.raises(AssertionError):verifier.assert_stage2_checks(report)

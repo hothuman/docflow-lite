@@ -2,7 +2,7 @@ name: DocFlow application review
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, feature/clintek-stage-1-fixes]
     paths: ['src/**', 'tests/**', 'tools/**', 'scripts/**', 'packaging/**', 'requirements/**', 'pyproject.toml', 'FILE_HASHES.json', 'docs/**', '.github/workflows/app-modernization.yml']
   workflow_dispatch:
 
@@ -39,6 +39,7 @@ jobs:
           for scale in 1 1.25 1.5 1.75 2; do
             QT_SCALE_FACTOR=$scale python tools/qa_layout.py --output artifacts/layout-$scale
             QT_SCALE_FACTOR=$scale python tools/qa_refinement_ui.py --output artifacts/service-layout-$scale
+            QT_SCALE_FACTOR=$scale python tools/qa_stage2_layout.py --output artifacts/stage2-layout-$scale
           done
       - name: Synthetic Service scale probes
         run: python tools/qa_service_performance.py --output artifacts/service-performance

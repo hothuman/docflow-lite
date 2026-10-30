@@ -69,6 +69,7 @@ QCheckBox::indicator:checked,QAbstractItemView::indicator:checked {background:@a
 QToolTip {background:@raised@;color:@text@;border:1px solid @border@;padding:6px;}
 QMessageBox {background:@surface@;}
 QDialogButtonBox,QToolBar {background:transparent;border:0;}
+QTableView[compactMoney="true"]::item {padding-left:2px;padding-right:2px;}
 QGroupBox {margin-top:12px;padding:12px;}
 QMenu {background:@raised@;color:@text@;border:1px solid @border@;}
 QMenu::item {padding:8px 12px;}

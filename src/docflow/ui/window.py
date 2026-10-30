@@ -101,10 +101,15 @@ class MainWindow(QMainWindow):
             button.clicked.connect(lambda checked=False,i=index:self.navigate(i))
             nav.addWidget(button);self.nav_buttons.append(button)
         self.service_nav=[]
-        for i,(label,kind) in enumerate(zip(('Обзор','Оборудование','Ремонты','Клиенты','Финансы','Документы','Сметы','Настройки'),('check','templates','fields','info','fields','document','document','folder'))):
+        for i,(label,kind) in enumerate(zip(('Обзор','Оборудование','Ремонты','Клиенты','Финансы','Документы','Сметы','Настройки'),('check','tool','history','people','money','document','document','folder'))):
             button=QPushButton(label);button.setObjectName('nav');button.setCheckable(True);button.setIcon(icon(kind));button.setToolTip(label);button.setAccessibleName('Service: '+label)
             button.clicked.connect(lambda checked=False,index=i:self._navigate_service(index))
-            button.hide();nav.addWidget(button);self.service_nav.append(button)
+            button.hide();self.service_nav.append(button)
+        for i in (0,2,1,3,5):nav.addWidget(self.service_nav[i])
+        self.account_caption=text('УЧЁТ И НАСТРОЙКИ','eyebrow');self.account_caption.hide();nav.addWidget(self.account_caption)
+        for i in (4,6,7):nav.addWidget(self.service_nav[i])
+        ordered=[self.service_nav[i] for i in (0,2,1,3,5,4,6,7)]
+        for a,b in zip(ordered,ordered[1:]):QWidget.setTabOrder(a,b)
         nav.addStretch()
         self.local_note=text('Локальная обработка\nБез сети и телеметрии','muted');nav.addWidget(self.local_note)
         outer.addWidget(self.rail)
@@ -311,7 +316,7 @@ class MainWindow(QMainWindow):
         self.brand.setText('d/ DocFlow');self.version_label.setVisible(not compact);self.local_note.setVisible(not compact)
         for i,button in enumerate(self.nav_buttons):button.setText(('Документы','Шаблоны','Поля','Результат','О программе','Service')[i] if compact else self.NAV_NAMES[i])
         for i,button in enumerate(self.service_nav):button.setText(('Обзор','Аппараты','Ремонты','Клиенты','Финансы','Документы','Сметы','Настройки')[i] if compact else ('Обзор','Оборудование','Ремонты','Клиенты','Финансы','Документы','Сметы','Настройки')[i])
-        self.nav_caption.setVisible(not compact)
+        self.nav_caption.setVisible(not compact);self.account_caption.setVisible(service and not compact)
         self.mode_picker.setItemText(0,'Core' if compact else 'Core · Документы');self.mode_picker.setItemText(1,'Service' if compact else 'Service · Мастерская')
         self.rail.setFixedWidth(148 if compact else max(224,max(button.sizeHint().width() for button in self.nav_buttons)+28))
         self.demo_btn.setText('Демо' if compact else 'Открыть демопример');self.folder_btn.setText('Папка' if compact else 'Открыть папку')

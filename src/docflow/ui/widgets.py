@@ -19,6 +19,16 @@ def icon(kind='document', color='#A7BDB5', size=24):
         for y in (5,12,19):p.drawLine(3,y,21,y);p.drawEllipse(8 if y==12 else 14,y-2,4,4)
     elif kind == 'info':
         p.drawEllipse(3,3,18,18);p.drawLine(12,10,12,17);p.drawPoint(12,7)
+    elif kind == 'people':
+        p.drawEllipse(9,3,6,6);p.drawArc(5,10,14,13,0,180*16);p.drawEllipse(2,6,4,4);p.drawLine(2,14,5,12)
+    elif kind == 'money':
+        p.drawEllipse(2,2,20,20);p.drawText(7,17,'₽')
+    elif kind == 'tool':
+        p.drawLine(5,20,17,8);p.drawEllipse(14,2,8,8);p.drawLine(3,17,6,20)
+    elif kind == 'history':
+        p.drawEllipse(3,3,18,18);p.drawLine(12,6,12,12);p.drawLine(12,12,17,15)
+    elif kind == 'search':
+        p.drawEllipse(3,3,12,12);p.drawLine(14,14,21,21)
     elif kind == 'plus':
         p.drawLine(4,12,20,12);p.drawLine(12,4,12,20)
     p.end();image.setDevicePixelRatio(2)

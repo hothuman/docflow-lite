@@ -158,7 +158,7 @@ def test_every_business_entry_is_safe_without_store(app,tmp_path,monkeypatch):
     monkeypatch.setattr(module.QFileDialog,'getSaveFileName',lambda *args:pytest.fail('Unexpected file picker'))
     workspace=module.ServiceWorkspace(root=source);idle(app,workspace)
     try:
-        calls=[('new_client',()),('edit_client',()),('new_equipment',()),('edit_equipment',()),('new_repair',()),('new_repair_for',({},)),('archive',('clients',)),('equipment_card',()),('dashboard_history',()),('diagnostics',()),('diagnose_links',()),('organization_profiles',()),('import_history',()),('import_equipment',()),('review_docx',()),('backup',()),('open_folder',()),('open_repair',('missing',)),('open_selected',('finance',)),('open_selected',('estimates',)),('open_file',()),('export_document',())]
+        calls=[('start_intake',()),('search_all',()),('continue_repair',()),('new_client',()),('edit_client',()),('new_equipment',()),('edit_equipment',()),('new_repair',()),('new_repair_for',({},)),('archive',('clients',)),('equipment_card',()),('dashboard_history',()),('diagnostics',()),('diagnose_links',()),('organization_profiles',()),('import_history',()),('import_equipment',()),('review_docx',()),('backup',()),('open_folder',()),('open_repair',('missing',)),('open_selected',('finance',)),('open_selected',('estimates',)),('open_file',()),('export_document',())]
         for name,args in calls:
             getattr(workspace,name)(*args);app.processEvents()
             assert workspace.worker is None and workspace.store is None

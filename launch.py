@@ -7,6 +7,9 @@ if not getattr(sys, "frozen", False):
 
 
 def main():
+    if len(sys.argv)>1 and sys.argv[1]=='--stage2-self-test':
+        from docflow.service.stage2_check import main as stage2_check
+        return stage2_check(sys.argv[2:])
     if len(sys.argv)>1 and sys.argv[1]=='--project-loading-self-test':
         from docflow.service.project_loading_check import main as project_check
         return project_check(sys.argv[2:])

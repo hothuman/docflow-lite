@@ -37,7 +37,7 @@ class Job(QThread):
 
 class ServiceWorkspace(QWidget):
     def __init__(self,parent=None,root=None,shell_navigation=False):
-        super().__init__(parent);self.shell_navigation=shell_navigation;self.store=None;self.worker=None;self.project_lock=None;self.cache={};self._pending_refresh=False;self.dialogs=[];self.project_state='not_open';self._project_busy=False;self._safe_project_buttons=[]
+        super().__init__(parent);self.shell_navigation=shell_navigation;self.store=None;self.worker=None;self.project_lock=None;self.cache={};self._pending_refresh=False;self.dialogs=[];self._last_repairs={};self.project_state='not_open';self._project_busy=False;self._safe_project_buttons=[]
         out=QVBoxLayout(self);out.setContentsMargins(0,0,0,0)
         self.location=QLabel('Проект не открыт');self.location.setObjectName('projectLocation');self.location.setWordWrap(True);out.addWidget(self.location)
         self.project_actions=ActionBar();out.addWidget(self.project_actions)
@@ -70,7 +70,7 @@ class ServiceWorkspace(QWidget):
             view=Grid(cols,settings_key='workspace/'+key);layout.addWidget(view,1);search.textChanged.connect(view.proxy.setFilterFixedString);search.textChanged.connect(lambda _,k=key:self.update_list_state(k));self.views[key]=view;self.tabs.addTab(page,name)
         button(self.toolbars['clients'],'Добавить',self.new_client);button(self.toolbars['clients'],'Изменить',self.edit_client);button(self.toolbars['clients'],'Архив / вернуть',lambda:self.archive('clients'))
         button(self.toolbars['equipment'],'Добавить',self.new_equipment);button(self.toolbars['equipment'],'Карточка / история',self.equipment_card);button(self.toolbars['equipment'],'Изменить',self.edit_equipment);button(self.toolbars['equipment'],'Архив / вернуть',lambda:self.archive('equipment'))
-        button(self.toolbars['repairs'],'Новый ремонт',self.new_repair);button(self.toolbars['repairs'],'Открыть',lambda:self.open_selected('repairs'))
+        button(self.toolbars['repairs'],'Новый ремонт',self.start_intake);button(self.toolbars['repairs'],'Открыть',lambda:self.open_selected('repairs'))
         self.status_filter=QComboBox();self.status_filter.addItem('Все статусы','')
         for k,(name,_) in STATUSES.items():self.status_filter.addItem(name,k)
         self.toolbars['repairs'].addWidget(self.status_filter);self.status_filter.currentIndexChanged.connect(self.refresh)
@@ -93,7 +93,7 @@ class ServiceWorkspace(QWidget):
             ('Импорт и начало работы','Связи оборудования и обращений подтверждаются перед импортом.',[
             ('Исторический импорт XLSX / CSV',self.import_history),('Импорт оборудования XLSX / CSV',self.import_equipment),('Word → проверочный CSV',self.review_docx),('Проверить связи без изменений',self.diagnose_links),('Создать отдельное демо',self.demo)]),
             ('Резервное копирование','Копия включает базу и связанные файлы. Восстановление — в новую папку. Архив не зашифрован.',[
-            ('Создать резервную копию',self.backup),('Восстановить в новую папку',self.restore)])]
+            ('Быстрый старт: ремонт за 5 минут',self.quick_help),('История действий / диагностика',self.diagnostics),('Создать резервную копию',self.backup),('Восстановить в новую папку',self.restore)])]
         for title,note,actions in groups:
             frame,body=card(title,note);bar=ActionBar();body.addWidget(bar)
             for label,fn in actions:
@@ -287,6 +287,30 @@ class ServiceWorkspace(QWidget):
         elif not visible:
             label.setText({'repairs':'Ремонтов пока нет. Создайте первое обращение.','finance':'Финансовых записей пока нет. Откройте ремонт для учёта расчётов.','documents':'Документы ещё не создавались.','estimates':'Нет сохранённых смет. Откройте ремонт и подготовьте расчёт.'}[key])
     @needs_project
+    def start_intake(self,equipment=None):
+        from .intake import IntakeDialog
+        if isinstance(equipment,bool):equipment=None
+        dialog=IntakeDialog(self,equipment)
+        self.dialogs.append(dialog)
+        try:dialog.exec()
+        finally:self.dialogs.remove(dialog)
+        if getattr(dialog,'created_key',None):self.open_repair(dialog.created_key)
+        else:self.refresh()
+    @needs_project
+    def search_all(self):
+        from .search import SearchDialog
+        self.modal(SearchDialog(self))
+    @needs_project
+    def continue_repair(self):
+        key=self._last_repairs.get(str(self.store.root))
+        if key and any(r['id']==key for r in self.cache.get('finance',[])):self.open_repair(key)
+        else:
+            self.tabs.setCurrentIndex(2);self.searches['repairs'].setFocus()
+            self.message.setText('Выберите ремонт, чтобы продолжить. После открытия он запомнится в этом проекте.')
+    def quick_help(self):
+        dialog=QDialog(self);dialog.setWindowTitle('Ремонт за 5 минут');box=QVBoxLayout(dialog)
+        label=QLabel('1. Новый ремонт — выберите известный аппарат или добавьте новый с клиентом.\n2. Приёмка — жалоба и комплектность. Диагностика — причина и план.\n3. Согласование — расчёт, версия сметы и фактический ответ заказчика.\n4. Работы — выполненные позиции, запчасти, фото и расчёты.\n5. Выдача — сформируйте акт, откройте для печати и отметьте передачу.\nИстория аппарата всегда доступна из карточки. Состояние ремонта и оплата учитываются отдельно.');label.setWordWrap(True);box.addWidget(label);button(box,'Понятно',dialog.accept);dialog.resize(580,420);dialog.exec()
+    @needs_project
     def diagnose_links(self):
         from ...service.link_audit import audit_links,audit_summary
         store=self.store
@@ -413,6 +437,7 @@ class ServiceWorkspace(QWidget):
             self.run(lambda:export_review_csv(source,target),lambda _:self.message.setText('CSV сохранён. Исправьте и сопоставьте колонки перед историческим импортом.'))
     @needs_project
     def open_repair(self,key,section=None):
+        self._last_repairs[str(self.store.root)]=key
         s=self.store
         def show(snapshot):
             d=RepairDialog(self,snapshot)
