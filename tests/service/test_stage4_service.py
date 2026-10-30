@@ -13,6 +13,13 @@ def test_hidden_new_values_cannot_create_entities_in_repeat_intake(app,tmp_path)
     w=ServiceWorkspace(root=tmp_path/'p');idle(app,w);seed(w)
     try:
         d=IntakeDialog(w);d.show();d.new_equipment.setChecked(True);d.new_client.setChecked(True);d.name.setText('НЕ СОХРАНЯТЬ');d.number.setText('НЕ СОХРАНЯТЬ');d.model.setText('НЕ СОХРАНЯТЬ');d.existing_equipment.setChecked(True)
+        # Selection/focus must not change indicator metrics and clip the label.
+        from PySide6.QtWidgets import QStyleOptionButton,QStyle
+        from PySide6.QtCore import QSize
+        radio=d.new_equipment;radio.ensurePolished();natural=QSize(radio.fontMetrics().horizontalAdvance(radio.text()),radio.fontMetrics().height());sizes=[]
+        for chosen in (True,False):
+            (d.new_equipment if chosen else d.existing_equipment).setChecked(True);app.processEvents();option=QStyleOptionButton();radio.initStyleOption(option);sizes.append(radio.style().sizeFromContents(QStyle.ContentsType.CT_RadioButton,option,natural,radio).width())
+        assert sizes[0]==sizes[1]
         assert d.existing_equipment.isChecked() and not d.new_equipment.isChecked() and not d.device_body.isVisible()
         assert 'история сохраняется' in d.confirmation.text() and 'НЕ СОХРАНЯТЬ' not in d.confirmation.text()
         d.submit.click();idle(app,w)

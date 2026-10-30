@@ -86,7 +86,7 @@ QPushButton#journey:checked {background:@raised@;color:@text@;border-bottom:2px 
 QToolButton#detailToggle {background:@surface@;border:1px solid @border@;border-radius:5px;padding:9px;text-align:left;font-weight:600;}
 QToolButton#detailToggle:checked {border-bottom:2px solid @accent@;}
 QToolButton#detailToggle:focus,QRadioButton:focus {border:1px solid @focus@;}
-QRadioButton {spacing:8px;padding:7px;}
+QRadioButton {spacing:8px;padding:7px;border:1px solid transparent;}
 QRadioButton::indicator {width:16px;height:16px;border:1px solid @muted@;border-radius:9px;background:@input@;}
-QRadioButton::indicator:checked {background:@accent@;border:3px solid @raised@;}
+QRadioButton::indicator:checked {background:@accent@;border:1px solid @raised@;}
 QLabel#intakeSummary {background:@surface@;padding:10px;border-left:2px solid @accent@;}

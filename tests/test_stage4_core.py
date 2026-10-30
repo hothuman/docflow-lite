@@ -20,9 +20,12 @@ def test_full_check_is_not_inferred_from_mapping_or_preview(tmp_path):
         w.row_selector.setCurrentIndex(1);wait_idle(w);assert not w.route_buttons[2].property('complete')
         w.check_all();wait_idle(w);assert w.route_buttons[2].property('complete') and 'Все 3 строк' in w.mapping_feedback.text()
         w.mapping_table.cellWidget(0,3).setChecked(False);wait_idle(w);assert not w.route_buttons[2].property('complete')
-        w.output_path.setText(str(tmp_path/'results'));w.start_generation();wait_idle(w)
+        w.resize(820,620);w.output_path.setText(str(tmp_path/'results'));w.start_generation();wait_idle(w)
         assert w.last_result.documents==4 and w.route_buttons[2].property('complete')
         assert w._full_check[1:]==(1,3) and 'Строка' in w.validation_report.toPlainText()
+        from PySide6.QtCore import QPoint
+        viewport=w.pages.widget(3).viewport();position=w.result_open_btn.mapTo(viewport,QPoint())
+        assert viewport.rect().contains(position) and viewport.rect().contains(position+QPoint(w.result_open_btn.width()-1,w.result_open_btn.height()-1))
     finally:w.close()
 
 def test_mode_keyboard_remembers_pages_and_preserves_core_input(tmp_path):

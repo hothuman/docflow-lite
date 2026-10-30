@@ -649,6 +649,9 @@ class MainWindow(QMainWindow):
         self.result_path.setText(str(result.directory));self.result_path.setToolTip(str(result.directory))
         message=f'Всего записей: {result.total}\nСоздано DOCX: {result.documents}\nОбработано: {result.accepted}\nПропущено: {result.rejected}\n\n'+'\n'.join(f'Строка {x.row} · {x.field}: {x.message}' for x in result.issues)+'\n\nПолные отчёты: report.json и report.csv'
         self.report_text.setPlainText(message);self.result_report.setPlainText(message);self.tabs.setCurrentIndex(2);self.navigate(3,internal=True)
+        # Bring the completed package and its folder action into view, rather
+        # than leaving the user above the fold at the generation settings.
+        QTimer.singleShot(0,self,lambda:self.pages.widget(3).ensureWidgetVisible(self.result_open_btn,12,12))
         if self.open_after.isChecked():self.open_result()
 
     def open_result(self):
