@@ -15,6 +15,41 @@ from docx import Document
 
 ROOT=Path(__file__).resolve().parents[1]
 
+REQUIRED_PROJECT_CHECKS=frozenset({
+    'native_folder_cancel_settles_without_touching_original',
+    'no_store_navigation_and_recovery_actions_at_three_sizes',
+    'business_entrypoints_guarded_without_store',
+    'retry_opens_fresh_project_and_can_create_client',
+    'cancel_switch_retains_current_project_name_and_data',
+    'failed_switch_is_terminal_and_can_retry',
+})
+
+
+def assert_project_loading_checks(report):
+    assert report['status']=='passed' and report['frozen'] and report['qt_platform']=='windows'
+    assert report.get('native_folder_dialog_seen') is True and report.get('native_folder_dialog_close_sent') is True
+    checks=report['checks']
+    assert len(checks)==len(REQUIRED_PROJECT_CHECKS) and {c['name'] for c in checks}==REQUIRED_PROJECT_CHECKS
+    assert all(c.get('passed') is True for c in checks)
+
+REQUIRED_COMPLETION_CHECKS = frozenset({
+    'native_profile_form_numbering_status_labels',
+    'native_five_page_history_wizard_900_101_305_900_fourth_two_owners_and_replay',
+    'native_draft_versions_manual_approval_actual_expenses_and_both_quote_docx',
+    'native_individual_image_choice_order_captions_and_docx',
+    'completion_backup_restore_profiles_history_quotes_and_selected_images',
+    'native_historical_unknown_finance_and_explicit_reconciliation',
+    'native_photo_append_without_english_heading_styles',
+})
+
+
+def assert_completion_checks(checks):
+    assert isinstance(checks,list), 'Missing native completion results'
+    assert len(checks)==len(REQUIRED_COMPLETION_CHECKS), 'Native completion suite count differs'
+    assert {c.get('name') for c in checks}==REQUIRED_COMPLETION_CHECKS, 'Missing, duplicate or unexpected native completion scenario'
+    assert all(c.get('passed') is True for c in checks), 'Native completion scenario failed'
+
+
 
 def normal_start(exe,cwd,env):
     """Exercise the ordinary entrypoint/event loop, with no diagnostic flag."""
@@ -132,16 +167,25 @@ def verify(archive,evidence,release):
         assert service_run.returncode==0 and service['status']=='passed',service
         assert service['frozen'] and service['qt_platform']=='windows'
         assert service['completion']['status']=='passed'
-        assert len(service['completion']['checks'])==5 and all(c['passed'] for c in service['completion']['checks'])
+        assert_completion_checks(service['completion']['checks'])
         assert service['refinement']['status']=='passed'
         assert len(service['refinement']['checks'])==3 and all(c['passed'] for c in service['refinement']['checks'])
         layout=service['refinement']['layout']
         assert layout['status']=='passed' and len(layout['cases'])==90
         assert all(not case['failures'] for case in layout['cases'])
         result['service']=service
+        result['project_loading']=[]
+        for scale in ('1','2'):
+            project_output=evidence/('Project-loading-'+scale)
+            project_env={**env,'QT_SCALE_FACTOR':scale}
+            project_run=subprocess.run([str(exe),'--project-loading-self-test','--require-windows','--output',str(project_output)],cwd=testroot,env=project_env,capture_output=True,timeout=120)
+            project=json.loads((project_output/'PROJECT-LOADING-SELF-TEST.json').read_text(encoding='utf-8'))
+            assert project_run.returncode==0,project
+            assert_project_loading_checks(project)
+            result['project_loading'].append({'scale':scale,**project})
     result['status']='passed'
     result['limits']=['Automated native Windows runner, not manual Windows 10/11 acceptance',
-                      'Native OS file-dialog interaction is not tested; selections supplied by harness',
+                      'Native folder picker cancellation tested at 100%/200%; other file selections supplied by harness',
                       'DOCX ZIP/XML and content verified; Word/LibreOffice visual rendering not tested']
     (evidence/'WINDOWS-CI-RESULTS.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
     shutil.copy2(evidence/'WINDOWS-CI-RESULTS.json',release/'WINDOWS-CI-RESULTS.json')

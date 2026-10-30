@@ -11,7 +11,7 @@ from .statuses import STATUSES
 from .validation import ServiceError, money, now, text
 
 NEUTRAL = {'id':None, 'name':'Нейтральный профиль', 'organization_name':'', 'contact':'',
-           'details':'', 'number_prefix':'R-', 'number_start':1, 'status_labels':{},
+           'details':'', 'number_prefix':'', 'number_start':1, 'status_labels':{},
            'default_discount':'0', 'warranty_terms':'', 'template_paths':{}, 'logo_path':''}
 
 
@@ -35,8 +35,8 @@ def profiles(store):
 def validate_profile(data):
     result = {key:text(data.get(key, NEUTRAL[key]), key, key=='name', 20000 if key in ('details','warranty_terms') else 500)
               for key in ('name','organization_name','contact','details','number_prefix','default_discount','warranty_terms')}
-    if not re.fullmatch(r'[\w .-]{1,20}', result['number_prefix']):
-        raise ServiceError('Префикс номера: от 1 до 20 букв, цифр, пробелов, точек, дефисов')
+    if not re.fullmatch(r'[\w .-]{0,20}', result['number_prefix']):
+        raise ServiceError('Префикс: до 20 букв, цифр, пробелов, точек, дефисов; пусто — простой номер')
     try:
         number = int(data.get('number_start', 1))
         if str(number) != str(data.get('number_start', 1)) or not 1 <= number <= 10**12:
@@ -136,9 +136,5 @@ def activate_profile(store, key=None):
 
 
 def next_number(connection):
-    p = profile(connection, active=True)
-    n = p['number_start']
-    used = {r[0].casefold() for r in connection.execute('SELECT number FROM repair_orders')}
-    while (number := f"{p['number_prefix']}{n:06d}").casefold() in used:
-        n += 1
-    return number, p['id']
+    from .numbering import suggest_number
+    return suggest_number(connection)

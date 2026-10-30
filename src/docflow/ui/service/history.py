@@ -2,6 +2,7 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLabel,QLineEdit,QComboBox,QTabWidget,QPlainTextEdit,QAbstractItemView,QMessageBox,QScrollArea,QWidget
 from ...service.validation import rub
+from ...service.record_text import repair_display, readable_field
 from .presentation import date_text,KINDS_DISPLAY
 from ..widgets import text
 from ..flow import FlowLayout
@@ -22,7 +23,10 @@ class HistoryDialog(QDialog):
         bar=FlowLayout();outer.addLayout(bar);button(bar,'Открыть ремонт и материалы',self.open);button(bar,'Сравнить выбранные ремонты (2–6)',self.compare);button(bar,'Новое обращение',self.new);button(bar,'Закрыть',self.accept);self.refresh()
     def selected_detail(self,*args):
         row=self.grid.selected()
-        if row:self.detail.setPlainText('Приёмка: '+date_text(row['received_at'])+'\nЖалоба: '+row['complaint']+'\nДефекты: '+row['defects']+'\nРаботы и материалы: '+row['item_text']+'\nОткройте ремонт для прежних DOCX, фото и подробностей.')
+        if row:
+            shown=repair_display(row)
+            source_works=('\nРаботы из источника: '+shown['source_works']) if shown['source_works'] else ''
+            self.detail.setPlainText('Приёмка: '+date_text(row['received_at'])+'\nЖалоба: '+shown['complaint']+'\nДиагностика: '+shown['defects']+'\nРаботы и материалы: '+readable_field(row['item_text'],'description').text+source_works+'\nОткройте ремонт для прежних DOCX, фото и подробностей.')
     def refresh(self,*args):
         eq=self.equipment['id'];start=self.since.storage_text();end=self.until.storage_text();ascending=self.order.currentData()
         self.workspace.run(lambda:self.workspace.store.repairs(equipment_id=eq,date_from=start or None,date_to=end or None,ascending=ascending),self.grid.install)
@@ -37,8 +41,9 @@ class HistoryDialog(QDialog):
     def show_comparison(self,snapshots):
         d=QDialog(self);d.setWindowTitle('Сравнение ремонтов одного физического аппарата');d.resize(1050,650);layout=QHBoxLayout(d)
         for s in snapshots:
-            r=s['repair'];box=QPlainTextEdit();box.setReadOnly(True);lines=[r['number']+' · '+date_text(r['received_at']),s['client']['name'],'Жалоба: '+r['complaint'],'Дефекты: '+r['defects'],'План: '+r['plan']]
-            for x in s['repair_items']:lines.append(KINDS_DISPLAY[x['kind']]+': '+x['name']+' · '+x['quantity']+' '+x['unit']+' · '+rub(x['total_cents'])+'\n'+x['description'])
+            r=repair_display(s['repair']);box=QPlainTextEdit();box.setReadOnly(True);lines=[r['number']+' · '+date_text(r['received_at']),s['client']['name'],'Жалоба: '+r['complaint'],'Диагностика: '+r['defects'],'План: '+r['plan']]
+            if r['source_works']:lines.append('Работы из источника: '+r['source_works'])
+            for x in s['repair_items']:lines.append(KINDS_DISPLAY[x['kind']]+': '+readable_field(x['name'],'name').text+' · '+x['quantity']+' '+x['unit']+' · '+rub(x['total_cents'])+'\n'+readable_field(x['description'],'description').text)
             lines.extend(['Стоимость '+rub(s['totals']['total']),'Остаток '+rub(s['totals']['balance']),'Вложения: '+str(len(s['attachments'])),'DOCX: '+str(len(s['generated_documents'])),'Примечания: '+r['notes']]);box.setPlainText('\n\n'.join(lines));layout.addWidget(box)
         d.exec()
     def closeEvent(self,event):
