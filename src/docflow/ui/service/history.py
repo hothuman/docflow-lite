@@ -33,7 +33,7 @@ class HistoryDialog(QDialog):
     def open(self):
         row=self.grid.selected()
         if row:self.accept();self.workspace.open_repair(row['id'],'Документы')
-    def new(self):self.accept();self.workspace.new_repair_for(self.equipment)
+    def new(self):self.accept();self.workspace.start_intake(self.equipment)
     def compare(self):
         keys=[self.grid.records.rows[self.grid.proxy.mapToSource(i).row()]['id'] for i in self.grid.selectionModel().selectedRows()]
         if not 2<=len(keys)<=6:QMessageBox.information(self,'Сравнение','Выберите от двух до шести ремонтов одного аппарата, удерживая Ctrl');return

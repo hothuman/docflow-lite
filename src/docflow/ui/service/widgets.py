@@ -36,7 +36,7 @@ class Grid(QTableView):
   self._sizing=True
   try:
    available=max(100,self.viewport().width()-2);visible=list(range(len(self.records.columns)));widths={i:self._user_widths.get(i,self._preferred.get(i,130)) for i in visible}
-   secondary=('description','complaint','notes','void_reason','source','path','logo_path','contact','email','phone','legal_name','serial','prepared_by','client','financial_status','status','received_at','created_at','changed_at','method','unit','kind','defects','item_text')
+   secondary=('description','complaint','notes','void_reason','source','path','logo_path','contact','email','phone','legal_name','serial','prepared_by','client','financial_status','status','state','state_label','received_at','created_at','changed_at','method','unit','kind','defects','item_text')
    for key in secondary:
     if sum(widths[i] for i in visible)<=available:break
     if len(visible)>3:
@@ -83,6 +83,9 @@ class Grid(QTableView):
   else:super().keyPressEvent(event)
 def button(layout,title,fn,primary=False,danger=False):
  b=QPushButton(title);b.setAccessibleName(title)
+ from ..widgets import icon
+ kinds={'Новый ремонт':'plus','Сформировать акт':'document','Сохранить ремонт':'check','Открыть для печати':'document','История аппарата':'history','Фото / файлы':'folder','Смета':'money','Выдать':'check','Найти оборудование / ремонт':'search','Продолжить работу':'history','Документы':'document'}
+ if title in kinds:b.setIcon(icon(kinds[title],color='#12241A' if primary else '#A7BDB5'))
  if primary:b.setObjectName('primary')
  if danger:b.setObjectName('danger')
  b.clicked.connect(fn);layout.addWidget(b);return b

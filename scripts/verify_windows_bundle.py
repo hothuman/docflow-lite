@@ -15,6 +15,13 @@ from docx import Document
 
 ROOT=Path(__file__).resolve().parents[1]
 
+REQUIRED_STAGE2_CHECKS=frozenset({'first_intake','repeat_intake','estimate_approval','act_without_excel','issue_payment_history'})
+
+def assert_stage2_checks(report):
+    assert report['status']=='passed' and report['frozen'] and report['qt_platform']=='windows'
+    assert len(report['checks'])==5 and {c['name'] for c in report['checks']}==REQUIRED_STAGE2_CHECKS
+    assert all(c['passed'] is True for c in report['checks']) and report['backup_restore'] is True
+
 REQUIRED_PROJECT_CHECKS=frozenset({
     'native_folder_cancel_settles_without_touching_original',
     'no_store_navigation_and_recovery_actions_at_three_sizes',
@@ -183,6 +190,11 @@ def verify(archive,evidence,release):
             assert project_run.returncode==0,project
             assert_project_loading_checks(project)
             result['project_loading'].append({'scale':scale,**project})
+        stage2_output=evidence/'Stage2-business-routes'
+        stage2_run=subprocess.run([str(exe),'--stage2-self-test','--require-windows','--output',str(stage2_output)],cwd=testroot,env=env,capture_output=True,timeout=180)
+        stage2=json.loads((stage2_output/'STAGE2-SELF-TEST.json').read_text(encoding='utf-8'))
+        assert stage2_run.returncode==0,stage2
+        assert_stage2_checks(stage2);result['stage2']=stage2
     result['status']='passed'
     result['limits']=['Automated native Windows runner, not manual Windows 10/11 acceptance',
                       'Native folder picker cancellation tested at 100%/200%; other file selections supplied by harness',

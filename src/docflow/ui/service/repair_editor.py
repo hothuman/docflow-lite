@@ -24,13 +24,17 @@ class RepairDialog(QDialog):
         super().__init__(workspace);self.workspace=workspace;self.store=workspace.store;self.snapshot=snapshot;self.key=snapshot['repair']['id'];self.dirty=False;self.fields={};self.grids={}
         self.setWindowTitle('Ремонт '+snapshot['repair']['number']);fit_dialog(self,1060,740)
         outer=QVBoxLayout(self);outer.setSpacing(14)
-        passport=QFrame();passport.setObjectName('card');passport_layout=QVBoxLayout(passport);passport_layout.setContentsMargins(16,12,16,12)
-        self.identity=QLabel();self.identity.setWordWrap(True);passport_layout.addWidget(text('SERVICE / ПАСПОРТ ОБРАЩЕНИЯ','eyebrow'));passport_layout.addWidget(self.identity)
+        passport=QFrame();passport.setObjectName('card');passport_layout=QVBoxLayout(passport);passport_layout.setContentsMargins(12,8,12,8)
+        self.identity=QLabel();self.identity.setWordWrap(True);self.heading=text('','section');passport_layout.addWidget(self.heading);passport_layout.addWidget(self.identity)
         number_bar=FlowLayout();passport_layout.addLayout(number_bar)
-        number_bar.addWidget(QLabel('№ ремонта'))
-        self.repair_number=QLineEdit();self.repair_number.setReadOnly(True);self.repair_number.setAccessibleName('№ ремонта');self.repair_number.setMaximumWidth(160);number_bar.addWidget(self.repair_number)
-        button(number_bar,'Изменить № ремонта',lambda:self.with_saved(self.change_number))
-        button(number_bar,'Первоисточник',self.show_source)
+
+        self.repair_number=QLineEdit();self.repair_number.setReadOnly(True);self.repair_number.setAccessibleName('№ ремонта');self.repair_number.setMaximumWidth(160);self.repair_number.hide()
+        button(number_bar,'Изменить',lambda:self.tabs.show_section('Приёмка'))
+        button(number_bar,'Смета',lambda:self.tabs.show_section('Сметы'))
+        button(number_bar,'Фото / файлы',lambda:self.tabs.show_section('Вложения'))
+        button(number_bar,'История аппарата',self.equipment_history)
+        from PySide6.QtWidgets import QMenu,QPushButton
+        more=QPushButton('Ещё');menu=QMenu(more);menu.addAction('Изменить № ремонта',lambda:self.with_saved(self.change_number));menu.addAction('Первоисточник',self.show_source);more.setMenu(menu);number_bar.addWidget(more)
         self.summary=QLabel();self.summary.setWordWrap(True);self.summary.setObjectName('muted');passport_layout.addWidget(self.summary);outer.addWidget(passport)
         self.finance_strip=QWidget();finance=QHBoxLayout(self.finance_strip);finance.setContentsMargins(0,0,0,0);finance.setSpacing(12);self.finance_values={}
         for key,title in [('total','Стоимость ремонта'),('paid','Учтено оплат'),('balance','Остаток')]:
@@ -39,8 +43,8 @@ class RepairDialog(QDialog):
         self.state_frame=QFrame();self.state_frame.setObjectName('repairState');state_layout=QHBoxLayout(self.state_frame);state_layout.setContentsMargins(12,8,12,8)
         self.state_hint=text('','muted');self.state_hint.setAccessibleName('Текущий этап и следующий шаг');state_layout.addWidget(self.state_hint,1)
         self.status_action=button(state_layout,'Статус и история',self.open_status);outer.addWidget(self.state_frame)
-        self.tabs=RepairNavigation();self.tabs.setUsesScrollButtons(False);outer.addWidget(self.tabs,1)
-        sections=[('Приёмка',[('received_at','Дата ДД.ММ.ГГГГ','date'),('complaint','Жалоба','long'),('accessories','Комплектация','long'),('condition','Внешнее состояние','long'),('notes','Примечания','long')]),('Дефектовка',[('defects','Неисправности','long'),('plan','План работ','long'),('approval','Согласование',[(v,v) for v in APPROVALS]),('approval_note','Комментарий к согласованию','long')])]
+        status_form=QFormLayout();passport_layout.addLayout(status_form);self.add_field(status_form,'status','Статус ремонта',[(k,v[0]) for k,v in STATUSES.items()]);self.tabs=RepairNavigation();self.tabs.setUsesScrollButtons(False);outer.addWidget(self.tabs,1)
+        sections=[('Приёмка',[('received_at','Дата ДД.ММ.ГГГГ','date'),('complaint','Жалоба','long'),('accessories','Комплектация','long'),('condition','Внешнее состояние','long'),('notes','Примечания','long')]),('Дефектовка',[('defects','Неисправности','long'),('plan','План работ','long')]),('Согласование',[('approval','Согласование',[(v,v) for v in APPROVALS]),('approval_note','Комментарий к согласованию','long')])]
         for title,fields in sections:
             scroll=QScrollArea();scroll.setWidgetResizable(True);body=QWidget();body_layout=QVBoxLayout(body);body_layout.setContentsMargins(0,0,0,0);form=QFormLayout();body_layout.addLayout(form);body_layout.addStretch(1);form.setFormAlignment(Qt.AlignmentFlag.AlignTop);form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow);form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows);scroll.setWidget(body);self.tabs.addTab(scroll,title)
             for key,label,kind in fields:self.add_field(form,key,label,kind)
@@ -67,11 +71,30 @@ class RepairDialog(QDialog):
         custom=QHBoxLayout();layout.addLayout(custom);self.template_path=QLineEdit();self.template_path.setPlaceholderText('Без своего DOCX: форма профиля или встроенная');self.template_path.setReadOnly(True);custom.addWidget(self.template_path);button(custom,'Свой DOCX',self.pick_template);button(custom,'Сбросить',self.template_path.clear)
         self.grids['documents']=Grid([('kind','Тип'),('version','Версия'),('created_at','Создано'),('path','Путь')]);layout.addWidget(self.grids['documents']);bar2=FlowLayout();layout.addLayout(bar2);button(bar2,'Открыть для печати',self.open_document);button(bar2,'Показать папку документа',self.show_document_folder);button(bar2,'Сохранить копию',self.export_document);self.tabs.addTab(p,'Документы')
         scroll=QScrollArea();scroll.setWidgetResizable(True);p=QWidget();form=QFormLayout(p);form.setFormAlignment(Qt.AlignmentFlag.AlignTop);scroll.setWidget(p)
-        for key,label,kind in [('status','Производство',[(k,v[0]) for k,v in STATUSES.items()]),('started_at','Начало ДД.ММ.ГГГГ','date'),('completed_at','Завершение ДД.ММ.ГГГГ','date'),('issued_at','Выдача ДД.ММ.ГГГГ','date'),('issued_accessories','Комплектация при выдаче','long'),('handover','Сведения о передаче (только факты)','long'),('status_note','Причина изменения статуса','text')]:self.add_field(form,key,label,kind)
-        self.grids['history']=Grid([('changed_at','Когда'),('old_status','Было'),('new_status','Стало'),('note','Примечание'),('source','Источник')]);form.addRow(self.grids['history']);self.tabs.addTab(scroll,'Статус и история')
-        bar=FlowLayout();outer.addLayout(bar);self.dirty_label=text('','muted');bar.addWidget(self.dirty_label);self.quick_document_button=button(bar,'Сформировать акт',lambda:self.with_saved(self.quick_document),primary=True);self.save_button=button(bar,'Сохранить ремонт',self.save,primary=True);button(bar,'Закрыть',self.close)
+        for key,label,kind in [('started_at','Начало ДД.ММ.ГГГГ','date'),('completed_at','Завершение ДД.ММ.ГГГГ','date'),('issued_at','Выдача ДД.ММ.ГГГГ','date'),('issued_accessories','Комплектация при выдаче','long'),('handover','Сведения о передаче (только факты)','long'),('status_note','Причина изменения статуса','text')]:self.add_field(form,key,label,kind)
+        self.grids['history']=Grid([('changed_at','Когда'),('old_status','Было'),('new_status','Стало'),('note','Примечание'),('source','Источник')]);form.addRow(self.grids['history']);self.issue_button=button(form,'Выдать оборудование',self.issue,primary=True);self.tabs.addTab(scroll,'Статус и история')
+        bar=FlowLayout();outer.addLayout(bar);self.dirty_label=text('','muted');bar.addWidget(self.dirty_label);self.next_button=button(bar,'Далее',self.next_step);self.quick_document_button=button(bar,'Сформировать акт',lambda:self.with_saved(self.quick_document));self.save_button=button(bar,'Сохранить ремонт',self.save,primary=True);button(bar,'Закрыть',self.close)
         for label in self.findChildren(QLabel):label.setTextFormat(Qt.TextFormat.PlainText)
+        from PySide6.QtGui import QShortcut,QKeySequence
+        self.save_shortcut=QShortcut(QKeySequence.StandardKey.Save,self);self.save_shortcut.activated.connect(lambda:self.save() if self.dirty else None)
         self.install(snapshot)
+    def next_step(self):
+        stage=self.next_button.property('stage')
+        if stage==4:self.issue()
+        else:self.tabs.show_section(('Дефектовка','Сметы','Работы','Документы')[stage])
+    def equipment_history(self):
+        equipment=dict(self.snapshot['equipment']);store=self.store
+        def show(owner):
+            from .history import HistoryDialog
+            self.workspace.modal(HistoryDialog(self.workspace,{**equipment,'owner':owner['name']}))
+        self.workspace.run(lambda:store.get('clients',equipment['owner_id']),show,'Открываю историю аппарата…')
+    def issue(self):
+        from datetime import date
+        if not confirm(self,'Отметить фактическую выдачу оборудования? Оплата учитывается отдельно. Остаток: '+rub(self.snapshot['totals']['balance'])):return
+        self.tabs.show_section('Статус и история')
+        self.fields['status'].setCurrentIndex(self.fields['status'].findData('issued'))
+        if not self.fields['issued_at'].text():self.fields['issued_at'].set_date(date.today().isoformat())
+        self.save()
     def open_status(self):
         self.tabs.show_section('Статус и история');self.fields['status'].setFocus()
     def add_field(self,form,key,label,kind):
@@ -100,17 +123,26 @@ class RepairDialog(QDialog):
             elif isinstance(w,QPlainTextEdit):w.setPlainText(str(value))
             else:w.setText(str(value))
             w.blockSignals(False)
-        self.identity.setText(f"{s['equipment']['model']}\nАппарат №{s['equipment']['number']}  |  Обращение №{r['number']}\nКлиент обращения: {s['client']['name']}");self.identity.setObjectName('section')
-        self.identity.setMinimumHeight(self.identity.fontMetrics().lineSpacing()*3+6)
+        self.heading.setText('Ремонт №'+r['number']);self.identity.setText(f"Аппарат №{s['equipment']['number']} · {s['equipment']['model']}\n{s['client']['name']} · Приёмка: {r['received_at'] or 'дата не указана'}")
+        self.identity.setMinimumHeight(self.identity.fontMetrics().lineSpacing()*2+4)
         self.repair_number.setText(r['number']);self.setWindowTitle('Ремонт '+r['number'])
         source_works=presented.get('source_works','');self.source_works.setPlainText(source_works);self._source_works_form.setRowVisible(self.source_works,bool(source_works))
         t=s['totals']
         for key,label in self.finance_values.items():label.setText(rub(t[key]))
         self.finance_strip.setVisible(self.height()>=600)
-        self.summary.setText(f"Производство: {s['profile']['status_labels'].get(r['status'],STATUSES[r['status']][0])}   |   Фактически {rub(t['total'])} · Учтено {rub(t['paid'])} · Остаток {rub(t['balance'])} · {t['financial_status']}")
-        hints={'accepted':'Зафиксируйте жалобу и комплектацию в разделе «Приёмка».','diagnostics':'Опишите неисправности и план работ в разделе «Дефектовка».','approval':'Откройте «Сметы» и внесите только фактическую отметку согласования.','parts':'Уточните запчасти и план работ. Этап меняется вручную.','repair':'Запишите выполненные работы и фактическую стоимость.','ready':'Проверьте документы, комплектацию и внутренние расчёты перед выдачей.','issued':'Сведения о выдаче и история доступны в разделе «Статус и история».','closed':'Обращение закрыто. История и документы сохранены.','cancelled':'Отказ или отмена: причина сохраняется в истории.'}
+        self.summary.setText(f"Расчёты: {t['financial_status']} · Стоимость {rub(t['total'])} · Учтено {rub(t['paid'])} · Остаток {rub(t['balance'])}")
+        hints={'accepted':'Зафиксируйте жалобу и комплектацию в разделе «Приёмка».','diagnostics':'Опишите неисправности и план работ в разделе «Диагностика».','approval':'Откройте «Сметы» и внесите только фактическую отметку согласования.','parts':'Уточните запчасти и план работ. Этап меняется вручную.','repair':'Запишите выполненные работы и фактическую стоимость.','ready':'Проверьте документы, комплектацию и внутренние расчёты перед выдачей.','issued':'Сведения о выдаче и история доступны в разделе «Статус и история».','closed':'Обращение закрыто. История и документы сохранены.','cancelled':'Отказ или отмена: причина сохраняется в истории.'}
         self.state_hint.setText(s['profile']['status_labels'].get(r['status'],STATUSES[r['status']][0])+' · '+hints.get(r['status'],''))
         self.state_frame.setVisible(self.height()>=640)
+        stage={'accepted':0,'diagnostics':1,'approval':2,'parts':3,'repair':3,'ready':4,'issued':4,'closed':4}.get(r['status'],0)
+        self.next_button.setText(('Диагностика →','Смета →','Работы →','Документы →','Выдать')[stage])
+        self.next_button.setProperty('stage',stage)
+        self.next_button.setEnabled(r['status'] not in ('issued','closed','cancelled','historical'))
+        self.issue_button.setEnabled(r['status'] not in ('issued','closed','cancelled'))
+        facts=[bool(presented.get('complaint')),bool(presented.get('defects')),bool(s['estimates']),bool(s['repair_items']),bool(r.get('issued_at'))]
+        for i,present in enumerate(facts):
+            note='Есть данные' if present else 'Ещё не заполнено — можно перейти в любом порядке'
+            self.tabs.setTabToolTip(i,note);self.tabs.status_labels[i].setText(note)
         self.estimates.install(s)
         from ...service.record_text import readable_field
         for group in ('work','part','delivery','other'):
@@ -317,6 +349,6 @@ class RepairDialog(QDialog):
 
     def resizeEvent(self,event):
         super().resizeEvent(event)
-        if hasattr(self,'identity'):self.identity.setMinimumHeight(self.identity.fontMetrics().lineSpacing()*3+6)
+        if hasattr(self,'identity'):self.identity.setMinimumHeight(self.identity.fontMetrics().lineSpacing()*2+4)
         if hasattr(self,'finance_strip'):self.finance_strip.setVisible(self.height()>=600)
         if hasattr(self,'state_frame'):self.state_frame.setVisible(self.height()>=640)

@@ -52,7 +52,7 @@ def test_real_dialog_shared_light_paint_and_three_groups(ui):
   expected=QColor(COLORS['table'] if isinstance(widget,QPlainTextEdit) else COLORS['background'])
   assert all(max(abs(c.red()-expected.red()),abs(c.green()-expected.green()),abs(c.blue()-expected.blue()))<=3 for c in colors),probes[-1]
  proof=Path(os.environ.get('DOCFLOW_QA_ARTIFACTS','artifacts'))/'dialog-paint';proof.mkdir(parents=True,exist_ok=True);d.grab().save(str(proof/'repair-dialog.png'));(proof/'samples.json').write_text(json.dumps(probes,ensure_ascii=False,indent=2),encoding='utf-8')
- assert d.tabs.count()==3 and not d.tabs.usesScrollButtons();assert set(d.tabs.sections)==set(d.tabs.GROUPS);d.accept()
+ assert d.tabs.count()==5 and not d.tabs.usesScrollButtons();assert set(d.tabs.sections)==set(d.tabs.GROUPS);d.accept()
 
 def test_localized_exact_price_sort_and_visible_money(ui):
  app,w,sui,ids,_=ui;g=Grid([('name','Наименование'),('price','Цена'),('total','Сумма'),('created_at','Создано')]);g.resize(640,300);g.show();g.install([{'id':'a','name':'Б','price_cents':10000,'total':10000,'created_at':'2026-10-24T12:34:56+03:00'},{'id':'b','name':'А','price_cents':900,'total':900,'created_at':'2026-10-23'}]);app.processEvents();assert g.records.index(0,1).data()=='100,00 ₽';assert g.records.index(0,3).data()=='24.10.2026';g.sortByColumn(1,Qt.SortOrder.AscendingOrder);assert g.proxy.index(0,0).data()=='А'
@@ -162,7 +162,7 @@ def test_narrow_finance_keeps_all_money_columns_visible(ui):
 def test_a5_repair_sections_keep_selection_when_navigation_collapses(ui):
  app,w,sui,ids,_=ui;editor=RepairDialog(sui,sui.store.snapshot(ids['repair']))
  editor.resize(1080,760);editor.show();app.processEvents()
- picker,stack=editor.tabs.groups[0];sidebar=editor.tabs.lists[0]
+ picker,stack=editor.tabs.groups[3];sidebar=editor.tabs.lists[3];editor.tabs.setCurrentIndex(3)
  assert sidebar.isVisible() and not picker.isVisible()
  sidebar.setCurrentRow(1);app.processEvents();assert picker.currentIndex()==1 and stack.currentIndex()==1
  editor.resize(640,480);app.processEvents()

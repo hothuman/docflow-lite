@@ -42,30 +42,36 @@ class ServiceStore:
         return dict(row)
     def get(self,table,key):
         with self.db.connection() as c:return self.require(c,table,key)
-    def save_client(self,data,key=None):
+    @staticmethod
+    def _client_values(data):
         values={k:text(data.get(k),k,k=='name',300 if k!='notes' else 20000) for k in ('name','legal_name','contact','phone','email','notes')}
         values['kind']=data.get('kind','organization')
         if values['kind'] not in {'organization','individual','entrepreneur'}:raise ServiceError('Неизвестный тип клиента')
         if values['email'] and ('@' not in values['email'] or any(x.isspace() for x in values['email'])):raise ServiceError('Проверьте email')
-        return self._save('clients',values,key)
-    def save_equipment(self,data,key=None):
+        return values
+    @staticmethod
+    def _equipment_values(data):
         values={k:text(data.get(k),k,k in ('number','model','owner_id'),300 if k!='notes' else 20000) for k in ('number','manufacturer','model','kind','serial','owner_id','identifiers','notes')}
+        return values
+    def save_client(self,data,key=None):return self._save('clients',self._client_values(data),key)
+    def save_equipment(self,data,key=None):
+        values=self._equipment_values(data)
         with self.db.connection() as c:
-            owner=self.require(c,'clients',values['owner_id'])
-            if owner['archived']:raise ServiceError('Выберите действующего клиента')
+            if self.require(c,'clients',values['owner_id'])['archived']:raise ServiceError('Выберите действующего клиента')
         return self._save('equipment',values,key)
     def _save(self,table,values,key):
+        with self.lock,self.db.connection(True) as c:return self._save_in(c,table,values,key)
+    def _save_in(self,c,table,values,key):
         if table not in {'clients','equipment'}:raise ServiceError('Недопустимая запись')
-        with self.lock,self.db.connection(True) as c:
-            stamp=now()
-            if table=='equipment' and any(r['id']!=key and r['number'].casefold()==values['number'].casefold() for r in c.execute('SELECT id,number FROM equipment')):raise ServiceError('Постоянный номер уже существует')
-            if key:
-                self.require(c,table,key)
-                c.execute(f'UPDATE {table} SET '+','.join(k+'=?' for k in values)+',updated_at=? WHERE id=?',(*values.values(),stamp,key))
-            else:
-                key=uuid4().hex;values={**values,'created_at':stamp,'updated_at':stamp,'id':key}
-                c.execute(f'INSERT INTO {table}('+','.join(values)+') VALUES('+','.join('?' for _ in values)+')',tuple(values.values()))
-            self.audit(c,table,key,'save')
+        stamp=now()
+        if table=='equipment' and any(r['id']!=key and r['number'].casefold()==values['number'].casefold() for r in c.execute('SELECT id,number FROM equipment')):raise ServiceError('Постоянный номер уже существует')
+        if key:
+            self.require(c,table,key)
+            c.execute(f'UPDATE {table} SET '+','.join(k+'=?' for k in values)+',updated_at=? WHERE id=?',(*values.values(),stamp,key))
+        else:
+            key=uuid4().hex;values={**values,'created_at':stamp,'updated_at':stamp,'id':key}
+            c.execute(f'INSERT INTO {table}('+','.join(values)+') VALUES('+','.join('?' for _ in values)+')',tuple(values.values()))
+        self.audit(c,table,key,'save')
         return key
     def archive(self,table,key,archived=True):
         if table not in {'clients','equipment'}:raise ServiceError('История ремонтов не удаляется')
@@ -88,29 +94,54 @@ class ServiceStore:
     def create_repair(self,equipment_id,number='',complaint='',request_id=None,client_id=None):
         key=request_id or uuid4().hex
         number=text(number,'Номер ремонта',limit=100);complaint=text(complaint)
-        with self.lock,self.db.connection(True) as c:
-            existing=c.execute('SELECT * FROM repair_orders WHERE id=?',(key,)).fetchone()
-            if existing:
-                if (existing['equipment_id']!=equipment_id or (number and number!=existing['number'])
-                    or complaint!=existing['complaint'] or (client_id and client_id!=existing['client_id'])):
-                    raise ServiceError('Повторный идентификатор другой операции')
-                return key
-            eq=self.require(c,'equipment',equipment_id)
-            if eq['archived']:raise ServiceError('Оборудование архивировано')
-            from .profiles import next_number
-            suggested,profile_id=next_number(c)
-            if not number:
-                number=suggested
-            client_id=client_id or eq['owner_id']
-            if self.require(c,'clients',client_id)['archived']:raise ServiceError('Клиент архивирован')
-            from .numbering import used_numbers,advance_sequence
-            if number.casefold() in used_numbers(c):raise ServiceError('№ ремонта уже использован, в том числе в истории переименования. Выберите другой номер')
-            stamp=now()
-            c.execute('INSERT INTO repair_orders(id,number,equipment_id,client_id,received_at,complaint,created_at,updated_at,profile_id) VALUES(?,?,?,?,?,?,?,?,?)',(key,number,equipment_id,client_id,stamp[:10],complaint,stamp,stamp,profile_id))
-            c.execute('INSERT INTO repair_status_history(repair_id,old_status,new_status,changed_at,source) VALUES(?,?,?,?,?)',(key,'','accepted',stamp,'create'))
-            self.audit(c,'repair',key,'create')
-            advance_sequence(c,number)
+        with self.lock,self.db.connection(True) as c:return self._create_repair_in(c,equipment_id,number,complaint,key,client_id)
+    def _create_repair_in(self,c,equipment_id,number,complaint,key,client_id=None):
+        existing=c.execute('SELECT * FROM repair_orders WHERE id=?',(key,)).fetchone()
+        if existing:
+            if (existing['equipment_id']!=equipment_id or (number and number!=existing['number'])
+                or complaint!=existing['complaint'] or (client_id and client_id!=existing['client_id'])):
+                raise ServiceError('Повторный идентификатор другой операции')
+            return key
+        eq=self.require(c,'equipment',equipment_id)
+        if eq['archived']:raise ServiceError('Оборудование архивировано')
+        from .profiles import next_number
+        suggested,profile_id=next_number(c)
+        if not number:
+            number=suggested
+        client_id=client_id or eq['owner_id']
+        if self.require(c,'clients',client_id)['archived']:raise ServiceError('Клиент архивирован')
+        from .numbering import used_numbers,advance_sequence
+        if number.casefold() in used_numbers(c):raise ServiceError('№ ремонта уже использован, в том числе в истории переименования. Выберите другой номер')
+        stamp=now()
+        c.execute('INSERT INTO repair_orders(id,number,equipment_id,client_id,received_at,complaint,created_at,updated_at,profile_id) VALUES(?,?,?,?,?,?,?,?,?)',(key,number,equipment_id,client_id,stamp[:10],complaint,stamp,stamp,profile_id))
+        c.execute('INSERT INTO repair_status_history(repair_id,old_status,new_status,changed_at,source) VALUES(?,?,?,?,?)',(key,'','accepted',stamp,'create'))
+        self.audit(c,'repair',key,'create')
+        advance_sequence(c,number)
         return key
+    def intake(self,*,equipment_id=None,equipment=None,client_id=None,client=None,number='',complaint='',request_id=None):
+        """Explicit new/existing choices; the entire intake commits or rolls back."""
+        import hashlib
+        payload={'equipment_id':equipment_id,'equipment':equipment,'client_id':client_id,'client':client,'number':number,'complaint':complaint}
+        fingerprint=hashlib.sha256(json.dumps(payload,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
+        key=request_id or uuid4().hex
+        with self.lock,self.db.connection(True) as c:
+            if c.execute('SELECT 1 FROM repair_orders WHERE id=?',(key,)).fetchone():
+                event=c.execute("SELECT detail FROM operations WHERE entity='intake' AND entity_id=? AND action='create'",(key,)).fetchone()
+                if not event or event[0]!=fingerprint:raise ServiceError('Повторный идентификатор другой приёмки')
+                return key
+            if equipment_id:
+                if equipment or client:raise ServiceError('Для существующего аппарата выберите существующего заказчика')
+                eq=self.require(c,'equipment',equipment_id);client_id=client_id or eq['owner_id']
+            else:
+                if not equipment:raise ServiceError('Укажите аппарат')
+                if client_id and client:raise ServiceError('Выберите существующего или нового клиента')
+                if not client_id:
+                    client_id=self._save_in(c,'clients',self._client_values(client or {}),None)
+                if self.require(c,'clients',client_id)['archived']:raise ServiceError('Выберите действующего клиента')
+                equipment_id=self._save_in(c,'equipment',self._equipment_values({**equipment,'owner_id':client_id}),None)
+            result=self._create_repair_in(c,equipment_id,text(number,'Номер ремонта',limit=100),text(complaint),key,client_id)
+            self.audit(c,'intake',key,'create',fingerprint)
+            return result
     def preview_repair_number(self):
         """Non-reserving preview: cancelling a form consumes no number."""
         from .profiles import next_number
@@ -295,4 +326,4 @@ class ServiceStore:
         with self.db.connection() as c:
             eq=c.execute('SELECT COUNT(*) FROM equipment WHERE archived=0').fetchone()[0]
             recent=[dict(r) for r in c.execute('SELECT * FROM operations ORDER BY id DESC LIMIT 20')]
-        return {'equipment':eq,'active':sum(r['status'] not in TERMINAL for r in rows),'approval':sum(r['status']=='approval' for r in rows),'parts':sum(r['status']=='parts' for r in rows),'ready':sum(r['status']=='ready' for r in rows),'debt':sum(max(0,r['balance']) for r in rows if r['balance'] is not None),'recent':recent,'recent_repairs':rows[:8],'finance_unknown':sum(r['balance'] is None for r in rows)}
+        return {'attention':len({r['id'] for r in rows if r['status'] in ('approval','parts') or r.get('balance') is None}),'equipment':eq,'active':sum(r['status'] not in TERMINAL for r in rows),'approval':sum(r['status']=='approval' for r in rows),'parts':sum(r['status']=='parts' for r in rows),'ready':sum(r['status']=='ready' for r in rows),'debt':sum(max(0,r['balance']) for r in rows if r['balance'] is not None),'recent':recent,'recent_repairs':rows[:8],'finance_unknown':sum(r['balance'] is None for r in rows)}
