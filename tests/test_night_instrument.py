@@ -56,7 +56,7 @@ def test_repair_context_uses_actual_status_and_only_navigates(tmp_path):
  assert 'Ожидает запчастей' in editor.state_hint.text()
  assert 'Аппарат №DEMO-001' in editor.identity.text() and 'Ремонт №DEMO-R-002' in editor.heading.text()
  editor.status_action.click();app.processEvents();g,index,_=editor.tabs.sections['Статус и история']
- assert editor.tabs.currentIndex()==g and editor.tabs.groups[g][0].currentIndex()==index
+ assert editor.tabs.currentIndex()==g and editor.tabs.cards['Статус и история'].content.isVisible()
  assert editor.fields['status'].hasFocus() and not editor.dirty
  assert ui.store.snapshot(ids['repair'])['repair']['revision']==before
  editor.accept();w.close();app.processEvents()
