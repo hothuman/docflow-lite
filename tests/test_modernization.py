@@ -174,12 +174,11 @@ def test_snapshot_copies_mutable_data_but_keeps_immutable_template_bytes(window)
 @pytest.mark.parametrize('size',[(640,360),(1024,750),(1280,720),(1400,860)])
 def test_primary_action_remains_reachable_when_window_resizes(window,size):
     window.resize(*size);QApplication.processEvents()
-    primary=window.generate_btn;point=primary.mapTo(window,QPoint())
-    assert primary.isVisible() and window.rect().contains(point)
-    assert window.rect().contains(point+QPoint(primary.width()-1,primary.height()-1))
-    if window._pinned_action:
-        window.navigate(2);QApplication.processEvents()
-        assert primary.isVisible() and primary.isEnabled()
+    for page in range(4):
+        window.navigate(page);QApplication.processEvents()
+        primary=window.generate_btn if page==3 else window.core_next;point=primary.mapTo(window,QPoint())
+        assert primary.isVisible() and primary.isEnabled() and window.rect().contains(point)
+        assert window.rect().contains(point+QPoint(primary.width()-1,primary.height()-1))
 
 
 @pytest.mark.parametrize('value',['literal {{not_a_field}} \\ text','line 1\r\nline 2\tvalue','<tag> & "quotes"'])
