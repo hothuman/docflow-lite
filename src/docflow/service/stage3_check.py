@@ -22,7 +22,7 @@ def exercise(ui,app,output,idle):
     path=output/'Synthetic.csv';path.write_text('external_id;sku;name;kind;unit;price;currency;group;subgroup\n001;S-001;Учебная деталь;part;шт.;123.45;RUB;Группа;Подгруппа\n',encoding='utf-8-sig')
     dialog=CatalogDialog(ui);ui.dialogs.append(dialog);dialog.tabs.setCurrentIndex(1);dialog.show();app.processEvents();dialog.path=str(path);dialog.source.setText('Synthetic');dialog.read();idle(ui)
     assert dialog.parsed['rows'][0][1]['external_id']=='001';dialog.preview();assert dialog.plan.counts=={'new':1};assert dialog.apply_button.isEnabled()
-    dialog.grab().save(str(output/'import-preview.png'))
+    dialog.import_scroll.ensureWidgetVisible(dialog.preview_grid);app.processEvents();dialog.grab().save(str(output/'import-preview.png'))
     question=QMessageBox.question;QMessageBox.question=lambda *args:QMessageBox.StandardButton.Yes
     try:
         dialog.apply();idle(ui);dialog.preview();assert dialog.plan.counts=={'unchanged':1};dialog.apply();idle(ui)
@@ -32,7 +32,8 @@ def exercise(ui,app,output,idle):
     cases=[]
     for width,height in ((560,420),(820,620),(1060,740)):
         dialog.resize(width,height);app.processEvents();app.processEvents()
-        assert dialog.width()==width and dialog.height()==height
+        assert dialog.width()==width and dialog.height()==height,(width,height,dialog.size().toTuple())
+        dialog.import_scroll.ensureWidgetVisible(dialog.apply_button);app.processEvents();apply_position=dialog.apply_button.mapTo(dialog.import_scroll.viewport(),QPoint());assert dialog.import_scroll.viewport().rect().contains(apply_position+QPoint(dialog.apply_button.width()-1,dialog.apply_button.height()-1))
         for control in dialog.findChildren(QPushButton):
             if control.text()=='Закрыть':
                 point=control.mapTo(dialog,QPoint());assert dialog.rect().contains(point+QPoint(control.width()-1,control.height()-1))

@@ -122,3 +122,6 @@ def save_profile(store,name,config):
 
 def profiles(store):
     with store.db.connection() as c:return {r[0]:json.loads(r[1]) for r in c.execute('SELECT name,config_json FROM catalog_profiles ORDER BY name')}
+
+def import_history(store):
+    with store.db.connection() as c:return [{**dict(r),'report':json.loads(r['report_json'])} for r in c.execute('SELECT * FROM catalog_imports ORDER BY id DESC LIMIT 20')]

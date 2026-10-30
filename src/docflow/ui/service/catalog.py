@@ -21,7 +21,7 @@ class CatalogDialog(QDialog):
         outer=QVBoxLayout(self);note=QLabel('Локальный XLSX / CSV, без подключения к 1С. Каталог не ведёт склад и не меняет прежние сметы. Для старого проекта используйте отдельную обновлённую копию.');note.setWordWrap(True);outer.addWidget(note)
         tabs=QTabWidget();self.tabs=tabs;outer.addWidget(tabs,1);browse=QWidget();view=QVBoxLayout(browse);self.query=QLineEdit();self.query.setPlaceholderText('Поиск по названию, артикулу, группе');self.query.setAccessibleName('Поиск в каталоге');view.addWidget(self.query)
         self.grid=Grid([('sku','Артикул'),('name','Название'),('group','Группа'),('unit','Ед.'),('price_text','Цена источника'),('source','Источник')]);view.addWidget(self.grid);self.query.textChanged.connect(self.refresh);tabs.addTab(browse,'Каталог')
-        page=QWidget();layout=QVBoxLayout(page);scroll=QScrollArea();scroll.setWidgetResizable(True);body=QWidget();form=QFormLayout(body);form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows);scroll.setWidget(body);layout.addWidget(scroll,1)
+        page=QWidget();layout=QVBoxLayout(page);body=QWidget();form=QFormLayout(body);form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows);layout.addWidget(body)
         self.file_label=QLabel('Файл не выбран');self.file_label.setWordWrap(True);form.addRow(self.file_label);button(form,'Выбрать XLSX / CSV',self.choose)
         self.source=QLineEdit();self.source.setPlaceholderText('Постоянное имя источника, например Учебный каталог');form.addRow('Источник *',self.source)
         self.sheet=QComboBox();form.addRow('Лист',self.sheet);self.encoding=QComboBox();self.encoding.addItems(['auto','utf-8-sig','cp1251']);form.addRow('Кодировка CSV',self.encoding)
@@ -32,17 +32,22 @@ class CatalogDialog(QDialog):
         self.mapping={}
         for key,label in api.LABELS.items():
             combo=QComboBox();combo.addItem('Не переносить','');combo.setAccessibleName(label);form.addRow(label,combo);self.mapping[key]=combo;combo.currentIndexChanged.connect(self.invalidate)
-        self.preview_grid=Grid([('line','Строка'),('state_label','Решение'),('key','Код'),('name','Название'),('reason','Причина')]);layout.addWidget(self.preview_grid,1)
+        self.preview_grid=Grid([('line','Строка'),('state_label','Решение'),('key','Код'),('name','Название'),('reason','Причина')]);self.preview_grid.setMinimumHeight(180);self.preview_grid.setMaximumHeight(350);self.preview_grid.openRequested.connect(self.details);self.preview_grid.doubleClicked.connect(self.details);layout.addWidget(self.preview_grid,1)
         self.summary=QLabel('Выберите файл, сопоставьте колонки и проверьте изменения.');self.summary.setWordWrap(True);layout.addWidget(self.summary)
         self.only_problems=QCheckBox('Показать только ошибки и конфликты');self.only_problems.toggled.connect(self.install_preview);layout.addWidget(self.only_problems)
         self.skip=QCheckBox('Явно пропустить ошибки и конфликты; применить только допустимые строки');layout.addWidget(self.skip)
         bar=FlowLayout();layout.addLayout(bar);self.preview_button=button(bar,'Проверить изменения',self.preview);self.apply_button=button(bar,'Применить проверенные изменения',self.apply,primary=True);self.apply_button.setEnabled(False)
-        tabs.addTab(page,'Импорт и сопоставление');self.report=QPlainTextEdit();self.report.setReadOnly(True);tabs.addTab(self.report,'Отчёт');button(outer,'Закрыть',self.reject)
+        self.import_scroll=QScrollArea();self.import_scroll.setWidgetResizable(True);self.import_scroll.setWidget(page);tabs.addTab(self.import_scroll,'Импорт и сопоставление');self.report=QPlainTextEdit();self.report.setReadOnly(True);tabs.addTab(self.report,'Отчёт');button(outer,'Закрыть',self.reject)
         for w in (self.source,self.currency):w.textChanged.connect(self.invalidate)
         for w in (self.key,self.sheet,self.encoding):w.currentIndexChanged.connect(self.invalidate)
         self.prices.toggled.connect(self.invalidate);self.reload_profiles();self.refresh()
         for label in self.findChildren(QLabel):label.setTextFormat(Qt.TextFormat.PlainText)
-    def refresh(self,*args):self.grid.install(catalog_rows(self.store,self.query.text()))
+    def refresh(self,*args):
+        self.grid.install(catalog_rows(self.store,self.query.text()))
+        if hasattr(self,'report'):self.report.setPlainText('\n\n'.join(self.report_text(x) for x in api.import_history(self.store)) or 'Импортов пока нет. Здесь появятся последние 20 отчётов.')
+    @staticmethod
+    def report_text(entry):
+        report=entry['report'];return f"Импорт №{entry['id']} · {entry['created_at']}\nИсточник: {entry['source']}\nФайл: {report['file_name']}\nSHA256: {entry['file_sha256']}\n"+'\n'.join(f'{STATES[k]}: {v}' for k,v in report['counts'].items())+'\nЯвно пропущено: '+str(report['skipped'])
     def invalidate(self,*args):
         self.plan=None
         if hasattr(self,'apply_button'):self.apply_button.setEnabled(False);self.summary.setText('Настройки изменились. Выполните проверку заново.')
@@ -63,7 +68,7 @@ class CatalogDialog(QDialog):
                 for header in value['headers']:combo.addItem(header,header)
                 combo.setCurrentIndex(max(0,combo.findData(old or (key if key in value['headers'] else ''))))
             self.summary.setText(f"Прочитано строк: {len(value['rows'])}. Проверьте сопоставление и устойчивый код. Показаны только безопасно прочитанные значения.")
-        self.work(lambda cancel:parse_file(path,sheet=sheet,encoding=encoding,cancel=cancel),loaded,'Читаю локальный файл…')
+        self.work(lambda cancel:parse_file(path,sheet=sheet or getattr(self,'saved_sheet',''),encoding=encoding,cancel=cancel),loaded,'Читаю локальный файл…')
     def config(self):return dict(source=self.source.text(),mapping={k:v.currentData() for k,v in self.mapping.items() if v.currentData()},key_field=self.key.currentData(),update_prices=self.prices.isChecked(),currency=self.currency.text(),sheet=self.sheet.currentText(),encoding=self.encoding.currentText())
     def preview(self):
         try:
@@ -73,7 +78,17 @@ class CatalogDialog(QDialog):
         except ServiceError as exc:QMessageBox.warning(self,'Каталог',str(exc))
     def install_preview(self,*args):
         if not self.plan:return
-        rows=[{'id':str(i),'line':r.line,'state_label':STATES[r.state],'key':r.key,'name':r.item.get('name',''),'reason':r.reason} for i,r in enumerate(self.plan.rows) if not self.only_problems.isChecked() or r.state in ('error','conflict')];self.preview_grid.install(rows);self.summary.setText(' · '.join(f'{STATES[k]}: {v}' for k,v in self.plan.counts.items()))
+        rows=[{'id':str(i),'line':r.line,'state_label':STATES[r.state],'key':r.key,'name':r.item.get('name',''),'reason':r.reason} for i,r in enumerate(self.plan.rows) if not self.only_problems.isChecked() or r.state in ('error','conflict')];self.preview_grid.install(rows);self.summary.setText(' · '.join(f'{STATES[k]}: {v}' for k,v in self.plan.counts.items())+'\nДвойной щелчок / Enter по строке — все переносимые значения.')
+    def details(self,*args):
+        selected=self.preview_grid.selected()
+        if not selected or not self.plan:return
+        row=self.plan.rows[int(selected['id'])];item=row.item;lines=[f'Строка {row.line} · {STATES[row.state]}',row.reason]
+        for key,label in api.LABELS.items():
+            value=item.get(key,'')
+            if key=='price':
+                cents=item.get('price_cents');value='Не указана' if cents is None else f'{cents//100}.{cents%100:02d}'
+            lines.append(label+': '+str(value))
+        dialog=QDialog(self);dialog.setWindowTitle('Проверить переносимые значения');fit_dialog(dialog,650,550);layout=QVBoxLayout(dialog);area=QPlainTextEdit();area.setReadOnly(True);area.setPlainText('\n'.join(lines));layout.addWidget(area);button(layout,'Закрыть',dialog.accept);dialog.exec()
     def apply(self):
         if not self.plan:return
         if QMessageBox.question(self,'Подтвердить импорт',self.summary.text()+'\nПрименить эти изменения? Проблемные строки пропускаются только при явном выборе.')!=QMessageBox.StandardButton.Yes:return
@@ -89,7 +104,7 @@ class CatalogDialog(QDialog):
     def load_profile(self):
         config=api.profiles(self.store).get(self.profile.currentText())
         if not config:return
-        self.saved_mapping=config['mapping'];self.source.setText(config['source']);self.currency.setText(config['currency']);self.key.setCurrentIndex(max(0,self.key.findData(config['key_field'])));self.prices.setChecked(config['update_prices']);self.encoding.setCurrentText(config['encoding']);self.sheet.setCurrentText(config['sheet'])
+        self.saved_mapping=config['mapping'];self.saved_sheet=config['sheet'];self.source.setText(config['source']);self.currency.setText(config['currency']);self.key.setCurrentIndex(max(0,self.key.findData(config['key_field'])));self.prices.setChecked(config['update_prices']);self.encoding.setCurrentText(config['encoding']);self.sheet.setCurrentText(config['sheet'])
         for key,combo in self.mapping.items():combo.setCurrentIndex(max(0,combo.findData(config['mapping'].get(key,''))))
         self.invalidate()
     def reject(self):

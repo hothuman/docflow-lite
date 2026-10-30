@@ -14,6 +14,12 @@ def test_mapping_profile_roundtrip_invalidation_and_sheet_reread(app,tmp_path,mo
         dialog.path=str(path);dialog.source.setText('Synthetic');dialog.read();idle(app,workspace)
         for field,header in [('external_id','Код'),('name','Название')]:dialog.mapping[field].setCurrentIndex(dialog.mapping[field].findData(header))
         dialog.preview();assert dialog.plan.rows[0].key=='001' and dialog.apply_button.isEnabled()
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QApplication,QPlainTextEdit
+        captured=[]
+        def inspect():
+            modal=QApplication.activeModalWidget();captured.append(modal.findChild(QPlainTextEdit).toPlainText());modal.accept()
+        dialog.preview_grid.selectRow(0);QTimer.singleShot(0,inspect);dialog.details();assert 'Внешний код: 001' in captured[0] and 'Учебная деталь' in captured[0]
         config=dialog.config();api.save_profile(workspace.store,'Custom',config);dialog.reload_profiles()
         dialog.currency.setText('RUB');assert dialog.plan is None and not dialog.apply_button.isEnabled()
         dialog.load_profile();assert dialog.config()==config
@@ -21,6 +27,8 @@ def test_mapping_profile_roundtrip_invalidation_and_sheet_reread(app,tmp_path,mo
         dialog.read();idle(app,workspace);dialog.preview();assert dialog.plan.rows[0].key=='002'
         # Loading before selecting a file must retain a custom mapping for the next read.
         other=CatalogDialog(workspace);workspace.dialogs.append(other);other.load_profile();other.path=str(path);other.read();idle(app,workspace)
-        assert other.mapping['external_id'].currentData()=='Код' and other.mapping['name'].currentData()=='Название'
+        assert other.mapping['external_id'].currentData()=='Код' and other.mapping['name'].currentData()=='Название' and other.parsed['sheet']=='First'
+        api.apply(workspace.store,other.plan or api.preview(workspace.store,other.parsed,config['source'],config['mapping']),confirmed=True)
+        other.refresh();assert 'Импорт №1' in other.report.toPlainText() and 'Новая: 1' in other.report.toPlainText()
         other.accept();workspace.dialogs.remove(other)
     finally:dialog.accept();workspace.dialogs.remove(dialog);dispose(app,workspace)

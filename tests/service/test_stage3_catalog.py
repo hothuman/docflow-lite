@@ -73,10 +73,16 @@ def test_quote_snapshot_documents_backup_profiles_and_history_survive_updates(st
     repair=store.intake(client={'name':'Учебный'},equipment={'number':'D-1','model':'Учебная модель'})
     save_draft(store,repair,[line]);estimate=freeze_estimate(store,repair,'preliminary','Учебный мастер')
     document=generate_document(store,repair,'estimate_preliminary',estimate_id=estimate);before_hash=hashlib.sha256(document.read_bytes()).hexdigest()
+    assert store.snapshot(repair)['totals']['total']==0
+    store.save_item(repair,dict(kind='part',name=entry['name'],unit='шт.',quantity='2',price='123.45'))
+    store.add_payment(repair,'246.90');store.save_repair(repair,{'status':'issued','issued_at':'2026-10-30'})
+    act=generate_document(store,repair,'completion');act_hash=hashlib.sha256(act.read_bytes()).hexdigest()
     with store.db.connection() as c:before=get_estimate(c,estimate)
     profile=json.loads(plan(store,[item()]).config_json);api.save_profile(store,'Synthetic',profile)
     updated=item();updated['price']='999.99';commit(store,[updated],update_prices=True)
-    assert api.search(store)[0]['price_cents']==99999 and store.snapshot(repair)['totals']['total']==0
+    assert api.search(store)[0]['price_cents']==99999 and store.snapshot(repair)['totals']['total']==24690
+    assert store.snapshot(repair)['totals']['balance']==0 and store.snapshot(repair)['repair']['status']=='issued'
+    assert hashlib.sha256(act.read_bytes()).hexdigest()==act_hash
     with store.db.connection() as c:assert get_estimate(c,estimate)==before
     assert hashlib.sha256(document.read_bytes()).hexdigest()==before_hash
     recovered=ServiceStore(restore_backup(create_backup(store,tmp_path/'backup.zip'),tmp_path/'restored'))
