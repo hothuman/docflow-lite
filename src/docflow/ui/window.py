@@ -241,6 +241,7 @@ class MainWindow(QMainWindow):
             self.service_workspace.tabs.currentChanged.connect(self._service_section_changed)
             old=self.pages.widget(5);self.pages.removeWidget(old);old.deleteLater();self.pages.addWidget(self.service_workspace)
             self.service_workspace.tabs.setCurrentIndex(self._last_service_page)
+        if (index==5)!=(previous==5):self._clear_notice()
         self.pages.setCurrentIndex(index);self.title.setText(self.PAGE_NAMES[index])
         if index<4:self._last_core_page=index
         self.mode_picker.blockSignals(True);self.mode_picker.setCurrentIndex(1 if index==5 else 0);self.mode_picker.blockSignals(False)
@@ -309,6 +310,8 @@ class MainWindow(QMainWindow):
         self.operation_notice.setText('Ошибка: '+str(message));self.operation_notice.setToolTip(str(message));self.operation_notice.show()
         self.validation_report.setPlainText(str(message));self.validation_report.show()
         self.tabs.setCurrentIndex(2)
+    def _clear_notice(self):
+        self.operation_notice.hide();self.operation_notice.clear();self.operation_notice.setToolTip('')
 
     def _task(self,function,success,message):
         if self._busy:return
@@ -642,6 +645,7 @@ class MainWindow(QMainWindow):
 
     @Slot(object)
     def on_result(self,result:BatchResult):
+        self._clear_notice()
         self.last_result=result;self.folder_btn.setEnabled(True);self.result_open_btn.setEnabled(True);self.report_btn.setEnabled(True)
         self.progress.setValue(100);self.progress_label.setText(f'Завершено: {result.total} / {result.total} записей')
         summary=f'Готово: {result.documents} DOCX · {result.accepted} записей обработано · {result.rejected} пропущено'
