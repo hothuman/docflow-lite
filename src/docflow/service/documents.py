@@ -388,7 +388,7 @@ def generate_document(store, repair_id, kind, template=None, image_ids=(), *, es
         if not template and not relative_template:
             values['executor_display']=organization['organization_name'] or 'Исполнитель не указан — нейтральная форма'
             values['organization_block']='\n'.join(x for x in (('Исполнитель: '+organization['organization_name']) if organization['organization_name'] else 'Исполнитель не указан — нейтральная форма',organization['details'],organization['contact']) if x)
-        path=Path(template) if template else (safe_path(store.root,relative_template) if relative_template else create_templates(safe_path(store.root,'templates/default-v5'),modern=True)[kind])
+        path=Path(template) if template else (safe_path(store.root,relative_template) if relative_template else create_templates(safe_path(store.root,'templates/default-v6'),modern=True)[kind])
         logo=safe_path(store.root,organization['logo_path']) if organization.get('logo_path') else None
         for file in (path if relative_template and not template else None,logo):
             if file:

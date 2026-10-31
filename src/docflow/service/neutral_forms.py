@@ -23,6 +23,10 @@ def refine(document,kind):
             paragraph.paragraph_format.space_before=Pt(16);paragraph.paragraph_format.keep_together=True
         if paragraph.text.startswith('Проект формы.'):
             for run in paragraph.runs:run.font.size=Pt(9)
+        # Keep signatures with the preceding business context, not just the
+        # legal note. No fixed page breaks or changes to supplied forms.
+        if paragraph.text.startswith(('Внутренние записи','Предварительный согласованный расчёт:','Производственный статус:','Ручные отметки в программе','Проект формы.')):
+            paragraph.paragraph_format.keep_with_next=True
         paragraph.paragraph_format.widow_control=True
     # Keep unchanged literal placeholders/markers and repeating item prototypes.
     widths=(.4,2.75,.6,.65,1.25,1.25)
