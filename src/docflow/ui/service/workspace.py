@@ -373,8 +373,7 @@ class ServiceWorkspace(QWidget):
     @needs_project
     def _client_dialog(self,row=None):
         d=FieldsDialog('Клиент',self._client_fields(),row,self)
-        if d.exec()==QDialog.DialogCode.Accepted:
-            data=d.values();key=row['id'] if row else None;s=self.store;self.run(lambda:s.save_client(data,key),lambda _:self.refresh())
+        key=row['id'] if row else None;s=self.store;d.persist_with(self,lambda data:s.save_client(data,key));self.modal(d)
     @needs_project
     def _equipment_dialog(self,row=None):
         clients=[(x['id'],x['name']) for x in self.cache.get('active_clients',[])]
@@ -383,8 +382,7 @@ class ServiceWorkspace(QWidget):
             QMessageBox.information(self,'Клиенты','Действующих клиентов нет. Откройте архив и проверьте нужную карточку либо создайте нового клиента. Архивные связи не удалены.' if has_archive else 'Сначала добавьте клиента');return
         fields=[('number','Постоянный номер *','text'),('model','Модель *','text'),('manufacturer','Производитель','text'),('kind','Тип','text'),('serial','Серийный номер','text'),('owner_id','Текущий владелец',clients),('identifiers','Другие идентификаторы','text'),('notes','Примечания','long')]
         d=FieldsDialog('Оборудование',fields,row,self)
-        if d.exec()==QDialog.DialogCode.Accepted:
-            data=d.values();key=row['id'] if row else None;s=self.store;self.run(lambda:s.save_equipment(data,key),lambda _:self.refresh())
+        key=row['id'] if row else None;s=self.store;d.persist_with(self,lambda data:s.save_equipment(data,key));self.modal(d)
     def new_equipment(self):self._equipment_dialog()
     def edit_equipment(self):
         r=self.selection('equipment')
