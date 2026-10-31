@@ -7,6 +7,9 @@ if not getattr(sys, "frozen", False):
 
 
 def main():
+    if len(sys.argv)>1 and sys.argv[1]=='--hotfix-self-test':
+        from docflow.service.hotfix_check import main as hotfix_check
+        return hotfix_check(sys.argv[2:])
     if len(sys.argv)>1 and sys.argv[1]=='--stage4-screenshots':
         from docflow.service.stage4_screenshots import main as stage4_screenshots
         return stage4_screenshots(sys.argv[2:])

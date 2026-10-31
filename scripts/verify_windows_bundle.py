@@ -225,6 +225,15 @@ def verify(archive,evidence,release):
             stage4=json.loads((stage4_output/'STAGE4-SELF-TEST.json').read_text(encoding='utf-8'))
             assert stage4_run.returncode==0,stage4
             assert_stage4_checks(stage4);result['stage4'].append({'scale':scale,**stage4})
+        result['hotfix']=[]
+        from docflow.service.hotfix_check import CHECKS as HOTFIX_CHECKS
+        for scale in ('1','1.25','1.5','1.75','2'):
+            output=evidence/('Hotfix-'+scale)
+            completed=subprocess.run([str(exe),'--hotfix-self-test','--require-windows','--output',str(output)],cwd=testroot,env={**env,'QT_SCALE_FACTOR':scale},capture_output=True,timeout=180)
+            report=json.loads((output/'HOTFIX-SELF-TEST.json').read_text(encoding='utf-8'))
+            assert completed.returncode==0 and report['status']=='passed' and report['frozen'] and report['qt_platform']=='windows',report
+            assert set(report['checks'])==HOTFIX_CHECKS and len(report['checks'])==len(HOTFIX_CHECKS)
+            result['hotfix'].append({'scale':scale,**report})
     result['status']='passed'
     result['limits']=['Automated native Windows runner, not manual Windows 10/11 acceptance',
                       'Native folder picker cancellation tested at 100%/200%; other file selections supplied by harness',
