@@ -44,7 +44,7 @@ class ServiceWorkspace(QWidget):
         self.open_project_button=button(self.project_actions,'Открыть проект',self.choose_project,primary=True)
         self.new_project_button=button(self.project_actions,'Создать отдельный проект',self.new_project)
         self.restore_project_button=button(self.project_actions,'Восстановить копию',self.restore)
-        self.section_picker=QComboBox();self.section_picker.setAccessibleName('Раздел Service');out.addWidget(self.section_picker)
+        self.section_picker=QComboBox();self.section_picker.setAccessibleName('Раздел мастерской');out.addWidget(self.section_picker)
         self.tabs=QTabWidget();self.tabs.setUsesScrollButtons(False);out.addWidget(self.tabs,1)
         self.section_picker.currentIndexChanged.connect(self.tabs.setCurrentIndex);self.tabs.currentChanged.connect(self.section_picker.setCurrentIndex)
         from .dashboard import Dashboard
@@ -109,7 +109,7 @@ class ServiceWorkspace(QWidget):
         self.open_project(root or default_root())
     def resizeEvent(self,event):
         super().resizeEvent(event)
-        compact=self.width()<920;self.tabs.tabBar().setVisible(not compact and not self.shell_navigation);self.section_picker.setVisible(compact and not self.shell_navigation)
+        compact=self.width()<920;self.tabs.tabBar().setVisible(not compact and not self.shell_navigation);self.section_picker.setVisible((compact and not self.shell_navigation) or (self.shell_navigation and (self.window().width()<760 or self.window().height()<600)))
     def _sync_project_controls(self):
         ready=self.store is not None and not self._project_busy and not self.worker
         available=not self._project_busy and not self.worker
@@ -373,8 +373,7 @@ class ServiceWorkspace(QWidget):
     @needs_project
     def _client_dialog(self,row=None):
         d=FieldsDialog('Клиент',self._client_fields(),row,self)
-        if d.exec()==QDialog.DialogCode.Accepted:
-            data=d.values();key=row['id'] if row else None;s=self.store;self.run(lambda:s.save_client(data,key),lambda _:self.refresh())
+        key=row['id'] if row else None;s=self.store;d.persist_with(self,lambda data:s.save_client(data,key));self.modal(d)
     @needs_project
     def _equipment_dialog(self,row=None):
         clients=[(x['id'],x['name']) for x in self.cache.get('active_clients',[])]
@@ -383,8 +382,7 @@ class ServiceWorkspace(QWidget):
             QMessageBox.information(self,'Клиенты','Действующих клиентов нет. Откройте архив и проверьте нужную карточку либо создайте нового клиента. Архивные связи не удалены.' if has_archive else 'Сначала добавьте клиента');return
         fields=[('number','Постоянный номер *','text'),('model','Модель *','text'),('manufacturer','Производитель','text'),('kind','Тип','text'),('serial','Серийный номер','text'),('owner_id','Текущий владелец',clients),('identifiers','Другие идентификаторы','text'),('notes','Примечания','long')]
         d=FieldsDialog('Оборудование',fields,row,self)
-        if d.exec()==QDialog.DialogCode.Accepted:
-            data=d.values();key=row['id'] if row else None;s=self.store;self.run(lambda:s.save_equipment(data,key),lambda _:self.refresh())
+        key=row['id'] if row else None;s=self.store;d.persist_with(self,lambda data:s.save_equipment(data,key));self.modal(d)
     def new_equipment(self):self._equipment_dialog()
     def edit_equipment(self):
         r=self.selection('equipment')

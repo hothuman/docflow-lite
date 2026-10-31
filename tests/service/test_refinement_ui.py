@@ -35,7 +35,7 @@ def test_real_dialog_shared_light_paint_and_three_groups(ui):
  import json,os
  from pathlib import Path
  app,w,sui,ids,_=ui;d=RepairDialog(sui,sui.store.snapshot(ids['repair']));d.show();app.processEvents();image=d.grab().toImage();probes=[]
- for widget in (d.fields['complaint'],d.tabs.sections['Приёмка'][2].widget()):
+ for widget in (d.fields['complaint'],d.tabs.sections['Приёмка'][2]):
   point=QPoint(8,8);legacy=image.pixelColor(widget.mapTo(d,point));child=widget.childAt(point)
   target=widget.viewport() if isinstance(widget,QPlainTextEdit) else widget
   painted=target.grab().toImage()
@@ -159,14 +159,15 @@ def test_narrow_finance_keeps_all_money_columns_visible(ui):
  grid.close()
 
 
-def test_a5_repair_sections_keep_selection_when_navigation_collapses(ui):
+def test_repair_details_stay_expanded_on_resize_without_second_navigation(ui):
+ from PySide6.QtWidgets import QComboBox
  app,w,sui,ids,_=ui;editor=RepairDialog(sui,sui.store.snapshot(ids['repair']))
  editor.resize(1080,760);editor.show();app.processEvents()
- picker,stack=editor.tabs.groups[3];sidebar=editor.tabs.lists[3];editor.tabs.setCurrentIndex(3)
- assert sidebar.isVisible() and not picker.isVisible()
- sidebar.setCurrentRow(1);app.processEvents();assert picker.currentIndex()==1 and stack.currentIndex()==1
+ editor.tabs.show_section('Запчасти');app.processEvents()
+ assert editor.tabs.currentIndex()==3 and editor.tabs.cards['Запчасти'].content.isVisible()
  editor.resize(640,480);app.processEvents()
- assert picker.isVisible() and not sidebar.isVisible() and picker.currentIndex()==1
+ assert editor.tabs.cards['Запчасти'].content.isVisible()
+ assert not any(x.isVisible() and x.accessibleName().startswith('Раздел:') for x in editor.findChildren(QComboBox))
  assert not editor.finance_strip.isVisible()
  editor.accept()
 

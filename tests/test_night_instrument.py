@@ -37,7 +37,9 @@ def test_small_window_keeps_navigation_text(size,tmp_path):
 
 def test_core_route_reflects_real_mapping_and_blocks_during_work(tmp_path):
  app=QApplication.instance() or QApplication([]);configure_app(app);w=MainWindow();w.show();w.load_demo();wait_idle(w)
- assert [b.property('complete') for b in w.route_buttons]==[True,True,True,False]
+ assert [b.property('complete') for b in w.route_buttons]==[True,True,False,False]
+ w.check_all();wait_idle(w)
+ assert w.route_buttons[2].property('complete') and 'С ошибками: 1' in w.status.text()
  w.mapping_table.cellWidget(0,1).setCurrentText('');app.processEvents()
  assert not w.route_buttons[2].property('complete') and not w.generate_btn.isEnabled()
  w.set_busy(True);assert all(not b.isEnabled() for b in w.route_buttons)
@@ -54,7 +56,7 @@ def test_repair_context_uses_actual_status_and_only_navigates(tmp_path):
  assert 'Ожидает запчастей' in editor.state_hint.text()
  assert 'Аппарат №DEMO-001' in editor.identity.text() and 'Ремонт №DEMO-R-002' in editor.heading.text()
  editor.status_action.click();app.processEvents();g,index,_=editor.tabs.sections['Статус и история']
- assert editor.tabs.currentIndex()==g and editor.tabs.groups[g][0].currentIndex()==index
+ assert editor.tabs.currentIndex()==g and editor.tabs.cards['Статус и история'].content.isVisible()
  assert editor.fields['status'].hasFocus() and not editor.dirty
  assert ui.store.snapshot(ids['repair'])['repair']['revision']==before
  editor.accept();w.close();app.processEvents()

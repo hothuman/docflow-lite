@@ -15,6 +15,14 @@ from docx import Document
 
 ROOT=Path(__file__).resolve().parents[1]
 
+REQUIRED_STAGE4_CHECKS=frozenset({'visible_modes_keyboard_memory','empty_core_demo_full_check','core_error_retry_generation','exclusive_intake_hidden_fields','repeat_requester_preserves_owner','single_stages_preserve_draft_status','dirty_mode_guard_ctrl_s','organization_wizard_and_act','history_selection_filter','frozen_quote_profile_and_catalog','backup_restore_immutable_documents','compact_footer_and_accessible_controls'})
+
+def assert_stage4_checks(report):
+    assert report['status']=='passed' and report['frozen'] and report['qt_platform']=='windows'
+    assert len(report['checks'])==len(REQUIRED_STAGE4_CHECKS) and {c['name'] for c in report['checks']}==REQUIRED_STAGE4_CHECKS
+    assert all(c['passed'] is True for c in report['checks']) and report['backup_restore'] is True
+    assert len(report['layout'])==3 and all(c['footer_visible'] and c['stages']==5 for c in report['layout'])
+
 REQUIRED_STAGE3_CHECKS=frozenset({'file_preview_apply_replay','catalog_to_quote_snapshot_docx','catalog_update_preserves_history','catalog_profiles_backup_restore','dashboard_presets_reset_restart','compact_catalog_layouts'})
 
 def assert_stage3_checks(report):
@@ -210,6 +218,22 @@ def verify(archive,evidence,release):
             stage3=json.loads((stage3_output/'STAGE3-SELF-TEST.json').read_text(encoding='utf-8'))
             assert stage3_run.returncode==0,stage3
             assert_stage3_checks(stage3);result['stage3'].append({'scale':scale,**stage3})
+        result['stage4']=[]
+        for scale in ('1','1.25','1.5','2'):
+            stage4_output=evidence/('Stage4-'+scale)
+            stage4_run=subprocess.run([str(exe),'--stage4-self-test','--require-windows','--output',str(stage4_output)],cwd=testroot,env={**env,'QT_SCALE_FACTOR':scale},capture_output=True,timeout=180)
+            stage4=json.loads((stage4_output/'STAGE4-SELF-TEST.json').read_text(encoding='utf-8'))
+            assert stage4_run.returncode==0,stage4
+            assert_stage4_checks(stage4);result['stage4'].append({'scale':scale,**stage4})
+        result['hotfix']=[]
+        from docflow.service.hotfix_check import CHECKS as HOTFIX_CHECKS
+        for scale in ('1','1.25','1.5','1.75','2'):
+            output=evidence/('Hotfix-'+scale)
+            completed=subprocess.run([str(exe),'--hotfix-self-test','--require-windows','--output',str(output)],cwd=testroot,env={**env,'QT_SCALE_FACTOR':scale},capture_output=True,timeout=180)
+            report=json.loads((output/'HOTFIX-SELF-TEST.json').read_text(encoding='utf-8'))
+            assert completed.returncode==0 and report['status']=='passed' and report['frozen'] and report['qt_platform']=='windows',report
+            assert set(report['checks'])==HOTFIX_CHECKS and len(report['checks'])==len(HOTFIX_CHECKS)
+            result['hotfix'].append({'scale':scale,**report})
     result['status']='passed'
     result['limits']=['Automated native Windows runner, not manual Windows 10/11 acceptance',
                       'Native folder picker cancellation tested at 100%/200%; other file selections supplied by harness',

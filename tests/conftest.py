@@ -19,6 +19,6 @@ def release_closed_qt_windows(qt_application_lifetime):
  QCoreApplication.sendPostedEvents(None,QEvent.Type.DeferredDelete);qt_application_lifetime.processEvents()
 
 @pytest.fixture(autouse=True)
-def isolate_interface_preferences(tmp_path,monkeypatch):
+def isolate_interface_preferences(tmp_path_factory,monkeypatch):
  """Never write a developer's settings or require registry access for tests."""
- monkeypatch.setenv('DOCFLOW_SETTINGS_DIR',str(tmp_path/'interface-preferences'))
+ monkeypatch.setenv('DOCFLOW_SETTINGS_DIR',str(tmp_path_factory.mktemp('interface-preferences')))

@@ -60,7 +60,7 @@ def validate_profile(data):
     return result
 
 
-def save_profile(store, data, key=None, *, assets=None, logo_rights_confirmed=False, activate=False):
+def save_profile(store, data, key=None, *, assets=None, logo_rights_confirmed=False, activate=False,repair_id=None,expected_revision=None):
     """Copy explicitly selected files and commit their registry with the profile.
 
     Old assets remain referenced by historical estimate snapshots and backups.
@@ -72,6 +72,9 @@ def save_profile(store, data, key=None, *, assets=None, logo_rights_confirmed=Fa
     key = key or uuid4().hex
     try:
         with store.lock, store.db.connection(True) as c:
+            if repair_id:
+                repair=store.require(c,'repair_orders',repair_id)
+                if expected_revision is not None and repair['revision']!=expected_revision:raise ServiceError('Карточка изменилась. Откройте свежую версию перед выбором организации.')
             existing = c.execute('SELECT 1 FROM organization_profiles WHERE id=?', (key,)).fetchone()
             selected = []
             if assets.get('logo'):
@@ -118,6 +121,9 @@ def save_profile(store, data, key=None, *, assets=None, logo_rights_confirmed=Fa
                           (key, values['name'], content, stamp, stamp))
             if activate:
                 c.execute("INSERT INTO service_settings(key,value) VALUES('active_profile',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key,))
+            if repair_id:
+                c.execute('UPDATE repair_orders SET profile_id=?,revision=revision+1,updated_at=? WHERE id=?',(key,stamp,repair_id))
+                store.audit(c,'repair',repair_id,'organization_profile',json.dumps({'before':repair['profile_id'],'after':key},ensure_ascii=False))
             store.audit(c, 'profile', key, 'save')
     except Exception:
         for path in created: path.unlink(missing_ok=True)

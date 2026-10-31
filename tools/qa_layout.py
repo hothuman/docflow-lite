@@ -33,11 +33,11 @@ def run(output):
                 failures=[]
                 if (window.width(),window.height())!=logical:failures.append('window exceeded requested logical size')
                 if scroll.horizontalScrollBar().maximum():failures.append('unexpected page horizontal scrolling')
-                if window._pinned_action:
-                    primary=window.generate_btn;point=primary.mapTo(window,QPoint())
+                if window._pinned_action and page<4:
+                    primary=window.generate_btn if page==3 else window.core_next;point=primary.mapTo(window,QPoint())
                     if not primary.isVisible() or not window.rect().contains(point) or not window.rect().contains(point+QPoint(primary.width()-1,primary.height()-1)):
-                        failures.append('primary generation action clipped or hidden')
-                for button in [window.demo_btn,window.folder_btn,window.mode_picker,*window.nav_buttons,*window.service_nav]:
+                        failures.append('current primary action clipped or hidden')
+                for button in [window.demo_btn,window.folder_btn,*window.mode_picker.buttons,*window.nav_buttons,*window.service_nav]:
                     if not button.isVisible():continue
                     point=button.mapTo(window,QPoint(0,0))
                     if not window.rect().contains(point) or not window.rect().contains(point+QPoint(button.width()-1,button.height()-1)):

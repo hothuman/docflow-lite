@@ -97,7 +97,8 @@ def main():
         cells = table.add_row().cells
         cells[0].text, cells[1].text = a, b
     for r, row in enumerate(table.rows):
-        for cell in row.cells:
+        for column,cell in enumerate(row.cells):
+            cell.width=table.columns[column].width
             from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
             cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
             tcpr = cell._tc.get_or_add_tcPr()
