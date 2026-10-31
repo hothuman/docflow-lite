@@ -333,7 +333,7 @@
   "tests/service/test_completion_ui.py": "aae315846520a5b0ebc34e421104b258454304ae4c83f9b9e99884fe7e171d56",
   "tests/service/test_docx_completion.py": "8a61fbcf4ee49dc9511b76ada79656c7bebdd1aae17e502701ac951076821a85",
   "tests/service/test_estimates.py": "98f9abea1a2e9ab2d48a43e341040846bf6e55163f1182d9f45c5d7762d5aaec",
-  "tests/service/test_gui_service.py": "ef3c5a1b5ce1fabf21fa5b0febf7e51138af3ab14f4a57aed9188c70921bac65",
+  "tests/service/test_gui_service.py": "5614e0db6f75492872dddddbfd12b200777f8c52d87d5bbd2a0b751e505427a4",
   "tests/service/test_historical_status.py": "2d6391bac5697dbb1f58a33fca32914c0028c8c8a08ab942b48a6fc38c4abedb",
   "tests/service/test_history_finance_evidence.py": "2fe4fb851905aa5062a4f6a7ea5e7ae61a2a0dfe1b618439ab8437315b923003",
   "tests/service/test_history_import.py": "14955780993c9c911ffc1fd7e4121ef4ca75c9c7bead21a1a0678432e0440ad5",
