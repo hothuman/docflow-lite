@@ -25,7 +25,7 @@ class IntakeSummary(QLabel):
 
 class IntakeDialog(QDialog):
     @property
-    def dirty(self):return bool(self.complaint.toPlainText() or self.name.text() or self.number.text() or self.model.text() or self.phone.text() or self.other_client.isChecked())
+    def dirty(self):return self._editable_state()!=self._initial_state
     def __init__(self,workspace,equipment=None):
         super().__init__(workspace);self.workspace=workspace;self.request_id=uuid4().hex;self.setWindowTitle('Принять оборудование в ремонт');fit_dialog(self,720,680)
         out=QVBoxLayout(self);scroll=QScrollArea();scroll.setWidgetResizable(True);body=QWidget();form=QFormLayout(body);form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow);form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows);scroll.setWidget(body);out.addWidget(scroll,1)
@@ -55,7 +55,19 @@ class IntakeDialog(QDialog):
         for combo in (self.equipment,self.client,self.repair_client):combo.currentTextChanged.connect(self.summarize)
         if equipment:self.existing_equipment.setChecked(True);self.equipment.setCurrentIndex(self.equipment.findData(equipment['id']))
         for label in self.findChildren(QLabel):label.setTextFormat(Qt.TextFormat.PlainText)
-        self.form=form;self.arrange()
+        self.form=form;self.arrange();self._initial_state=self._editable_state()
+    def _editable_state(self):
+        def selection(combo):return (self.selected(combo),combo.currentText())
+        new=self.new_equipment.isChecked();state={'new_equipment':new,'complaint':self.complaint.toPlainText(),'manual_number':self.more.isChecked()}
+        if self.more.isChecked():state['repair_number']=self.repair_number.text()
+        if new:
+            state.update(number=self.number.text(),model=self.model.text(),new_client=self.new_client.isChecked())
+            if self.new_client.isChecked():state.update(name=self.name.text(),phone=self.phone.text())
+            else:state['client']=selection(self.client)
+        else:
+            state.update(equipment=selection(self.equipment),other_client=self.other_client.isChecked())
+            if self.other_client.isChecked():state['repair_client']=selection(self.repair_client)
+        return state
     @staticmethod
     def selector(rows,label,name):
         combo=QComboBox();combo.setEditable(True);combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert);combo.setMinimumWidth(0);combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon);combo.setMinimumContentsLength(12);combo.setAccessibleName(name)
@@ -94,8 +106,7 @@ class IntakeDialog(QDialog):
         self.workspace.run(lambda:store.intake(**payload),saved,'Сохраняю приёмку…',on_error=lambda error:self.note.setText('Приёмка не сохранена. '+error))
     def reject(self):
         if self.workspace.worker:return
-        filled=bool(self.complaint.toPlainText() or self.name.text() or self.number.text() or self.model.text())
         from .widgets import confirm
-        if filled and not confirm(self,'Закрыть незавершённую приёмку? Введённые данные ещё не сохранены.'):return
+        if self.dirty and not confirm(self,'Закрыть незавершённую приёмку? Введённые данные ещё не сохранены.'):return
         super().reject()
     def closeEvent(self,event):event.ignore();self.reject()
