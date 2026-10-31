@@ -283,7 +283,7 @@
   "src/docflow/service/refinement_check.py": "84446ab88b981876eb07ec60cba9db017308a11246c930b8d24e6b7203dbe3d3",
   "src/docflow/service/repository.py": "a62644d689583954bb30400f9328e567e75935fd5e512ecd1f794af151c9d2fd",
   "src/docflow/service/resources/synthetic-demo.mp4": "fe2ae444cff624eea92e566332d727346c769e4d8b0f21cded897556d123e127",
-  "src/docflow/service/self_test.py": "398f412d350d0a82008273b8fc86abd0265f7136301ee1d3ebecc04db05a47aa",
+  "src/docflow/service/self_test.py": "ca0e79ffd6f1e722ce13b29680ab30a050be374e18a7e9934d70d862957c920e",
   "src/docflow/service/stage1_check.py": "1f267542fb6246c7edc33e64bb1cd2a43505ec85f1027965a800e78aec715281",
   "src/docflow/service/stage2_check.py": "51dfb615817fcf78a42f5ef9db875fc86fedad08c1b70bd214b71e1c69fdb968",
   "src/docflow/service/stage3_check.py": "418a89885c9e94ba347b495a258b54bfedad0051f73dfef4147cca0172335569",
