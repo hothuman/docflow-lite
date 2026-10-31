@@ -1,10 +1,27 @@
 """Mutually exclusive intake choices with one atomic domain operation."""
 from uuid import uuid4
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QDialog,QVBoxLayout,QFormLayout,QComboBox,QCheckBox,QRadioButton,QButtonGroup,QLineEdit,QPlainTextEdit,QLabel,QScrollArea,QWidget)
+from PySide6.QtCore import Qt,QTimer,QEvent
+from PySide6.QtWidgets import (QDialog,QVBoxLayout,QFormLayout,QComboBox,QCheckBox,QRadioButton,QButtonGroup,QLineEdit,QPlainTextEdit,QLabel,QScrollArea,QWidget,QSizePolicy)
 from .forms import fit_dialog
 from .widgets import button
 from ..flow import FlowLayout
+
+class IntakeSummary(QLabel):
+    """Reserve the wrapped text's real height, including stylesheet padding.
+
+    A growing QFormLayout field inside a resizable scroll body can otherwise
+    receive only its old three-line height after text/font/width changes.
+    """
+    def __init__(self):
+        super().__init__();self.setWordWrap(True);self.setAlignment(Qt.AlignmentFlag.AlignTop);self.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Minimum)
+    def update_height(self):
+        needed=self.heightForWidth(max(1,self.width()))
+        if needed>0 and self.minimumHeight()!=needed:self.setMinimumHeight(needed)
+    def setText(self,value):super().setText(value);self.update_height()
+    def resizeEvent(self,event):super().resizeEvent(event);self.update_height()
+    def changeEvent(self,event):
+        super().changeEvent(event)
+        if event.type() in (QEvent.Type.FontChange,QEvent.Type.StyleChange):QTimer.singleShot(0,self,self.update_height)
 
 class IntakeDialog(QDialog):
     @property
@@ -31,7 +48,7 @@ class IntakeDialog(QDialog):
         self.name=QLineEdit();self.name.setAccessibleName('Имя нового клиента');df.addRow('Имя / организация *',self.name);self.phone=QLineEdit();self.phone.setAccessibleName('Телефон клиента');df.addRow('Телефон (необязательно)',self.phone);form.addRow(self.device_body)
         self.complaint=QPlainTextEdit();self.complaint.setMaximumHeight(100);self.complaint.setAccessibleName('Что сломалось');form.addRow('Что сломалось?',self.complaint)
         self.more=QCheckBox('Дополнительно: свой номер ремонта');form.addRow(self.more);self.repair_number=QLineEdit();self.repair_number.setAccessibleName('Номер ремонта');self.repair_number.setPlaceholderText('Автоматически: '+workspace.cache.get('next_repair_number',''));form.addRow('№ ремонта',self.repair_number)
-        self.confirmation=QLabel();self.confirmation.setObjectName('intakeSummary');self.confirmation.setWordWrap(True);self.confirmation.setAccessibleName('Что будет создано');form.addRow('Проверьте перед приёмкой',self.confirmation)
+        self.confirmation=IntakeSummary();self.confirmation.setObjectName('intakeSummary');self.confirmation.setAccessibleName('Что будет создано');form.addRow('Проверьте перед приёмкой',self.confirmation)
         self.note=QLabel();self.note.setWordWrap(True);out.addWidget(self.note);bar=FlowLayout();out.addLayout(bar);self.submit=button(bar,'Принять в ремонт',self.save,primary=True);self.submit.setDefault(True);button(bar,'Отмена',self.reject)
         for b in (self.existing_equipment,self.new_equipment,self.existing_client,self.new_client,self.more,self.other_client):b.toggled.connect(self.arrange)
         for field in (self.name,self.model,self.number,self.repair_number):field.textChanged.connect(self.summarize)

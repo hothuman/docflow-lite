@@ -20,6 +20,9 @@ def test_hidden_new_values_cannot_create_entities_in_repeat_intake(app,tmp_path)
         for chosen in (True,False):
             (d.new_equipment if chosen else d.existing_equipment).setChecked(True);app.processEvents();option=QStyleOptionButton();radio.initStyleOption(option);sizes.append(radio.style().sizeFromContents(QStyle.ContentsType.CT_RadioButton,option,natural,radio).width())
         assert sizes[0]==sizes[1]
+        d.resize(560,420);d.new_equipment.setChecked(True);d.new_client.setChecked(True);d.model.setText('Длинная учебная модель '*12);d.name.setText('Длинное учебное имя '*12);app.processEvents();app.processEvents()
+        assert d.confirmation.height()>=d.confirmation.heightForWidth(d.confirmation.width())
+        d.existing_equipment.setChecked(True);app.processEvents()
         assert d.existing_equipment.isChecked() and not d.new_equipment.isChecked() and not d.device_body.isVisible()
         assert 'история сохраняется' in d.confirmation.text() and 'НЕ СОХРАНЯТЬ' not in d.confirmation.text()
         d.submit.click();idle(app,w)

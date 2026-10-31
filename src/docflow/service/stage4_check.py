@@ -58,7 +58,7 @@ def exercise(window,app,output,idle):
     passed('core_error_retry_generation',documents_per_run=4)
     click(window.mode_picker.buttons[1]);idle(ui)
     d=IntakeDialog(ui);d.show();app.processEvents();assert d.new_equipment.isChecked() and not d.equipment.isVisible()
-    d.name.setText('Учебный собственник');d.number.setText('UX-001');d.model.setText('Учебный аппарат');d.complaint.setPlainText('Учебная жалоба');capture('intake-new',d);click(d.submit);idle(ui);first=d.created_key
+    d.name.setText('Учебный собственник');d.number.setText('UX-001');d.model.setText('Учебный аппарат');d.complaint.setPlainText('Учебная жалоба');app.processEvents();assert d.confirmation.height()>=d.confirmation.heightForWidth(d.confirmation.width());capture('intake-new',d);click(d.submit);idle(ui);first=d.created_key
     assert len(ui.store.equipment())==len(ui.store.clients())==1
     equipment=ui.store.equipment()[0];owner=equipment['owner_id'];other=ui.store.save_client({'name':'Учебный другой заказчик'});ui.refresh();idle(ui)
     d=IntakeDialog(ui,equipment);d.show();app.processEvents();assert not d.device_body.isVisible() and d.equipment.isVisible()
