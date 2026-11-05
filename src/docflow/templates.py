@@ -139,6 +139,11 @@ class Template:
             current = added
 
     @cached_property
+    def diagnostics(self):
+        from .template_diagnostics import layout_findings
+        return layout_findings(self.raw)
+
+    @cached_property
     def _preview_lines(self) -> tuple[str, ...]:
         """Immutable text plan: preview does not recompress an entire DOCX."""
         lines = []

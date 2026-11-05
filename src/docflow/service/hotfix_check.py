@@ -5,7 +5,7 @@ No external input injection, real customer data, Word or human UX acceptance.
 import argparse,hashlib,json,os,sqlite3,sys,time,traceback
 from pathlib import Path
 
-CHECKS={'client_retry','equipment_retry','permission_retry','intake_cancel_discard','catalog_geometry','core_retry_context','documents_versions','reused_profile_templates','core_accessible_action','stage5_configuration'}
+CHECKS={'client_retry','equipment_retry','permission_retry','intake_cancel_discard','catalog_geometry','core_retry_context','documents_versions','reused_profile_templates','core_accessible_action','stage5_configuration','stage6_template_diagnostics'}
 
 def exercise(window,app,output,idle):
     from PySide6.QtCore import QTimer,Qt
@@ -102,6 +102,26 @@ def exercise(window,app,output,idle):
     checks.extend(exercise_rc9(window,app,output,idle))
     from ..ui.configuration import exercise as exercise_configuration
     exercise_configuration(window,app,output,idle);checks.append('stage5_configuration')
+    window.diagnose_templates();assert 'загруженная копия DOCX проверена' in window.template_diagnostics.toPlainText()
+    row=next(i for i in range(window.mapping_table.rowCount()) if window.mapping_table.item(i,0).text()=='client')
+    before=window.mapping();window.mapping_table.cellWidget(row,1).setCurrentIndex(0);wait_idle(window)
+    assert 'Поле «client» не связано' in window.template_diagnostics.toPlainText()
+    window.restore_config_btn.click();wait_idle(window);assert window.mapping()==before
+    assert 'Поле «client» не связано' not in window.template_diagnostics.toPlainText()
+    assert (ui.store.root/'templates/default-v7/completion.docx').is_file()
+    from PySide6.QtWidgets import QFileDialog
+    from ..ui.service.repair_editor import RepairDialog
+    chooser=QFileDialog.getOpenFileName
+    dialog=RepairDialog(ui,ui.store.snapshot(key));dialog.show()
+    try:
+        path=ui.store.root/'templates/default-v7/completion.docx'
+        QFileDialog.getOpenFileName=lambda *args:(str(path),'')
+        dialog.pick_template();idle(ui)
+        assert dialog.template_path.text()==str(path) and 'DOCX проверен' in dialog.document_status.text()
+        capture(dialog,'stage6-service-diagnostics')
+    finally:
+        QFileDialog.getOpenFileName=chooser;dialog.close();dialog.deleteLater();app.processEvents()
+    capture(window,'stage6-diagnostics');checks.append('stage6_template_diagnostics')
     assert set(checks)==CHECKS
     return {'status':'passed','checks':checks,'layout':layouts,'documents':documents,'old_document_unchanged':True,'word_checked':False,'human_acceptance':False,'QA03':'Partial: OOXML/footer improvement; long-row ONLYOFFICE pagination requires separate renderer verification'}
 

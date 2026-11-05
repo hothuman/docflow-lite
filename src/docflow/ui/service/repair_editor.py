@@ -304,7 +304,15 @@ class RepairDialog(QDialog):
         self.workspace.run(read,lambda img:self.image.setPixmap(QPixmap.fromImage(img).scaled(540,220,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation)),'Загружаю изображение…')
     def pick_template(self):
         p,_=QFileDialog.getOpenFileName(self,'Свой шаблон Service','','Word (*.docx)')
-        if p:self.template_path.setText(p)
+        if not p:return
+        from ...templates import Template
+        def checked(template):
+            self.template_path.setText(p)
+            messages=[f'DOCX проверен. Полей: {len(template.fields)}.']
+            messages.extend(f.message for f in template.diagnostics)
+            messages.append('Сопоставление полей ремонта проверяется при создании. Оформление проверьте в Word.')
+            self.document_status.setText('\n'.join(messages))
+        self.workspace.run(lambda:Template.load(p),checked,'Проверяю шаблон…',on_error=lambda error:self.document_status.setText(str(error)))
     def quick_document(self):
         choices=[KINDS[key] for key in ('intake','completion','handover')]
         from ...service.document_readiness import assess
