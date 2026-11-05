@@ -720,6 +720,15 @@ class MainWindow(QMainWindow):
         if self.last_result and not QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.last_result.directory/'report.json'))):self.error('Система не смогла открыть отчёт. Он сохранён в папке результата')
 
     def closeEvent(self,event):
+        # Native Windows normally blocks an owner while its modal is active.
+        # Programmatic close() and other Qt platforms must preserve that guard
+        # too: hiding the owner here would also release the project lock.
+        modal=QApplication.activeModalWidget()
+        tracked=self.service_workspace.dialogs if self.service_workspace else ()
+        dialog=next((d for d in tracked if d.isVisible()),None)
+        if dialog is None and modal is not self and modal is not None and self.isAncestorOf(modal):dialog=modal
+        if dialog is not None:
+            event.ignore();dialog.raise_();dialog.activateWindow();return
         if (self.service_workspace and self.service_workspace.worker) or self._busy or any(w and w.isRunning() for w in (self.worker,self.task_worker,self.preview_worker)):
             QMessageBox.information(self,'Обработка продолжается','Дождитесь завершения текущей операции перед закрытием')
             event.ignore()
