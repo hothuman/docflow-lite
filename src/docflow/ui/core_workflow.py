@@ -42,7 +42,17 @@ def readiness(w,valid,message):
     if not loaded:title='Выбрать таблицу'
     elif not w.active_templates():title='Добавить шаблон Word'
     elif page==3 and not valid:title='Проверить связь полей →'
-    w.core_next.setText(title);w.core_next.setEnabled(not w._busy and (page!=2 or valid or not loaded or not w.active_templates()));w.generate_btn.setEnabled(valid and not w._busy)
+    if not loaded:hint='Откройте таблицу Excel или CSV для нового комплекта.'
+    elif not w.active_templates():hint='Добавьте один или несколько Word-шаблонов для этой таблицы.'
+    elif page==0:hint='Перейти к выбору шаблонов Word.'
+    elif page==1:hint='Сопоставить поля шаблонов со столбцами таблицы.'
+    elif page==3:hint='Вернуться к полям и исправить ошибки сопоставления.'
+    elif checked:hint='Перейти к папке и созданию документов.'
+    else:hint='Проверить все строки перед созданием документов.'
+    if w._busy:hint='Дождитесь завершения операции. '+hint
+    w.core_next.setText(title);w.core_next.setAccessibleName(title)
+    w.core_next.setToolTip(hint);w.core_next.setAccessibleDescription(hint)
+    w.core_next.setEnabled(not w._busy and (page!=2 or valid or not loaded or not w.active_templates()));w.generate_btn.setEnabled(valid and not w._busy)
     state=('Таблица не выбрана' if not loaded else f'Таблица: {len(w.table.records)} строк')+' · '+('Шаблон не выбран' if not w.active_templates() else f'Шаблонов: {len(w.active_templates())}')
     w.core_state.setText(state)
     feedback=(f'Все {w._full_check[2]} строк проверены. С ошибками: {w._full_check[1]}.' if checked else 'Поля связаны. Все строки ещё не проверены.' if valid else message)

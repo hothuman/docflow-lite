@@ -5,7 +5,7 @@ No external input injection, real customer data, Word or human UX acceptance.
 import argparse,hashlib,json,os,sqlite3,sys,time,traceback
 from pathlib import Path
 
-CHECKS={'client_retry','equipment_retry','permission_retry','intake_cancel_discard','catalog_geometry','core_retry_context','documents_versions'}
+CHECKS={'client_retry','equipment_retry','permission_retry','intake_cancel_discard','catalog_geometry','core_retry_context','documents_versions','reused_profile_templates','core_accessible_action'}
 
 def exercise(window,app,output,idle):
     from PySide6.QtCore import QTimer,Qt
@@ -98,6 +98,8 @@ def exercise(window,app,output,idle):
         estimate=freeze_estimate(ui.store,key,kind.removeprefix('estimate_'),'QA Synthetic') if kind.startswith('estimate_') else None
         documents[kind]=str(generate_document(ui.store,key,kind,image_ids=(image,) if kind=='completion' else (),estimate_id=estimate))
     assert hashlib.sha256(first.read_bytes()).hexdigest()==before;checks.append('documents_versions')
+    from .rc9_check import exercise as exercise_rc9
+    checks.extend(exercise_rc9(window,app,output,idle))
     assert set(checks)==CHECKS
     return {'status':'passed','checks':checks,'layout':layouts,'documents':documents,'old_document_unchanged':True,'word_checked':False,'human_acceptance':False,'QA03':'Partial: OOXML/footer improvement; long-row ONLYOFFICE pagination requires separate renderer verification'}
 
