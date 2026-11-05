@@ -17,7 +17,7 @@ def refine(document):
     for style in ('Normal','Title','Heading 1','Heading 2'):
         p=document.styles[style];p.font.color.rgb=RGBColor(0,0,0)
         lang=OxmlElement('w:lang');lang.set(qn('w:val'),'ru-RU');p.element.get_or_add_rPr().append(lang)
-    widths=(8,76,14,14,30,34)  # Exactly176mm, the A4 printable width.
+    widths=(11,76,14,14,30,31)  #176mm; the number column fits four digits.
     printable=(section.page_width-section.left_margin-section.right_margin)//635
     ticks=[round(Mm(value)/635) for value in widths[:-1]]
     widths=[Twips(value) for value in [*ticks,printable-sum(ticks)]]

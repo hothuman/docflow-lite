@@ -26,6 +26,7 @@ def test_print_family_preserves_fields_and_print_area(tmp_path,kind):
     d=Document(new);s=d.sections[0]
     assert abs(s.page_width-Mm(210))<1000
     for table in d.tables:
+        assert table.columns[0].width>=Mm(10.5)  # No wrapping of positions100–1000.
         assert sum(c.width for c in table.columns)<=s.page_width-s.left_margin-s.right_margin+1000
         assert table.rows[0]._tr.trPr.find(qn('w:tblHeader')) is not None
         assert all(r._tr.trPr.find(qn('w:trHeight')) is None for r in table.rows)
@@ -44,7 +45,7 @@ def test_many_rows_exact_text_and_versions(tmp_path,count):
     assert s.snapshot(r)['totals']['total']==count*101
     assert sha(old)==digest and old!=new and (s.root/'templates/default-v7/completion.docx').exists()
     # Never migrate or rewrite previously present family files.
-    v6=create_templates(s.root/'templates/default-v6',modern=True)['completion'];v6sha=sha(v6)
+    v6=s.root/'templates/default-v6/completion.docx';assert v6.is_file();v6sha=sha(v6)
     generate_document(s,r,'completion',template=v6);assert sha(v6)==v6sha
 
 def test_long_single_position_is_not_truncated(tmp_path):
