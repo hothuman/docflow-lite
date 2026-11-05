@@ -47,7 +47,7 @@ def assess(window,workspace,app,output,idle):
   for index,name in enumerate(('dashboard','equipment','repairs','clients','finance','documents','estimates','settings')):workspace.tabs.setCurrentIndex(index);pump();inspect(window,name,physical,logical,[b for b in window.nav_buttons if b.isVisible()])
   workspace.tabs.setCurrentIndex(0);editor=RepairDialog(workspace,snapshot);editor.resize(min(1060,logical[0]),min(740,logical[1]));editor.show();pump()
   for section,name in [('Приёмка','repair-basic'),('Сметы','repair-estimates'),('Документы','repair-documents'),('Вложения','repair-attachments')]:
-   editor.tabs.show_section(section);pump();inspect(editor,name,physical,logical,[b for b in editor.findChildren(QPushButton) if b.isVisible() and b.text() in ('Сохранить ремонт','Закрыть')])
+   editor.tabs.show_section(section);pump();inspect(editor,name,physical,logical,[editor.save_button,editor.next_button,*[b for b in editor.findChildren(QPushButton) if b.isVisible() and b.text()=='Закрыть']])
   draft=DraftDialog(editor);draft.resize(min(960,logical[0]),min(640,logical[1]));draft.show();pump();inspect(draft,'draft',physical,logical,[b for b in draft.findChildren(QPushButton) if b.text() in ('Сохранить расчёт','Отмена')]);draft.reject()
   factories=[('import',lambda:HistoryWizard(workspace)),('profiles',lambda:ProfileDialog(workspace)),('images',lambda:ImagesDialog(snapshot['attachments'],workspace)),('equipment-history',lambda:HistoryDialog(workspace,equipment)),('input',lambda:FieldsDialog('Проверка размеров',[('name','Название *','text'),('notes','Примечания','long')],parent=workspace))]
   for name,factory in factories:

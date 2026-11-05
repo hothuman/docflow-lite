@@ -56,7 +56,7 @@ def run(output):
  report['routes']['repeat_intake']={'observed_dialogs':len(trace),'trace':trace}
  editor=RepairDialog(ui,ui.store.snapshot(ui.store.repairs()[0]['id']));ui.dialogs.append(editor);editor.show();app.processEvents();events=[]
  editor.tabs.currentChanged.connect(lambda index:events.append('stage:'+str(index)))
- for n,(picker,_) in enumerate(editor.tabs.groups):picker.currentIndexChanged.connect(lambda index,g=n:events.append('section:'+str(g)+':'+str(index)))
+ for title,card in editor.tabs.cards.items():card.toggle.toggled.connect(lambda expanded,name=title:events.append('details:'+name+':'+str(expanded)))
  editor.tabs.show_section('Приёмка');events.clear();editor.tabs.show_section('Сметы');app.processEvents()
  report['routes']['estimate']={'navigation_changes':len(events),'trace':events[:]}
  editor.tabs.show_section('Приёмка');events.clear();old_item=QInputDialog.getItem;old_open=QDesktopServices.openUrl;old_warning=QMessageBox.warning

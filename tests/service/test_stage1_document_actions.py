@@ -102,6 +102,10 @@ def test_missing_template_is_actionable_and_keeps_existing_versions(card):
     idle(app, workspace)
     first = editor._last_document
     before = first.read_bytes()
+    # Exercise a missing file independently of the new incomplete-profile guard.
+    from docflow.service.profiles import save_profile,NEUTRAL
+    save_profile(workspace.store,{**NEUTRAL,'name':'Учебный','organization_name':'Вымышленная мастерская','contact':'Учебный контакт','details':'Учебные реквизиты'},repair_id=editor.key,expected_revision=editor.revision)
+    editor.install(workspace.store.snapshot(editor.key))
     editor.template_path.setText(str(workspace.store.root / 'absent-template.docx'))
     editor.generate()
     idle(app, workspace)

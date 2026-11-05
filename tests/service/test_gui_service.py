@@ -17,8 +17,9 @@ def idle(app,workspace):
 
 def test_actual_qt_service_and_core_workflow(app,tmp_path):
  from docflow.service.self_test import run
- assert run(tmp_path/'native-qt-workflow')==0
+ result=run(tmp_path/'native-qt-workflow')
  proof=json.loads((tmp_path/'native-qt-workflow/SERVICE-SELF-TEST.json').read_text())
+ assert result==0,proof.get('traceback',proof)
  assert proof['status']=='passed' and len(proof['checks'])==9
 
 def test_editor_saves_real_changes_with_revision(app,tmp_path):

@@ -26,8 +26,10 @@ class CatalogDialog(QDialog):
         self.source=QLineEdit();self.source.setPlaceholderText('Постоянное имя источника, например Учебный каталог');form.addRow('Источник *',self.source)
         self.sheet=QComboBox();form.addRow('Лист',self.sheet);self.encoding=QComboBox();self.encoding.addItems(['auto','utf-8-sig','cp1251']);form.addRow('Кодировка CSV',self.encoding)
         self.key=QComboBox();self.key.addItem('Внешний код (точное совпадение)','external_id');self.key.addItem('Внутренний артикул (точное совпадение)','sku');form.addRow('Устойчивый ключ',self.key)
+        self.key.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon);self.key.setMinimumContentsLength(12)
         self.currency=QLineEdit();self.currency.setMaxLength(3);self.currency.setPlaceholderText('Пусто, если валюта в файле');form.addRow('Явная валюта по умолчанию',self.currency)
-        self.prices=QCheckBox('Разрешить обновление цен каталога (прежние сметы не меняются)');form.addRow(self.prices)
+        self.prices=QCheckBox('Обновлять цены каталога');form.addRow(self.prices)
+        price_note=QLabel('Прежние сметы и документы сохранят свои цены.');price_note.setWordWrap(True);form.addRow(price_note)
         self.profile=QComboBox();form.addRow('Профиль',self.profile);bar=FlowLayout();form.addRow(bar);button(bar,'Загрузить профиль',self.load_profile);button(bar,'Сохранить профиль',self.save_profile);button(bar,'Перечитать файл / лист',self.read)
         self.mapping={}
         for key,label in api.LABELS.items():
@@ -35,7 +37,8 @@ class CatalogDialog(QDialog):
         self.preview_grid=Grid([('line','Строка'),('state_label','Решение'),('key','Код'),('name','Название'),('reason','Причина')]);self.preview_grid.setMinimumHeight(180);self.preview_grid.setMaximumHeight(350);self.preview_grid.openRequested.connect(self.details);self.preview_grid.doubleClicked.connect(self.details);layout.addWidget(self.preview_grid,1)
         self.summary=QLabel('Выберите файл, сопоставьте колонки и проверьте изменения.');self.summary.setWordWrap(True);layout.addWidget(self.summary)
         self.only_problems=QCheckBox('Показать только ошибки и конфликты');self.only_problems.toggled.connect(self.install_preview);layout.addWidget(self.only_problems)
-        self.skip=QCheckBox('Явно пропустить ошибки и конфликты; применить только допустимые строки');layout.addWidget(self.skip)
+        self.skip=QCheckBox('Пропустить ошибки и конфликты');layout.addWidget(self.skip)
+        skip_note=QLabel('Будут применены только допустимые строки. Ошибки и конфликты останутся в отчёте.');skip_note.setWordWrap(True);layout.addWidget(skip_note)
         bar=FlowLayout();layout.addLayout(bar);self.preview_button=button(bar,'Проверить изменения',self.preview);self.apply_button=button(bar,'Применить проверенные изменения',self.apply,primary=True);self.apply_button.setEnabled(False)
         self.import_scroll=QScrollArea();self.import_scroll.setWidgetResizable(True);self.import_scroll.setWidget(page);tabs.addTab(self.import_scroll,'Импорт и сопоставление');self.report=QPlainTextEdit();self.report.setReadOnly(True);tabs.addTab(self.report,'Отчёт');button(outer,'Закрыть',self.reject)
         for w in (self.source,self.currency):w.textChanged.connect(self.invalidate)

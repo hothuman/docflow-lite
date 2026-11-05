@@ -232,6 +232,7 @@ class ServiceStore:
         with self.db.connection() as c:
             r=self.require(c,'repair_orders',key)
             result={'repair':r,'equipment':self.require(c,'equipment',r['equipment_id']),'client':self.require(c,'clients',r['client_id']),'totals':totals(c,key)}
+            result['owner']=self.require(c,'clients',result['equipment']['owner_id'])
             for table in ('repair_items','payments','attachments','generated_documents','repair_status_history'):
                 result[table]=[dict(x) for x in c.execute(f'SELECT * FROM {table} WHERE repair_id=? ORDER BY '+('position,rowid' if table=='repair_items' else 'rowid'),(key,))]
             from .estimates import draft,list_estimates,comparison

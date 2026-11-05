@@ -1,5 +1,5 @@
 /* DocFlow Night Instrument a6. Every native workspace and dialog shares these tokens. */
-QWidget {font-family:"Segoe UI","DejaVu Sans";font-size:13px;color:@text@;background-color:@background@;}
+QWidget {font-family:"Segoe UI","DejaVu Sans";font-size:14px;color:@text@;background-color:@background@;}
 QMainWindow,QWidget#root,QWidget#work,QWidget#page,QDialog,QWizard,QWidget#servicePage {background:@background@;}
 QLabel {background:transparent;}
 QFrame#rail {background:@rail@;border-right:1px solid @border@;}
@@ -7,9 +7,9 @@ QLabel#brand {font-size:25px;font-weight:700;color:@accent@;}
 QLabel#title {font-size:27px;font-weight:650;}
 QLabel#section {font-size:15px;font-weight:600;}
 QLabel#muted,QLabel#version {color:@muted@;}
-QLabel#eyebrow {color:@muted@;font-family:"Consolas","DejaVu Sans Mono";font-size:11px;}
+QLabel#eyebrow {color:@muted@;font-family:"Consolas","DejaVu Sans Mono";font-size:12px;}
 QLabel#status {color:@muted@;padding:5px 0;}
-QLabel#projectLocation {color:@muted@;font-size:11px;padding-bottom:4px;}
+QLabel#projectLocation {color:@muted@;font-size:13px;padding-bottom:4px;}
 QLabel#metric,QLabel#metricValue {font-size:25px;font-weight:650;color:@text@;}
 QLabel#ready {color:@success@;font-weight:600;}
 QLabel#error {color:@error@;}
@@ -79,3 +79,14 @@ QFrame#rail[compact="true"] QPushButton#nav {padding:6px 5px;font-size:12px;min-
 QFrame#rail[compact="true"] QLabel#brand {font-size:19px;}
 QFrame#rail[compact="true"] QComboBox {padding:5px 3px;font-size:12px;}
 QFrame#rail[short="true"] QPushButton#nav {padding:3px 5px;min-height:12px;font-size:11px;}
+QPushButton#modeSegment {font-size:15px;font-weight:600;padding:10px 8px;min-height:22px;}
+QPushButton#modeSegment:checked {background:@raised@;color:@accent@;border:2px solid @accent@;}
+QPushButton#modeSegment:focus {border:2px solid @focus@;}
+QPushButton#journey:checked {background:@raised@;color:@text@;border-bottom:2px solid @accent@;}
+QToolButton#detailToggle {background:@surface@;border:1px solid @border@;border-radius:5px;padding:9px;text-align:left;font-weight:600;}
+QToolButton#detailToggle:checked {border-bottom:2px solid @accent@;}
+QToolButton#detailToggle:focus,QRadioButton:focus {border:1px solid @focus@;}
+QRadioButton {spacing:8px;padding:7px;border:1px solid transparent;}
+QRadioButton::indicator {width:16px;height:16px;border:1px solid @muted@;border-radius:9px;background:@input@;}
+QRadioButton::indicator:checked {background:@accent@;border:1px solid @raised@;}
+QLabel#intakeSummary {background:@surface@;padding:10px;border-left:2px solid @accent@;}

@@ -22,12 +22,15 @@ def run(output,require_windows=False):
     output=Path(output);output.mkdir(parents=True,exist_ok=True)
     app=QApplication.instance() or QApplication([]);configure_app(app);app.setQuitOnLastWindowClosed(False)
     proof={'version':__version__,'platform':platform.platform(),'qt_platform':app.platformName(),'frozen':bool(getattr(sys,'frozen',False)),'checks':[],'manual_windows_10_11_acceptance':False,'native_os_file_dialogs_tested':False,'word_visual_test':False}
-    window=None;errors=[]
+    window=None;errors=[];close_created_repair=False
     def check(name,**details):proof['checks'].append({'name':name,'passed':True,**details})
     def watchdog():
         d=app.activeModalWidget()
         if isinstance(d,QMessageBox):errors.append(d.text());d.accept()
-        elif isinstance(d,RepairDialog):d.dirty=False;d.accept()
+        # Only the initial creation needs automatic dismissal. Later scenarios
+        # own their dialogs; a second timer must not close one before its
+        # observer has verified the selected repair.
+        elif close_created_repair and isinstance(d,RepairDialog):d.dirty=False;d.accept()
     timer=QTimer();timer.timeout.connect(watchdog);timer.start(25)
     def idle(w):
         until=time.monotonic()+40
@@ -61,7 +64,9 @@ def run(output,require_windows=False):
         assert len(sui.cache['clients'])==1
         fill_dialog(sui.new_equipment,{'number':'SYNTH-DEVICE-001','model':'Демонстрационный аппарат','serial':'SYNTH-ONLY'});idle(sui)
         assert len(sui.cache['equipment'])==1
+        close_created_repair=True
         fill_dialog(sui.new_repair,{'number':'SYNTH-REPAIR-001','complaint':'Вымышленная неисправность'});idle(sui)
+        close_created_repair=False
         assert len(sui.cache['repairs'])==1;check('gui_create_client_equipment_repair',actual_qt_dialogs=True)
         store=sui.store;r=sui.cache['repairs'][0]['id'];e=sui.cache['equipment'][0]['id']
         store.save_repair(r,{'defects':'Тестовый износ','plan':'Настройка и замена учебной детали','approval':'Согласовано','status':'repair'})

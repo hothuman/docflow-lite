@@ -5,7 +5,7 @@ on:
     branches: [main, feature/website-v2]
     paths: ['FILE_HASHES.json', 'site/**', '.github/workflows/website-v2.yml']
   pull_request:
-    branches: [main, feature/clintek-stage-1-fixes, feature/clintek-stage-2-ux]
+    branches: [main, feature/clintek-stage-1-fixes, feature/clintek-stage-2-ux, feature/clintek-stage-3-extensions]
     paths: ['FILE_HASHES.json', 'site/**', '.github/workflows/website-v2.yml']
 
 permissions:
