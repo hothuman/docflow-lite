@@ -432,10 +432,11 @@ class MainWindow(QMainWindow):
         saved,rules=saved or {},rules or {}
         self._mapping_cache.update(saved);self._rules_cache.update(rules)
         name_column=self.name_selector.currentText() if name_column is None else name_column
-        previous_row=self.row_selector.currentIndex();previous_template=self.template_selector.currentText()
+        previous_row=self.row_selector.currentIndex();previous_template=self.template_selector.currentData()
         selected=self.template_list.currentItem()
         selected_path=selected.data(Qt.ItemDataRole.UserRole) if selected else None
-        for widget in (self.row_selector,self.template_selector,self.template_list):widget.blockSignals(True)
+        selectors=(self.row_selector,self.template_selector,self.template_list,self.config_row,self.config_template)
+        for widget in selectors:widget.blockSignals(True)
         self.template_list.clear();self.template_selector.clear();self.name_selector.clear()
         active=self.active_templates()
         for template in self.templates:
@@ -445,8 +446,14 @@ class MainWindow(QMainWindow):
             item.setCheckState(Qt.CheckState.Checked if template.path in self._active_paths else Qt.CheckState.Unchecked);self.template_list.addItem(item)
             if str(template.path)==selected_path:self.template_list.setCurrentItem(item)
         if self.template_list.currentRow()<0 and self.templates:self.template_list.setCurrentRow(0)
-        self.template_selector.addItems([t.path.name for t in active])
-        if previous_template in [t.path.name for t in active]:self.template_selector.setCurrentText(previous_template)
+        names=[t.path.name for t in active]
+        for template in active:
+            label=template.path.name
+            if names.count(label)>1:label+=' — '+str(template.path.parent)
+            self.template_selector.addItem(label,str(template.path))
+            self.template_selector.setItemData(self.template_selector.count()-1,str(template.path),Qt.ItemDataRole.ToolTipRole)
+        previous_index=self.template_selector.findData(previous_template)
+        if previous_index>=0:self.template_selector.setCurrentIndex(previous_index)
         fields=sorted(set().union(*(t.fields for t in active)));headers=self.table.headers if self.table else ()
         self.mapping_table.setRowCount(0);self.mapping_table.setRowCount(len(fields))
         for row,field in enumerate(fields):
@@ -474,7 +481,7 @@ class MainWindow(QMainWindow):
         else:self.data_path.clear();self.stats.setText('Данные ещё не загружены')
         self.template_summary.setText(f'Выбрано {len(active)} из {len(self.templates)} шаблонов'+ ('\n'+'\n'.join(t.path.name for t in active[:3]) if active else ''))
         self.template_summary.setToolTip('\n'.join(str(t.path) for t in active))
-        for widget in (self.row_selector,self.template_selector,self.template_list):widget.blockSignals(False)
+        for widget in selectors:widget.blockSignals(False)
         # Model resets affect both combo boxes, but the original selectors were
         # signal-blocked while restoring their previous selection above.
         for mirror,original in ((self.config_row,self.row_selector),(self.config_template,self.template_selector)):
