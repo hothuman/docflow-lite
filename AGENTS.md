@@ -1,5 +1,7 @@
 # DocFlow Core / Lite + Service — правила проекта
 
+Stage7 от06.11.2026: feature/stage-7-full-system-qa от Stage6 2b3035e, отдельный Draft PR18 base feature/stage-6-document-quality. Фаза A зафиксирована до изменений продукта. Приватный1.0.1rc12: сохранять идентичность DOCX в предпросмотре и блокировку проекта при видимых диалогах. docs/STAGE7_SYSTEM_QA.md. schema6/профилиv1/печатные формы/права не меняются. QA-03 PARTIAL; историческая причина WM_CLOSE неизвестна. Финальный статус определяется новыми проверками rc12, не историей. Merge/Release/теги/production/отправка запрещены.
+
 Stage6 от05.11.2026: feature/stage-6-document-quality от Stage5 51e597c, отдельный Draft PR base feature/stage-5-self-service. Приватный1.0.1rc11: диагностика шаблонов, новое семейство печатных форм7 (НЕ схема БД), QA документов/устойчивости. docs/STAGE6_DOCUMENT_QUALITY.md. Ручная приёмка Stage5/6 остаётся открытой. QA-03 только по фактическому рендеру; нельзя объявлять исправление по флагам. Не менять старые DOCX/семейства/профилиv1/schema6/права. Merge/Release/production/отправка запрещены.
 
 Текущее поручение Stage5: отдельная feature/stage-5-self-service от актуального Stage4 aa1265e, Draft PR с base feature/clintek-stage-4-usability. Приватный1.0.1rc10:самостоятельная настройка Core без изменения schema6/движков/профилейv1/прав/бренда. docs/STAGE5_SELF_SERVICE.md. Обязательны новые тесты/Windows/LinuxCI и настоящий EXE; открытые rc9 дефекты сохраняются. Merge/Release/deploy/отправка запрещены.

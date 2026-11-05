@@ -121,7 +121,10 @@ def normal_start(exe,cwd,env):
             assert handle and psapi.GetProcessMemoryInfo(handle,ctypes.byref(memory),memory.cb)
         finally:
             if handle:kernel.CloseHandle(handle)
-        assert user32.PostMessageW(found[0][0],0x0010,0,0), 'WM_CLOSE failed'
+        ctypes.set_last_error(0)
+        sent=user32.PostMessageW(found[0][0],0x0010,0,0)
+        close_error=ctypes.get_last_error()
+        assert sent, f'WM_CLOSE failed: WinError={close_error}, HWND={found[0][0]}, PID={process.pid}, exit={process.poll()}'
         code=process.wait(timeout=20)
         assert code==0, f'Normal EXE close returned {code}'
         return {'visible_main_window':True,'title':found[0][1],'exit_code':code,'diagnostic_flag':False,
