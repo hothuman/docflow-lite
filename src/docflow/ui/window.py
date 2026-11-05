@@ -191,8 +191,10 @@ class MainWindow(QMainWindow):
         self.suggest_config_btn=self.button('Предложить связи',lambda:propose(self),'fields')
         self.restore_config_btn=self.button('Вернуть прежние настройки',lambda:restore(self),'history')
         self.restore_config_btn.setEnabled(False)
+        self.diagnose_templates_btn=self.button('Диагностика шаблонов',self.diagnose_templates,'fields')
         self.restore_config_btn.setToolTip('Возвращает предыдущие связи, правила, таблицу и шаблоны в текущем сеансе. Для следующего запуска сохраните профиль.')
-        assistance.addWidget(self.suggest_config_btn);assistance.addWidget(self.restore_config_btn);body.addLayout(assistance)
+        assistance.addWidget(self.suggest_config_btn);assistance.addWidget(self.restore_config_btn);assistance.addWidget(self.diagnose_templates_btn);body.addLayout(assistance)
+        self.template_diagnostics=QTextBrowser();self.template_diagnostics.setAccessibleName('Диагностика шаблонов и выбранной записи');self.template_diagnostics.setMinimumHeight(100);self.template_diagnostics.setMaximumHeight(200);self.template_diagnostics.hide();body.addWidget(self.template_diagnostics)
         self.config_message=text('Выберите столбец для каждого поля. Предложения можно исправить вручную.','muted');body.addWidget(self.config_message)
         self.mapping_table=QTableWidget(0,4);self.mapping_table.setMinimumHeight(260)
         self.mapping_table.setHorizontalHeaderLabels(['Переменная','Столбец таблицы','Проверка','Обязательно'])
@@ -496,6 +498,9 @@ class MainWindow(QMainWindow):
         return Prepared(profile,table,tuple(active))
 
     def update_readiness(self):
+        if hasattr(self,'diagnose_templates_btn'):
+            self.diagnose_templates_btn.setEnabled(not self._busy)
+            if self.template_diagnostics.isVisible() and not self._busy:self.diagnose_templates()
         if hasattr(self,'config_message'):
             from .configuration import explain
             explain(self)
@@ -521,6 +526,12 @@ class MainWindow(QMainWindow):
         if hasattr(self,'core_next'):
             from .core_workflow import readiness
             readiness(self,valid,message)
+
+    def diagnose_templates(self):
+        if self._busy:return
+        from ..template_diagnostics import configuration_messages
+        self.template_diagnostics.setPlainText('\n\n'.join(configuration_messages(self)))
+        self.template_diagnostics.show()
 
     def core_next_step(self):
         from .core_workflow import next_step

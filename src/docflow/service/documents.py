@@ -67,7 +67,7 @@ def _row_table(document, group):
     return table
 
 
-def create_templates(folder,*,modern=False):
+def create_templates(folder,*,modern=False,quality=False):
     """Editable neutral forms. Existing files are never overwritten."""
     folder=Path(folder); folder.mkdir(parents=True,exist_ok=True)
     for kind,title in KINDS.items():
@@ -142,6 +142,9 @@ def create_templates(folder,*,modern=False):
         if modern:
             from .neutral_forms import refine
             refine(d,kind)
+        if quality:
+            from .print_forms import refine as refine_print
+            refine_print(d)
         d.save(path)
     return {kind:folder/(kind+'.docx') for kind in KINDS}
 
@@ -389,7 +392,11 @@ def generate_document(store, repair_id, kind, template=None, image_ids=(), *, es
         # The organization above may come from an immutable estimate snapshot.
         values['executor_display']=organization['organization_name'] or 'Исполнитель не указан — нейтральная форма'
         values['organization_block']='\n'.join(x for x in (('Исполнитель: '+organization['organization_name']) if organization['organization_name'] else 'Исполнитель не указан — нейтральная форма',organization['details'],organization['contact']) if x)
-        path=Path(template) if template else (safe_path(store.root,relative_template) if relative_template else create_templates(safe_path(store.root,'templates/default-v6'),modern=True)[kind])
+        if not template and not relative_template:
+            # Preserve the established selectable v6 paths for profiles/tools,
+            # while new implicit documents use the separate print family7.
+            create_templates(safe_path(store.root,'templates/default-v6'),modern=True)
+        path=Path(template) if template else (safe_path(store.root,relative_template) if relative_template else create_templates(safe_path(store.root,'templates/default-v7'),modern=True,quality=True)[kind])
         logo=safe_path(store.root,organization['logo_path']) if organization.get('logo_path') else None
         for file in (path if relative_template and not template else None,logo):
             if file:
