@@ -80,6 +80,11 @@ def exercise(w, app, output, idle):
     w.mapping_table.cellWidget(index,1).setCurrentIndex(0);wait_idle(w)
     assert 'client' not in w.mapping()[0]
     w.restore_config_btn.click();wait_idle(w);assert w.mapping()==before
+    w.config_row.setCurrentIndex(1);w.config_template.setCurrentIndex(1);wait_idle(w)
+    w.refresh(*w.mapping());wait_idle(w)
+    assert w.config_row.currentIndex()==w.row_selector.currentIndex()==1
+    assert w.config_template.currentIndex()==w.template_selector.currentIndex()==1
+    assert 'QA Two' in w.config_preview.toPlainText()
     profile=w.profile();path=output/'self-service-v1.json';profile.save(path)
     from ..profile import Profile
     assert Profile.load(path)==profile
@@ -100,4 +105,4 @@ def exercise(w, app, output, idle):
     assert (report['documents'],report['accepted'],report['rejected'])==(4,2,0)
     assert w.grab().save(str(output/'stage5-result.png'))
     w.navigate(2);assert w.grab().save(str(output/'stage5-settings.png'))
-    (output/'STAGE5-CONFIGURATION.json').write_text(json.dumps({'status':'passed','mapping':before[0],'generated':4,'v1_profile_roundtrip':True,'undo_preserved_values':True,'text_preview':True,'input_sha256':hashlib.sha256(source.read_bytes()).hexdigest()},ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+    (output/'STAGE5-CONFIGURATION.json').write_text(json.dumps({'status':'passed','mapping':before[0],'generated':4,'v1_profile_roundtrip':True,'undo_preserved_values':True,'text_preview':True,'preview_selection_retained':True,'input_sha256':hashlib.sha256(source.read_bytes()).hexdigest()},ensure_ascii=False,indent=2)+'\n',encoding='utf-8')

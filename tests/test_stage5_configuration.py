@@ -79,3 +79,18 @@ def test_controls_disabled_during_operation_and_undo_preserves_output(window,tmp
     w.set_busy(False);w.restore_config_btn.click();wait_idle(w)
     assert w.profile().mapping['client']=='Клиент'
     assert all(hashlib.sha256(p.read_bytes()).hexdigest()==digest for p,digest in before.items())
+
+
+@pytest.mark.parametrize('action',['refresh','undo'])
+def test_selected_preview_context_survives_configuration_refresh(window,action):
+    w=window;w.config_row.setCurrentIndex(1);w.config_template.setCurrentIndex(1);wait_idle(w)
+    customer=w.table.records[1].values[w.mapping()[0]['client']]
+    if action=='refresh':w.refresh(*w.mapping())
+    else:
+        w.mapping_table.cellWidget(row(w,'client'),1).setCurrentIndex(0);wait_idle(w)
+        w.restore_config_btn.click()
+    wait_idle(w)
+    assert w.config_row.currentIndex()==w.row_selector.currentIndex()==1
+    assert w.config_template.currentIndex()==w.template_selector.currentIndex()==1
+    assert customer in w.config_preview.toPlainText()
+    assert w.config_preview.toPlainText()==w.preview_text.toPlainText()

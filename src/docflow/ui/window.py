@@ -473,6 +473,10 @@ class MainWindow(QMainWindow):
         self.template_summary.setText(f'Выбрано {len(active)} из {len(self.templates)} шаблонов'+ ('\n'+'\n'.join(t.path.name for t in active[:3]) if active else ''))
         self.template_summary.setToolTip('\n'.join(str(t.path) for t in active))
         for widget in (self.row_selector,self.template_selector,self.template_list):widget.blockSignals(False)
+        # Model resets affect both combo boxes, but the original selectors were
+        # signal-blocked while restoring their previous selection above.
+        for mirror,original in ((self.config_row,self.row_selector),(self.config_template,self.template_selector)):
+            mirror.blockSignals(True);mirror.setCurrentIndex(original.currentIndex());mirror.blockSignals(False)
         self.update_preview()
 
     def profile(self):
