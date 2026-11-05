@@ -1,5 +1,7 @@
 # DocFlow Core / Lite + Service — правила проекта
 
+Текущее поручение Stage5: отдельная feature/stage-5-self-service от актуального Stage4 aa1265e, Draft PR с base feature/clintek-stage-4-usability. Приватный1.0.1rc10:самостоятельная настройка Core без изменения schema6/движков/профилейv1/прав/бренда. docs/STAGE5_SELF_SERVICE.md. Обязательны новые тесты/Windows/LinuxCI и настоящий EXE; открытые rc9 дефекты сохраняются. Merge/Release/deploy/отправка запрещены.
+
 Текущее поручение от05.11.2026: приватный rc9 в той же ветке/PR15 по двум дефектам независимого QA rc8. Документ CLINTEK_STAGE4_RC9.md. Нужны неизменённые audit red→green, полный набор, Windows/Linux CI и настоящий новый Portable. До ручной приёмки READY FOR USER QA; при техническом блокере INCOMPLETE. Merge/Release/deploy/отправка клиенту запрещены. QA-03 не объявлять закрытым без фактического рендера/Word.
 
 Применяйте единый стандарт владельца от 25.10.2026 из глобального AGENTS.md Codex. Если репозиторий скопирован отдельно, его постоянная копия — [docs/DEVELOPMENT_STANDARD.md](docs/DEVELOPMENT_STANDARD.md).

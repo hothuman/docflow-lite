@@ -186,6 +186,14 @@ class MainWindow(QMainWindow):
     def _build_mapping(self):
         page,layout=self.page();box,body=card('Сопоставление полей','Выберите столбец для каждой переменной. Имя переменной и заголовок таблицы могут различаться.')
         layout.addWidget(box)
+        from .configuration import propose,restore
+        assistance=FlowLayout()
+        self.suggest_config_btn=self.button('Предложить связи',lambda:propose(self),'fields')
+        self.restore_config_btn=self.button('Вернуть прежние настройки',lambda:restore(self),'history')
+        self.restore_config_btn.setEnabled(False)
+        self.restore_config_btn.setToolTip('Возвращает предыдущие связи, правила, таблицу и шаблоны в текущем сеансе. Для следующего запуска сохраните профиль.')
+        assistance.addWidget(self.suggest_config_btn);assistance.addWidget(self.restore_config_btn);body.addLayout(assistance)
+        self.config_message=text('Выберите столбец для каждого поля. Предложения можно исправить вручную.','muted');body.addWidget(self.config_message)
         self.mapping_table=QTableWidget(0,4);self.mapping_table.setMinimumHeight(260)
         self.mapping_table.setHorizontalHeaderLabels(['Переменная','Столбец таблицы','Проверка','Обязательно'])
         self.mapping_table.horizontalHeader().setSectionResizeMode(0,QHeaderView.ResizeMode.ResizeToContents)
@@ -194,6 +202,15 @@ class MainWindow(QMainWindow):
         self.mapping_table.horizontalHeader().setMinimumSectionSize(100);self.mapping_table.verticalHeader().hide();body.addWidget(self.mapping_table,1)
         self.mapping_feedback=text('Сначала загрузите файлы','muted');body.addWidget(self.mapping_feedback)
         self.validation_report=QTextBrowser();self.validation_report.setOpenExternalLinks(False);self.validation_report.setMinimumHeight(120);self.validation_report.setAccessibleName('Результаты проверки всех строк');self.validation_report.hide();body.addWidget(self.validation_report)
+        previewbox,previewbody=card('Пример документа','Текстовый пример выбранной строки и шаблона. Оформление результата проверяйте в Word.')
+        layout.addWidget(previewbox)
+        self.config_row=QComboBox();self.config_row.setModel(self.record_model);self.config_row.setAccessibleName('Строка примера настройки')
+        self.config_template=QComboBox();self.config_template.setModel(self.template_selector.model());self.config_template.setAccessibleName('Шаблон примера настройки')
+        for mirror,original in ((self.config_row,self.row_selector),(self.config_template,self.template_selector)):
+            mirror.setMinimumContentsLength(12);mirror.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            mirror.currentIndexChanged.connect(original.setCurrentIndex);original.currentIndexChanged.connect(mirror.setCurrentIndex);previewbody.addWidget(mirror)
+        self.config_preview=QTextBrowser();self.config_preview.setAccessibleName('Текстовый пример настройки');self.config_preview.setMinimumHeight(140);self.config_preview.setMaximumHeight(250);previewbody.addWidget(self.config_preview)
+        self.preview_text.textChanged.connect(lambda:self.config_preview.setPlainText(self.preview_text.toPlainText()))
         row=FlowLayout();self.open_profile_btn=self.button('Открыть сохранённую настройку',self.open_profile,'folder')
         self.save_profile_btn=self.button('Сохранить настройку',lambda:self.save_profile(background=True))
         row.addWidget(self.open_profile_btn);row.addWidget(self.save_profile_btn);body.addLayout(row)
@@ -341,6 +358,8 @@ class MainWindow(QMainWindow):
         except (DocFlowError,OSError) as exc:self.error(exc)
 
     def _install_prepared(self,prepared):
+        from .configuration import checkpoint
+        checkpoint(self,internal=True)
         self.table=prepared.table;self.templates=list(prepared.templates);self._active_paths={t.path for t in self.templates}
         self.encoding=prepared.profile.encoding;self.sheet=prepared.profile.sheet
         self.encoding_selector.setCurrentText(self.encoding);self.sheet_input.setText(self.sheet or '')
@@ -360,6 +379,8 @@ class MainWindow(QMainWindow):
     def _load_data(self,path):
         encoding=self.encoding_selector.currentText();sheet=self.sheet_input.text().strip() or None
         def install(table):
+            from .configuration import checkpoint
+            checkpoint(self,internal=True)
             mapping,rules=self.mapping();self.table=table;self.encoding=encoding;self.sheet=sheet
             self.refresh(mapping,rules);self.status.setText(f'Таблица загружена: {len(table.records)} записей')
         self._task(lambda:load_table(path,encoding=encoding,sheet=sheet),install,'Читаю и проверяю таблицу…')
@@ -371,6 +392,8 @@ class MainWindow(QMainWindow):
         if len(set([t.path for t in self.templates]+[Path(p).resolve() for p in paths]))>20:
             self.error('Не более 20 шаблонов');return
         def install(added):
+            from .configuration import checkpoint
+            checkpoint(self,internal=True)
             mapping,rules=self.mapping()
             self.templates=list({t.path:t for t in self.templates+added}.values())
             self._active_paths.update(t.path for t in added);self.refresh(mapping,rules)
@@ -381,11 +404,15 @@ class MainWindow(QMainWindow):
         if self._busy:return
         index=self.template_list.currentRow()
         if index>=0:
+            from .configuration import checkpoint
+            checkpoint(self)
             mapping,rules=self.mapping();self._active_paths.discard(self.templates[index].path)
             del self.templates[index];self.refresh(mapping,rules)
 
     def _template_toggled(self,item):
         if self._busy:return
+        from .configuration import checkpoint
+        checkpoint(self)
         path=Path(item.data(Qt.ItemDataRole.UserRole))
         if item.checkState()==Qt.CheckState.Checked:self._active_paths.add(path)
         else:self._active_paths.discard(path)
@@ -423,7 +450,9 @@ class MainWindow(QMainWindow):
         for row,field in enumerate(fields):
             item=QTableWidgetItem(field);item.setFlags(item.flags()&~Qt.ItemFlag.ItemIsEditable);item.setToolTip('{{'+field+'}}');self.mapping_table.setItem(row,0,item)
             column=QComboBox();column.addItem('');column.addItems(list(headers));column.setAccessibleName('Столбец для '+field)
-            candidate=self._mapping_cache.get(field,field if field in headers else '')
+            from ..matching import suggestions
+            proposed,_=suggestions((field,),headers)
+            candidate=self._mapping_cache.get(field,proposed.get(field,''))
             column.setCurrentText(candidate if candidate in headers else '')
             kind=QComboBox();kind.setAccessibleName('Правило для '+field)
             for title,value in KINDS.items():kind.addItem(title,value)
@@ -431,7 +460,8 @@ class MainWindow(QMainWindow):
             required=QCheckBox();required.setAccessibleName('Обязательное поле '+field);required.setChecked(rule.required)
             for col,widget in enumerate((column,kind,required),1):self.mapping_table.setCellWidget(row,col,widget)
             self.mapping_table.setRowHeight(row,46)
-            column.currentTextChanged.connect(self.update_preview);kind.currentIndexChanged.connect(self.update_preview);required.stateChanged.connect(self.update_preview)
+            from .configuration import edited
+            column.currentTextChanged.connect(lambda *args:edited(self));kind.currentIndexChanged.connect(lambda *args:edited(self));required.stateChanged.connect(lambda *args:edited(self))
         self.data_model.set_table(self.table);self.record_model.set_table(self.table)
         self.name_selector.addItem('');self.name_selector.addItems(list(headers))
         if name_column in headers:self.name_selector.setCurrentText(name_column)
@@ -443,6 +473,10 @@ class MainWindow(QMainWindow):
         self.template_summary.setText(f'Выбрано {len(active)} из {len(self.templates)} шаблонов'+ ('\n'+'\n'.join(t.path.name for t in active[:3]) if active else ''))
         self.template_summary.setToolTip('\n'.join(str(t.path) for t in active))
         for widget in (self.row_selector,self.template_selector,self.template_list):widget.blockSignals(False)
+        # Model resets affect both combo boxes, but the original selectors were
+        # signal-blocked while restoring their previous selection above.
+        for mirror,original in ((self.config_row,self.row_selector),(self.config_template,self.template_selector)):
+            mirror.blockSignals(True);mirror.setCurrentIndex(original.currentIndex());mirror.blockSignals(False)
         self.update_preview()
 
     def profile(self):
@@ -462,6 +496,9 @@ class MainWindow(QMainWindow):
         return Prepared(profile,table,tuple(active))
 
     def update_readiness(self):
+        if hasattr(self,'config_message'):
+            from .configuration import explain
+            explain(self)
         valid=False
         try:
             profile=self.profile();validate_mapping(self.table,set().union(*(t.fields for t in self.active_templates())),profile.mapping,profile.rules)
