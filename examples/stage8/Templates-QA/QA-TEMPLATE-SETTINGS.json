@@ -1,0 +1,100 @@
+{
+  "intake": {
+    "file": "intake-qa.docx",
+    "mapping": {
+      "НомерОбращения": "repair_number",
+      "ДатаПриемки": "received_date",
+      "Собственник": "owner_name",
+      "ТелефонСобственника": "owner_phone",
+      "Заказчик": "client_name",
+      "КонтактЗаказчика": "client_contact"
+    },
+    "required": [
+      "НомерОбращения",
+      "Собственник",
+      "Заказчик"
+    ]
+  },
+  "completion": {
+    "file": "completion-qa.docx",
+    "mapping": {
+      "НомерОбращения": "repair_number",
+      "ДатаПриемки": "received_date",
+      "Собственник": "owner_name",
+      "ТелефонСобственника": "owner_phone",
+      "Заказчик": "client_name",
+      "КонтактЗаказчика": "client_contact"
+    },
+    "required": [
+      "НомерОбращения",
+      "Собственник",
+      "Заказчик"
+    ]
+  },
+  "warranty": {
+    "file": "warranty-qa.docx",
+    "mapping": {
+      "НомерОбращения": "repair_number",
+      "ДатаПриемки": "received_date",
+      "Собственник": "owner_name",
+      "ТелефонСобственника": "owner_phone",
+      "Заказчик": "client_name",
+      "КонтактЗаказчика": "client_contact",
+      "УсловияГарантии": "warranty_terms"
+    },
+    "required": [
+      "НомерОбращения",
+      "Собственник",
+      "Заказчик",
+      "УсловияГарантии"
+    ]
+  },
+  "estimate_preliminary": {
+    "file": "estimate_preliminary-qa.docx",
+    "mapping": {
+      "НомерОбращения": "repair_number",
+      "ДатаПриемки": "received_date",
+      "Собственник": "owner_name",
+      "ТелефонСобственника": "owner_phone",
+      "Заказчик": "client_name",
+      "КонтактЗаказчика": "client_contact"
+    },
+    "required": [
+      "НомерОбращения",
+      "Собственник",
+      "Заказчик"
+    ]
+  },
+  "estimate_final": {
+    "file": "estimate_final-qa.docx",
+    "mapping": {
+      "НомерОбращения": "repair_number",
+      "ДатаПриемки": "received_date",
+      "Собственник": "owner_name",
+      "ТелефонСобственника": "owner_phone",
+      "Заказчик": "client_name",
+      "КонтактЗаказчика": "client_contact"
+    },
+    "required": [
+      "НомерОбращения",
+      "Собственник",
+      "Заказчик"
+    ]
+  },
+  "handover": {
+    "file": "handover-qa.docx",
+    "mapping": {
+      "НомерОбращения": "repair_number",
+      "ДатаПриемки": "received_date",
+      "Собственник": "owner_name",
+      "ТелефонСобственника": "owner_phone",
+      "Заказчик": "client_name",
+      "КонтактЗаказчика": "client_contact"
+    },
+    "required": [
+      "НомерОбращения",
+      "Собственник",
+      "Заказчик"
+    ]
+  }
+}

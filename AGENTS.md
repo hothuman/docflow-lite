@@ -1,3 +1,5 @@
+Stage8 от 06.11.2026: отдельная feature/stage-8-clintek-adaptation от a09a94e Stage7, Draft PR19 base Stage7. Приватный rc13: расширять существующий пятишаговый импорт, явно разделять собственника и заказчика, безопасно настраивать Word-поля профиля. docs/STAGE8_ADAPTATION.md. Контрольная rc12 неизменна. Только синтетические данные до получения оригиналов. schema6/Corev1/Night Instrument/права сохраняются. QA-03 PARTIAL, Word/печать/приёмка открыты. Merge/теги/Release/production/отправка запрещены.
+
 # DocFlow Core / Lite + Service — правила проекта
 
 Stage7 от06.11.2026: feature/stage-7-full-system-qa от Stage6 2b3035e, отдельный Draft PR18 base feature/stage-6-document-quality. Фаза A зафиксирована до изменений продукта. Приватный1.0.1rc12: сохранять идентичность DOCX в предпросмотре и блокировку проекта при видимых диалогах. docs/STAGE7_SYSTEM_QA.md. schema6/профилиv1/печатные формы/права не меняются. QA-03 PARTIAL; историческая причина WM_CLOSE неизвестна. Финальный статус определяется новыми проверками rc12, не историей. Merge/Release/теги/production/отправка запрещены.

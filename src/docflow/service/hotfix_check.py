@@ -5,7 +5,7 @@ No external input injection, real customer data, Word or human UX acceptance.
 import argparse,hashlib,json,os,sqlite3,sys,time,traceback
 from pathlib import Path
 
-CHECKS={'client_retry','equipment_retry','permission_retry','intake_cancel_discard','catalog_geometry','core_retry_context','documents_versions','reused_profile_templates','core_accessible_action','stage5_configuration','stage6_template_diagnostics','stage7_template_identity','stage7_owner_close'}
+CHECKS={'client_retry','equipment_retry','permission_retry','intake_cancel_discard','catalog_geometry','core_retry_context','documents_versions','reused_profile_templates','core_accessible_action','stage5_configuration','stage6_template_diagnostics','stage7_template_identity','stage7_owner_close','stage8_history_and_documents'}
 
 def exercise(window,app,output,idle):
     from PySide6.QtCore import QTimer,Qt
@@ -124,6 +124,8 @@ def exercise(window,app,output,idle):
     capture(window,'stage6-diagnostics');checks.append('stage6_template_diagnostics')
     from .stage7_check import exercise as exercise_stage7
     checks.extend(exercise_stage7(window,app,output,idle))
+    from .stage8_check import exercise as exercise_stage8
+    checks.extend(exercise_stage8(window,app,output,idle))
     assert set(checks)==CHECKS
     return {'status':'passed','checks':checks,'layout':layouts,'documents':documents,'old_document_unchanged':True,'word_checked':False,'human_acceptance':False,'QA03':'Partial: OOXML/footer improvement; long-row ONLYOFFICE pagination requires separate renderer verification'}
 
