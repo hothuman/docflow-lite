@@ -13,6 +13,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from ..data import load_table
+from ..errors import DocFlowError
 from ..safety import check_archive, read_bounded
 from .attachments import digest, inspect_file, safe_path, copy_bounded
 from .estimates import canonical, normalize_lines
@@ -35,6 +36,8 @@ HISTORY_FIELDS = {
  'cost_state':'Полнота стоимости (known / unknown)', 'payment_state':'Полнота оплат (known / unknown)',
  'paid_amount':'Учтённая историческая оплата', 'payment_date':'Подтверждённая дата оплаты',
  'payment_method':'Источник / способ исторической оплаты', 'payment_note':'Основание исторической оплаты',
+ 'owner_key':'Внешний ID собственника', 'owner_name':'Собственник оборудования',
+ 'owner_contact':'Контактное лицо собственника', 'owner_phone':'Телефон собственника', 'owner_email':'Email собственника',
 }
 
 
@@ -67,15 +70,25 @@ def import_money(value):
     return result
 
 
-def _load(path, sheet):
+def _cancelled(cancel):
+    if cancel is not None and cancel.is_set():
+        raise ServiceError('Импорт отменён; выбранные изменения не сохранены')
+
+
+def _load(path, sheet, encoding='auto', cancel=None):
     path = Path(path)
-    if path.is_symlink() or path.suffix.lower() not in ('.csv', '.xlsx'):
+    _cancelled(cancel)
+    if path.is_symlink() or str(path).startswith(('\\\\','http:','https:')) or path.suffix.lower() not in ('.csv', '.xlsx'):
         raise ServiceError('Выберите обычный локальный XLSX/CSV')
+    if encoding not in ('auto','utf-8','utf-8-sig','cp1251'):
+        raise ServiceError('Кодировка CSV: auto, UTF-8, UTF-8 BOM или Windows-1251')
     raw = read_bounded(path)
     # Core parses an immutable copy of the exact bytes whose hash is recorded.
     with tempfile.TemporaryDirectory(prefix='docflow-import-') as folder:
         copy = Path(folder)/('source'+path.suffix.lower()); copy.write_bytes(raw)
-        table = load_table(copy, sheet=sheet)
+        try:table = load_table(copy, sheet=sheet, encoding='utf-8-sig' if encoding=='utf-8' else encoding)
+        except DocFlowError as exc:raise ServiceError(str(exc)) from exc
+    _cancelled(cancel)
     return table, hashlib.sha256(raw).hexdigest()
 
 
@@ -93,9 +106,10 @@ def _source_document(root, value):
     return p
 
 
-def _groups(table, mapping, status_map, default_status):
+def _groups(table, mapping, status_map, default_status, cancel=None):
     groups = {}; seen = set()
     for record in table.records:
+        _cancelled(cancel)
         raw = {key:text(record.values[header]) for key,header in mapping.items()}
         number = text(raw.get('repair_number'), limit=100)
         key = text(raw.get('repair_key') or number, limit=300).casefold() or 'row:'+str(record.row_number)
@@ -120,6 +134,7 @@ def _groups(table, mapping, status_map, default_status):
                 g['lines'].append(row)
             except ServiceError as exc: g['errors'].append(f'Строка {record.row_number}: {exc}')
     for g in groups.values():
+        _cancelled(cancel)
         d = g['data']
         try:
             if d.get('client_kind') and d['client_kind'] not in ('organization','individual','entrepreneur'): raise ServiceError('Неизвестный тип клиента')
@@ -183,33 +198,99 @@ def _groups(table, mapping, status_map, default_status):
     return list(groups.values())
 
 
+def _record_hash(group):
+    semantic={'data':group['data'],'lines':[{k:v for k,v in x.items() if k!='id'} for x in group['lines']]}
+    group['record_sha256']=hashlib.sha256(canonical(semantic).encode()).hexdigest()
+
+
+def _person_conflicts(groups):
+    """One confirmed external key cannot silently select the last row's person."""
+    people=defaultdict(list)
+    for g in groups:
+        people[g['data']['client_key']].append((g,g['data']))
+        if g.get('owner_person'):people[g['owner_person']['client_key']].append((g,g['owner_person']))
+    for entries in people.values():
+        for field in ('client_name','client_kind','client_contact','client_phone','client_email'):
+            values={d[field].casefold() for _,d in entries if d.get(field)}
+            if len(values)>1:
+                for g,_ in entries:g['errors'].append('Один ключ лица содержит разные данные: '+HISTORY_FIELDS[field]+'. Исправьте источник или разделите ключи; данные не перезаписываются.')
+
+
 def preview_history(store, path, mapping, *, sheet=None, equipment_decisions=None, client_decisions=None,
                     current_owners=None, status_map=None, default_status=None, source_label='',
-                    document_root=None, copy_documents=False):
+                    document_root=None, copy_documents=False, encoding='auto', separate_clients=False,
+                    owner_decisions=None, cancel=None):
     mapping = dict(mapping); equipment_decisions = dict(equipment_decisions or {}); client_decisions = dict(client_decisions or {})
     current_owners = dict(current_owners or {}); status_map = dict(status_map or {})
+    owner_decisions=dict(owner_decisions or {});_cancelled(cancel)
     if set(mapping)-HISTORY_FIELDS.keys() or not {'repair_number','received_at'}.issubset(mapping):
         raise ServiceError('Сопоставьте номер ремонта и дату; неизвестные поля не допускаются')
     if mapping.get('equipment_number') and mapping['equipment_number'] == mapping['repair_number']:
         raise ServiceError('Номер ремонта не считается постоянным номером оборудования. Выберите отдельную колонку или свяжите аппарат вручную')
-    table, file_sha = _load(path, sheet)
+    table, file_sha = _load(path, sheet, encoding, cancel)
     if set(mapping.values())-set(table.headers): raise ServiceError('Сопоставленная колонка отсутствует в таблице')
     source_label = text(source_label, 'Идентификатор источника', limit=300)
     source_id = hashlib.sha256(canonical([source_label or file_sha,sheet or '']).encode()).hexdigest()
-    groups = _groups(table,mapping,status_map,default_status)
+    groups = _groups(table,mapping,status_map,default_status,cancel)
     with store.db.connection() as c:
         equipment = {r['id']:dict(r) for r in c.execute('SELECT * FROM equipment')}
         clients = {r['id']:dict(r) for r in c.execute('SELECT * FROM clients')}
         existing = {r['source_key']:dict(r) for r in c.execute('SELECT * FROM import_records WHERE source_id=?',(source_id,))}
         repairs = {r['number'].casefold():dict(r) for r in c.execute('SELECT id,number,equipment_id,client_id FROM repair_orders')}
+        source_row=c.execute('SELECT mapping_json FROM import_sources WHERE id=?',(source_id,)).fetchone()
+    source_people=defaultdict(set);source_owners=defaultdict(set)
+    by_id={r['id']:r for r in repairs.values()}
+    original_mapping=json.loads(source_row[0]) if source_row else {}
+    for record in existing.values():
+        saved=json.loads(record['rows_json']);identity=saved.get('identity',{});repair=by_id.get(record['repair_id'])
+        if not repair:continue
+        if identity.get('client_key_explicit'):
+            source_people[identity['client_key']].add(repair['client_id'])
+        elif original_mapping.get('client_key'):
+            # Legacy provenance has raw rows rather than the optional Stage8
+            # identity metadata. Only a real source ID may establish a link.
+            for row in saved.get('rows',[]):
+                key=text(row.get('values',{}).get(original_mapping['client_key']))
+                if key:source_people[key.casefold()].add(repair['client_id'])
+        if identity.get('owner_key_explicit') and identity.get('owner_id'):
+            source_owners[identity['owner_key']].add(identity['owner_id'])
     owners = defaultdict(set)
-    for g in groups: owners[g['data']['equipment_key']].add(g['data']['client_key'])
     for g in groups:
+        _cancelled(cancel);d=g['data']
+        explicit=bool(mapping.get('client_key') and any(text(r['values'].get(mapping['client_key'])) for r in g['rows']))
+        old=existing.get(g['key']);legacy_replay=bool(old and old['record_sha256']==g['record_sha256'])
+        # Already imported legacy records retain their exact semantic hash.
+        # New GUI imports without a key are scoped to the repair, never a name.
+        if separate_clients and not explicit and not legacy_replay:
+            d['client_key']='repair:'+g['key'];_record_hash(g)
+        g['client_key_explicit']=explicit
+        if any(d.get(k) for k in ('owner_key','owner_name','owner_contact','owner_phone','owner_email')):
+            key='owner:'+d['owner_key'].casefold() if d.get('owner_key') else 'owner:repair:'+g['key']
+            d['equipment_owner_key']=key
+            g['owner_person']={'client_key':key,**{'client_'+k:d.get('owner_'+k,'') for k in ('name','contact','phone','email')}}
+            g['owner_decision']=owner_decisions.get(key)
+            _record_hash(g)
+        else:g['owner_person']=None;g['owner_decision']=None
+        owners[d['equipment_key']].add(d.get('equipment_owner_key') or d['client_key'])
+    _person_conflicts(groups)
+    new_equipment=defaultdict(list)
+    for g in groups:
+        if equipment_decisions.get(g['data']['equipment_key'])=='new':new_equipment[g['data']['equipment_key']].append(g)
+    for entries in new_equipment.values():
+        for field in ('model','manufacturer','serial'):
+            if len({g['data'][field].casefold() for g in entries if g['data'].get(field)})>1:
+                for g in entries:g['errors'].append('Один постоянный номер нового аппарата содержит разные данные: '+HISTORY_FIELDS[field])
+    for g in groups:
+        _cancelled(cancel)
         d = g['data']; eqkey = d['equipment_key']; ckey = d['client_key']
         g['equipment_candidates'] = [x['id'] for x in equipment.values() if x['number'].casefold() == d.get('equipment_number','').casefold()]
         g['client_candidates'] = [x['id'] for x in clients.values() if x['name'].casefold() == d.get('client_name','').casefold()]
         g['equipment_decision'] = equipment_decisions.get(eqkey)
         g['client_decision'] = client_decisions.get(ckey)
+        g['source_client_ids']=sorted(source_people.get(ckey,set())) if g['client_key_explicit'] else []
+        person=g.get('owner_person')
+        g['owner_candidates']=[x['id'] for x in clients.values() if person and x['name'].casefold()==person.get('client_name','').casefold()]
+        g['source_owner_ids']=sorted(source_owners.get(d.get('equipment_owner_key'),set()))
         if g['key'] in existing:
             g['status'] = 'already_imported' if existing[g['key']]['record_sha256']==g['record_sha256'] else 'conflict'
             if g['status']=='conflict': g['errors'].append('Такая запись источника уже импортирована с другим содержимым; автоматического обновления нет')
@@ -226,34 +307,52 @@ def preview_history(store, path, mapping, *, sheet=None, equipment_decisions=Non
             eq = equipment.get(g['equipment_decision'])
             if eq is None or eq['archived']: g['errors'].append('Выбранный аппарат отсутствует или архивирован')
         if g['client_decision']=='new':
+            if g['source_client_ids']:g['errors'].append('Внешний ID клиента уже связан с существующим клиентом из этого источника; выберите его явно, новый дубль не создаётся')
             if not d.get('client_name'): g['errors'].append('Для нового клиента нужно имя/наименование')
             email = d.get('client_email','')
             if email and ('@' not in email or any(x.isspace() for x in email)): g['errors'].append('Неверный email клиента')
         elif g['client_decision']:
             cl = clients.get(g['client_decision'])
             if cl is None or cl['archived']: g['errors'].append('Выбранный клиент отсутствует или архивирован')
+        if person and g['equipment_decision']=='new':
+            choice=g['owner_decision']
+            if choice=='new':
+                if g['source_owner_ids']:g['errors'].append('Внешний ID собственника уже связан с существующим лицом; выберите его явно')
+                if not person.get('client_name'):g['errors'].append('Для нового собственника нужно имя/наименование')
+                email=person.get('client_email','')
+                if email and ('@' not in email or any(x.isspace() for x in email)):g['errors'].append('Неверный email собственника')
+            elif choice and choice!='defer':
+                owner=clients.get(choice)
+                if owner is None or owner['archived']:g['errors'].append('Выбранный собственник отсутствует или архивирован')
+            else:g['warnings'].append('Подтвердите отдельного собственника нового аппарата')
+        elif person and g['equipment_decision']:
+            g['warnings'].append('Владелец существующего аппарата сохранится; импорт не меняет собственника')
         if copy_documents and d.get('source_document'):
             try:
                 p = _source_document(document_root,d['source_document']); inspect_file(p)
             except (ServiceError,OSError) as exc: g['errors'].append('Исходный документ: '+str(exc))
         elif d.get('source_document'):
             g['warnings'].append('Сохранена ссылка-источник; файл не копируется и автоматически не открывается')
-        g['status'] = 'error' if g['errors'] else ('ready' if g['equipment_decision'] and g['client_decision'] else 'needs_confirmation')
+        owner_ready=not person or g['equipment_decision']!='new' or g['owner_decision'] not in (None,'defer')
+        g['status'] = 'error' if g['errors'] else ('ready' if g['equipment_decision'] and g['client_decision'] and owner_ready else 'needs_confirmation')
     options = dict(sheet=sheet,equipment_decisions=equipment_decisions,client_decisions=client_decisions,current_owners=current_owners,
                    status_map=status_map,default_status=default_status,source_label=source_label,
-                   document_root=str(document_root) if document_root else None,copy_documents=bool(copy_documents))
+                   document_root=str(document_root) if document_root else None,copy_documents=bool(copy_documents),
+                   encoding=encoding,separate_clients=bool(separate_clients),owner_decisions=owner_decisions)
     return {'path':str(Path(path).absolute()),'file_sha256':file_sha,'source_id':source_id,'mapping':mapping,'options':options,
-            'headers':list(table.headers),'groups':groups,'records_previewed':len(table.records), 'writes_performed':False}
+            'headers':list(table.headers),'groups':groups,'records_previewed':len(table.records), 'writes_performed':False,
+            'counts':{state:sum(g['status']==state for g in groups) for state in ('ready','already_imported','conflict','error','needs_confirmation','deferred')}}
 
 
-def import_history(store, plan, *, confirmed=False, selected_keys=None):
+def import_history(store, plan, *, confirmed=False, selected_keys=None, cancel=None):
     if not confirmed: raise ServiceError('Импорт требует подтверждения сопоставления и выбранных строк')
+    _cancelled(cancel)
     if digest(Path(plan['path'])) != plan['file_sha256']:
         raise ServiceError('Исходный файл изменился после предпросмотра; проверьте его заново')
     created = []
     try:
         with store.lock, store.db.connection(True) as c:
-            fresh = preview_history(store,plan['path'],plan['mapping'],**plan['options'])
+            fresh = preview_history(store,plan['path'],plan['mapping'],**plan['options'],cancel=cancel)
             selected = set(selected_keys) if selected_keys is not None else {g['key'] for g in fresh['groups'] if g['status']!='deferred'}
             known = {g['key'] for g in fresh['groups']}
             if selected-known: raise ServiceError('В подтверждении есть неизвестные строки')
@@ -269,8 +368,20 @@ def import_history(store, plan, *, confirmed=False, selected_keys=None):
             client_cache = {}; equipment_cache = {}
             # An explicitly chosen current owner may belong to a deferred old
             # repair. Create only that confirmed client, not the deferred repair.
-            by_client = {g['data']['client_key']:g for g in fresh['groups']}
+            by_client = {}
+            def register_person(key,data,decision):
+                if key not in by_client:by_client[key]={'data':dict(data),'client_decision':decision}
+                else:
+                    # Missing cells in a later row must not erase earlier
+                    # confirmed contact/type values for the same source ID.
+                    for field in ('client_name','client_kind','client_contact','client_phone','client_email'):
+                        if data.get(field):by_client[key]['data'][field]=data[field]
+            for g in fresh['groups']:register_person(g['data']['client_key'],g['data'],g['client_decision'])
+            for g in fresh['groups']:
+                if g.get('owner_person'):
+                    person=g['owner_person'];register_person(person['client_key'],person,g['owner_decision'])
             def client(key):
+                _cancelled(cancel)
                 if key in client_cache: return client_cache[key]
                 if key not in by_client:
                     record = store.require(c,'clients',key)
@@ -291,11 +402,12 @@ def import_history(store, plan, *, confirmed=False, selected_keys=None):
                 client_cache[key]=ident; return ident
             report=[]
             for g in rows:
+                _cancelled(cancel)
                 if g['status']=='already_imported': report.append({'key':g['key'],'rows':g['rows'],'result':'already_imported'}); continue
                 d=g['data']; customer=client(d['client_key']); eqkey=d['equipment_key']; decision=g['equipment_decision']
                 if eqkey not in equipment_cache:
                     if decision=='new':
-                        current_owner=fresh['options']['current_owners'].get(eqkey) or d['client_key']
+                        current_owner=fresh['options']['current_owners'].get(eqkey) or d.get('equipment_owner_key') or d['client_key']
                         owner=client(current_owner); eq=uuid4().hex
                         if c.execute('SELECT 1 FROM equipment WHERE lower(number)=lower(?)',(d['equipment_number'],)).fetchone():
                             raise ServiceError('Постоянный номер занят после предпросмотра')
@@ -333,8 +445,12 @@ def import_history(store, plan, *, confirmed=False, selected_keys=None):
                     inspect_file(target)
                     c.execute('INSERT INTO attachments(id,repair_id,kind,name,path,size,mime,sha256,comment,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
                               (ident,repair,kind,text(src.name,limit=255),relative,target.stat().st_size,mime,digest(target),'Исходный документ импорта',stamp))
+                provenance={'file_sha256':fresh['file_sha256'],'rows':g['rows'],'source_document':d.get('source_document',''),'fragment':d.get('source_fragment',''),
+                            'identity':{'client_key':d['client_key'],'client_key_explicit':g['client_key_explicit'],
+                                        'owner_key':d.get('equipment_owner_key'),'owner_key_explicit':bool(d.get('owner_key')),
+                                        'owner_id':store.require(c,'equipment',equipment_cache[eqkey])['owner_id']}}
                 c.execute('INSERT INTO import_records(id,source_id,source_key,record_sha256,repair_id,rows_json,imported_at) VALUES(?,?,?,?,?,?,?)',
-                          (uuid4().hex,source,g['key'],g['record_sha256'],repair,canonical({'file_sha256':fresh['file_sha256'],'rows':g['rows'],'source_document':d.get('source_document',''),'fragment':d.get('source_fragment','')}),stamp))
+                          (uuid4().hex,source,g['key'],g['record_sha256'],repair,canonical(provenance),stamp))
                 store.audit(c,'repair',repair,'import',source+':'+g['key'])
                 report.append({'key':g['key'],'rows':g['rows'],'repair_id':repair,'result':'imported','warnings':g['warnings']})
             for g in fresh['groups']:
@@ -346,6 +462,7 @@ def import_history(store, plan, *, confirmed=False, selected_keys=None):
             run=uuid4().hex
             c.execute('INSERT INTO import_runs(id,source_id,report_json,created_at) VALUES(?,?,?,?)',(run,source,canonical(result),stamp))
             result['run_id']=run
+            _cancelled(cancel)
         return result
     except Exception:
         for path in created: path.unlink(missing_ok=True)

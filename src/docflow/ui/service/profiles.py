@@ -17,7 +17,7 @@ class ProfileDialog(QDialog):
         bar=FlowLayout();layout.addLayout(bar)
         button(bar,'Настроить организацию',self.setup,primary=True)
         self.selection_tools=[]
-        for title,fn in [('Дополнительные поля',lambda:self.edit(True)),('Сделать активным',self.activate),('Выбрать шаблон',self.template),('Логотип',self.logo)]:self.selection_tools.append(button(bar,title,fn))
+        for title,fn in [('Дополнительные поля',lambda:self.edit(True)),('Сделать активным',self.activate),('Выбрать шаблон',self.template),('Поля шаблона',lambda:self.template(True)),('Логотип',self.logo)]:self.selection_tools.append(button(bar,title,fn))
         button(bar,'Нейтральный профиль',lambda:self.activate(True));self.grid.selectionModel().currentRowChanged.connect(self.update_tools)
         button(layout,'Закрыть',self.accept);self.refresh()
     def refresh(self):
@@ -45,13 +45,23 @@ class ProfileDialog(QDialog):
     def activate(self,neutral=False):
         row=self.grid.selected()
         if neutral or row:self.workspace.run(lambda:activate_profile(self.workspace.store,None if neutral else row['id']),lambda _:self.refresh())
-    def template(self):
+    def template(self,existing=False):
         row=self.grid.selected()
         if not row:return
         d=FieldsDialog('Назначение шаблона',[('kind','Вид документа',list(KINDS.items()))],parent=self)
         if d.exec()!=QDialog.DialogCode.Accepted:return
-        kind=d.values()['kind'];path,_=QFileDialog.getOpenFileName(self,'Проверяемый шаблон','','Word (*.docx)')
-        if path:self.workspace.run(lambda:save_profile(self.workspace.store,row,row['id'],assets={'templates':{kind:path}}),lambda _:self.refresh())
+        kind=d.values()['kind']
+        if existing:
+            from ...service.attachments import safe_path
+            relative=row.get('template_paths',{}).get(kind)
+            if not relative:return
+            path=str(safe_path(self.workspace.store.root,relative));assets=None
+        else:
+            path,_=QFileDialog.getOpenFileName(self,'Проверяемый шаблон','','Word (*.docx)');assets={'templates':{kind:path}}
+        if path:
+            from .template_fields import configure_template
+            def save(updated):self.workspace.run(lambda:save_profile(self.workspace.store,updated,row['id'],assets=assets),lambda _:self.refresh())
+            configure_template(self.workspace,self,path,kind,row,save)
     def logo(self):
         row=self.grid.selected()
         if not row:return

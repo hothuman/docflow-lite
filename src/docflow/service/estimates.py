@@ -135,6 +135,7 @@ def freeze_estimate(store, repair_id, kind, prepared_by, reason='', request_id=N
                 raise ServiceError('Укажите причину отличия окончательной сметы от согласованной')
         payload = {'repair':r, 'equipment':store.require(c, 'equipment', r['equipment_id']),
                    'client':store.require(c, 'clients', r['client_id']), 'profile':profile(c, r['profile_id']),
+                   'owner':store.require(c,'clients',store.require(c,'equipment',r['equipment_id'])['owner_id']),
                    'lines':lines, 'totals':quote_totals, 'comment':comment, 'kind':kind, 'comparison':comparison(c,repair_id) if kind=='final' else None}
         content = canonical(payload); sha = hashlib.sha256(content.encode()).hexdigest()
         if request_id:
