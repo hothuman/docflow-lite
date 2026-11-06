@@ -14,7 +14,7 @@ def normalized(value):
     return ''.join(c for c in unicodedata.normalize('NFKC', value).casefold().replace('ё', 'е') if c.isalnum())
 
 
-def suggestions(fields, headers):
+def suggestions(fields, headers, *, alias_groups=()):
     """Return (unique choices, candidates); no fuzzy, data-based or remote inference."""
     choices, candidates = {}, {}
     headers = tuple(headers)
@@ -23,7 +23,10 @@ def suggestions(fields, headers):
         key = normalized(field)
         matches = exact or [h for h in headers if key and normalized(h) == key]
         if not matches:
-            aliases = next((set(map(normalized, group)) for group in ALIASES if key in set(map(normalized, group))), set())
+            aliases = set()
+            for group in (*ALIASES,*alias_groups):
+                names=set(map(normalized,group))
+                if key in names:aliases.update(names)
             matches = [h for h in headers if normalized(h) in aliases]
         candidates[field] = tuple(matches)
         if len(matches) == 1:
