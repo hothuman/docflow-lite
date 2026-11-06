@@ -197,6 +197,7 @@ def exercise(window,app,output,idle):
         for width,height in ((560,420),(820,620),(1060,740)):
             d.resize(width,height);app.processEvents()
             assert d.button(QWizard.WizardButton.NextButton).isVisible()
+            assert d.currentPage().findChild(QScrollArea).horizontalScrollBar().maximum()==0
             assert d.grab().save(str(output/f'stage8-import-{width}.png'))
             layouts.append({'requested':[width,height],'actual':d.size().toTuple()})
         d.next();idle(ui);assert d.currentId()==2

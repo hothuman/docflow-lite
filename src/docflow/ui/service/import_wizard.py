@@ -33,7 +33,7 @@ class HistoryWizard(QWizard):
         l.addWidget(self.encoding)
         self.source_label=QLineEdit();self.source_label.setPlaceholderText('Необязательный постоянный ID источника для сверки обновлённого журнала');l.addWidget(self.source_label)
         self.copy_documents=QCheckBox('Скопировать указанные локальные документы в проект');l.addWidget(self.copy_documents);self.document_root=QLineEdit();self.document_root.setReadOnly(True);l.addWidget(self.document_root);button(l,'Разрешённая папка исходных документов',self.choose_root)
-        l=self._layouts[1];self.count=QLabel();l.addWidget(self.count);self.preview=Grid([]);l.addWidget(self.preview,1)
+        l=self._layouts[1];self.count=QLabel();self.count.setWordWrap(True);l.addWidget(self.count);self.preview=Grid([]);l.addWidget(self.preview,1)
         tools=FlowLayout();l.addLayout(tools);self.suggest_button=button(tools,'Предложить связи',self.propose)
         self.undo_button=button(tools,'Вернуть прежние связи',self.undo_mapping);self.undo_button.setEnabled(False)
         self.mapping_hint=QLabel('Предложения не подтверждают импорт. Неоднозначные столбцы выберите вручную.');self.mapping_hint.setWordWrap(True);l.addWidget(self.mapping_hint)
