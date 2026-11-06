@@ -336,7 +336,7 @@ def generate_document(store, repair_id, kind, template=None, image_ids=(), *, es
     if kind not in KINDS: raise ServiceError('Неизвестный документ')
     with store.lock:
         snapshot=store.snapshot(repair_id); r=snapshot['repair']; eq=snapshot['equipment']; client=snapshot['client']
-        amounts=snapshot['totals']; organization=snapshot['profile']; items=snapshot['repair_items']; quote=None
+        amounts=snapshot['totals']; organization=snapshot['profile']; items=snapshot['repair_items']; quote=None;owner=snapshot['owner']
         if kind.startswith('estimate_'):
             from .estimates import get_estimate
             expected='preliminary' if kind=='estimate_preliminary' else 'final'
@@ -347,6 +347,7 @@ def generate_document(store, repair_id, kind, template=None, image_ids=(), *, es
             with store.db.connection() as c: quote=get_estimate(c,estimate_id)
             if quote['repair_id']!=repair_id or quote['kind']!=expected: raise ServiceError('Выбрана другая смета или другой ремонт')
             p=quote['payload']; r=p['repair']; eq=p['equipment']; client=p['client']; organization=p['profile']; items=p['lines']; amounts=p['totals']
+            owner=p.get('owner') or {}  # Old snapshots do not imply today's owner.
         values={k:str(v if v is not None else '') for k,v in r.items()}
         shown=repair_display(r)
         values.update({key:shown[key] for key in BUSINESS_FIELDS})
@@ -359,12 +360,13 @@ def generate_document(store, repair_id, kind, template=None, image_ids=(), *, es
                        'equipment_identifiers':eq.get('identifiers',''),'status':organization.get('status_labels',{}).get(r['status'],STATUSES[r['status']][0]),
                        'organization_name':organization['organization_name'],'organization_details':organization['details'],
                        'organization_contact':organization['contact'],'warranty_terms':organization['warranty_terms'] or '____________________',
-                       **{key:rub(amounts.get(key,0)) for key in ('discount','total','paid','balance')},
+                       **{key:rub(amounts.get(key)) for key in ('discount','total','paid','balance')},
                        'work_total':rub(amounts['work']),'parts_total':rub(amounts['parts']),
                        'delivery_total':rub(amounts.get('delivery',0)),'other_total':rub(amounts.get('other',0)),
                        'expenses_total':rub(sum(amounts.get(k,0) for k in ('parts','delivery','other'))) if all(amounts.get(k,0) is not None for k in ('parts','delivery','other')) else 'Неизвестно',
                        'approved_preliminary_total':rub(comparison['preliminary_total']) if comparison['approved_estimate_id'] else 'не зафиксирован',
                        'estimate_difference':rub(comparison['difference']) if comparison['approved_estimate_id'] else 'не определена'})
+        values.update({'owner_'+field:owner.get(field,'') for field in ('name','contact','phone','email')})
         if quote:
             states={'prepared':'Подготовлена','sent':'Передача отмечена вручную','approved':'Согласование отмечено вручную','rejected':'Отклонение отмечено вручную','withdrawn':'Отметка отозвана'}
             values.update({'estimate_version':str(quote['version']),'estimate_date':quote['created_at'],
@@ -377,6 +379,9 @@ def generate_document(store, repair_id, kind, template=None, image_ids=(), *, es
             values[field.removesuffix('_at')+'_date']=formatted
         if quote:
             values['estimate_day']=datetime.fromisoformat(quote['created_at']).strftime('%d.%m.%Y')
+        from .document_fields import configured_values
+        values,missing=configured_values(values,organization,kind)
+        if missing:raise ServiceError('Не заполнены обязательные поля шаблона: '+', '.join(missing))
         choices=image_choices if image_choices is not None else [{'id':key} for key in image_ids]
         if len({x['id'] for x in choices})!=len(choices): raise ServiceError('Одно изображение выбрано несколько раз')
         images=[]; selection=[]

@@ -37,7 +37,11 @@ class OrganizationWizard(QWizard):
         if path:self.logo.setText(path)
     def choose_template(self):
         path,_=QFileDialog.getOpenFileName(self,'Фирменный шаблон','','Word (*.docx)')
-        if path:self.template.setText(path)
+        if path:
+            from .template_fields import configure_template
+            kind=self.kind.currentData()
+            def selected(updated):self.source=updated;self.template.setText(path)
+            configure_template(self.workspace,self,path,kind,self.source,selected)
     def accept(self):
         if self.workspace.worker:return
         if not self.organization.text().strip() or not self.profile_name.text().strip():self.result_note.setText('Укажите реальное название исполнителя и название настройки.');return

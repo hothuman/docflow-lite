@@ -166,6 +166,7 @@ class RepairDialog(QDialog):
         check=assess(self.snapshot,self.doc_kind.currentData(),self.template_path.text());profile=check['profile']
         message='Исполнитель: '+(profile['organization_name'] or 'не указан — нейтральная форма')
         if check['missing']:message+='\nПроверьте данные: '+', '.join(check['missing'])+'. Для фирменной формы настройте организацию.'
+        if check['required_missing']:message+='\nОбязательные поля шаблона не заполнены: '+', '.join(check['required_missing'])+'. Заполните данные ремонта или настройки формы.'
         if check['quote_snapshot']:message+='\nРеквизиты взяты из сохранённой версии сметы. Изменения профиля её не переписывают.'
         message+='\nЛоготип: '+('выбран; проверяется при формировании' if profile.get('logo_path') else 'не выбран (можно без него)')
         if check['blocked']:message+='\nФирменный шаблон не будет сформирован с неполными данными исполнителя.'
@@ -328,7 +329,7 @@ class RepairDialog(QDialog):
         s=self.store;key=self.key;kind=self.doc_kind.currentData();path=self.template_path.text() or None
         from ...service.document_readiness import assess
         check=assess(self.snapshot,kind,path or '');self.refresh_document_profile()
-        if check['blocked']:self.document_status.setText('Документ не создан: заполните данные исполнителя для фирменного шаблона или выберите встроенную нейтральную форму.');return
+        if check['blocked']:self.document_status.setText('Документ не создан. Проверьте данные исполнителя и обязательные поля: '+', '.join(check['required_missing'] or check['missing']));return
         choices=[]
         if self.images.isChecked():
             from .images import ImagesDialog

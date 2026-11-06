@@ -12,7 +12,8 @@ from .validation import ServiceError, money, now, text
 
 NEUTRAL = {'id':None, 'name':'Нейтральный профиль', 'organization_name':'', 'contact':'',
            'details':'', 'number_prefix':'', 'number_start':1, 'status_labels':{},
-           'default_discount':'0', 'warranty_terms':'', 'template_paths':{}, 'logo_path':''}
+           'default_discount':'0', 'warranty_terms':'', 'template_paths':{}, 'logo_path':'',
+           'template_field_mapping':{},'template_required_fields':{}}
 
 
 def profile(connection, key=None, *, active=False):
@@ -57,6 +58,8 @@ def validate_profile(data):
         raise ServiceError('Неизвестный вид шаблона')
     result['template_paths'] = {k:text(v, 'Путь шаблона', True, 500) for k,v in paths.items()}
     result['logo_path'] = text(data.get('logo_path', ''), 'Путь логотипа', limit=500)
+    from .document_fields import validate_options
+    result['template_field_mapping'],result['template_required_fields']=validate_options(data)
     return result
 
 
@@ -112,6 +115,12 @@ def save_profile(store, data, key=None, *, assets=None, logo_rights_confirmed=Fa
                 record = c.execute('SELECT * FROM managed_files WHERE path=?', (relative,)).fetchone()
                 if record is None or not path.is_file() or digest(path) != record['sha256']:
                     raise ServiceError('Файл профиля отсутствует или изменён; выберите его заново')
+            for kind in set(values['template_field_mapping'])|set(values['template_required_fields']):
+                if not values['template_paths'].get(kind):raise ServiceError('Сначала выберите DOCX для настройки его полей')
+                from ..templates import Template
+                fields=Template.load(safe_path(store.root,values['template_paths'][kind])).fields
+                configured=set(values['template_field_mapping'].get(kind,{}))|set(values['template_required_fields'].get(kind,[]))
+                if configured-fields:raise ServiceError('Настройка содержит поля, которых нет в выбранном DOCX: '+', '.join(sorted(configured-fields)))
             stamp = now(); content = json.dumps(values, ensure_ascii=False, sort_keys=True)
             if existing:
                 c.execute('UPDATE organization_profiles SET name=?,data_json=?,updated_at=? WHERE id=?',
