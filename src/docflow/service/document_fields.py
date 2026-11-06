@@ -1,6 +1,6 @@
 """Optional scalar aliases and required fields on existing local DOCX profiles."""
 from ..matching import suggestions
-from .validation import ServiceError,rub
+from .validation import ServiceError
 
 FIELDS={
  'repair_number':'Номер обращения','received_date':'Дата приёмки','completed_date':'Дата завершения','issued_date':'Дата выдачи',
@@ -12,6 +12,17 @@ FIELDS={
  'warranty_terms':'Условия гарантии из профиля','complaint':'Жалоба','defects':'Диагностика','plan':'План работ','notes':'Примечания',
  'total':'Итоговая стоимость','paid':'Учтённая оплата','balance':'Остаток','discount':'Скидка',
  'work_total':'Стоимость работ','parts_total':'Стоимость запчастей','delivery_total':'Доставка','other_total':'Другие расходы',
+ 'received_at':'Дата приёмки (исходный формат)','started_at':'Дата начала (исходный формат)',
+ 'completed_at':'Дата завершения (исходный формат)','issued_at':'Дата выдачи (исходный формат)','started_date':'Дата начала',
+ 'accessories':'Комплектация при приёмке','condition':'Внешнее состояние','approval':'Ручное согласование',
+ 'approval_note':'Основание согласования','issued_accessories':'Комплектация при выдаче','handover':'Сведения о выдаче',
+ 'source_works':'Работы из исторического источника','client_legal_name':'ФИО / наименование заказчика',
+ 'equipment_kind':'Тип оборудования','equipment_identifiers':'Другие идентификаторы аппарата','status':'Статус ремонта',
+ 'expenses_total':'Запчасти и другие расходы','approved_preliminary_total':'Согласованный предварительный итог',
+ 'estimate_difference':'Разница с согласованной сметой','estimate_version':'Версия сметы','estimate_date':'Дата и время сметы',
+ 'estimate_day':'Дата сметы','estimate_prepared_by':'Смету подготовил','estimate_state':'Ручная отметка сметы',
+ 'estimate_reason':'Причина новой версии сметы','estimate_comment':'Комментарий сметы',
+ 'executor_display':'Исполнитель или отметка нейтральной формы','organization_block':'Блок исполнителя',
 }
 
 
@@ -64,14 +75,6 @@ def readiness_context(snapshot,kind):
     quote=None
     if kind.startswith('estimate_'):
         quote=next((q for q in snapshot['estimates'] if q['kind']==kind.removeprefix('estimate_')),None)
-    context=quote['payload'] if quote else snapshot
-    r=context['repair'];eq=context['equipment'];client=context['client'];owner=context.get('owner') or {};organization=context['profile'];amounts=context['totals']
-    values={k:r.get(k,'') for k in ('complaint','defects','plan','notes')}
-    values.update(repair_number=r['number'],equipment_number=eq['number'],equipment_model=eq['model'],equipment_serial=eq.get('serial',''),equipment_manufacturer=eq.get('manufacturer',''))
-    for prefix,person in (('client',client),('owner',owner)):
-        values.update({prefix+'_'+field:person.get(field,'') for field in ('name','contact','phone','email')})
-    values.update(organization_name=organization.get('organization_name',''),organization_details=organization.get('details',''),organization_contact=organization.get('contact',''),warranty_terms=organization.get('warranty_terms',''))
-    for field in ('received','completed','issued'):values[field+'_date']=r.get(field+'_at','')
-    for field in ('total','paid','balance','discount'):values[field]=rub(amounts.get(field))
-    for field,source in (('work_total','work'),('parts_total','parts'),('delivery_total','delivery'),('other_total','other')):values[field]=rub(amounts.get(source))
-    return organization,quote,values
+    from .documents import document_values
+    organization=(quote['payload'] if quote else snapshot)['profile']
+    return organization,quote,document_values(snapshot,quote)

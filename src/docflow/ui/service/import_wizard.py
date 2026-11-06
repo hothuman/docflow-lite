@@ -19,7 +19,7 @@ class HistoryWizard(QWizard):
         # the shared application QSS. Classic uses the same themed controls as Linux.
         self.setWizardStyle(QWizard.WizardStyle.ClassicStyle)
         self.plan=None;self.table=None;self.ready_page=-1;self.applied=False;self.decisions={'equipment_decisions':{},'client_decisions':{},'current_owners':{},'owner_decisions':{}};self.mappings={};self.statuses={}
-        self.cancel_event=Event();self._operation_active=False;self._source_signature=None;self._mapping_undo=None
+        self.cancel_event=Event();self._operation_active=False;self._source_signature=None;self._mapping_undo=None;self._status_signature=None
         self.clients=workspace.cache.get('active_clients',[]);self.equipment=workspace.cache.get('active_equipment',[])
         self._layouts=[]
         for role,label in [(QWizard.WizardButton.BackButton,'Назад'),(QWizard.WizardButton.NextButton,'Далее'),(QWizard.WizardButton.CancelButton,'Отмена'),(QWizard.WizardButton.FinishButton,'Закрыть')]:self.setButtonText(role,label)
@@ -125,13 +125,16 @@ class HistoryWizard(QWizard):
                 'source_label':self.source_label.text(),'copy_documents':self.copy_documents.isChecked(),'document_root':self.document_root.text() or None,
                 'encoding':self.encoding.currentData(),'separate_clients':True}
     def build_statuses(self):
+        header=self.mapping().get('status');signature=(self._source_signature,header)
+        chosen={raw:widget.currentData() for raw,widget in self.statuses.items()} if signature==self._status_signature else {}
         for w in self.statuses.values():self.status_form.removeRow(w)
-        self.statuses={};header=self.mapping().get('status')
+        self.statuses={};self._status_signature=signature
         raw=sorted({str(r.values.get(header,'')) for r in self.table.records if header and r.values.get(header,'')})
         if len(raw)>100:raise ValueError('Больше 100 различных статусов: проверьте выбранную колонку')
         for value in raw:
             combo=QComboBox();combo.addItem('Сопоставьте явно',None)
             for k,v in STATUSES.items():combo.addItem(v[0],k)
+            combo.setCurrentIndex(max(0,combo.findData(chosen.get(value))))
             self.status_form.addRow(value,combo);self.statuses[value]=combo
     def refresh_plan(self,after=None):
         mapping=self.mapping();options=self.options();path=self.path.text()

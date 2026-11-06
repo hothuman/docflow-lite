@@ -202,6 +202,7 @@ def exercise(window,app,output,idle):
             layouts.append({'requested':[width,height],'actual':d.size().toTuple()})
         d.next();idle(ui);assert d.currentId()==2
         for combo in d.statuses.values():combo.setCurrentIndex(combo.findData('accepted'))
+        d.build_statuses();assert all(combo.currentData()=='accepted' for combo in d.statuses.values())
         d.decisions=history_options();d.decisions={k:v for k,v in d.decisions.items() if k.endswith('decisions')}
         d.mappings['final_total'].setCurrentIndex(d.mappings['final_total'].findData('Окончательный итог'))
         d.mappings['payment_state'].setCurrentIndex(d.mappings['payment_state'].findData('Полнота оплат (known / unknown)'))
@@ -222,6 +223,16 @@ def exercise(window,app,output,idle):
             assert all(scroll.horizontalScrollBar().maximum()==0 for scroll in t.findChildren(QScrollArea))
             assert t.grab().save(str(output/f'stage8-template-fields-{width}.png'))
     finally:t.reject()
+    from ..templates import Template
+    from .documents import create_templates
+    standard=create_templates(output/'Post-review-standard-forms',modern=True,quality=True)['completion']
+    builtin=TemplateFieldsDialog(Template.load(standard).fields,{},'completion',ui)
+    try:
+        builtin.show();app.processEvents()
+        assert all(w.currentData()==name for name,w in builtin.mapping_widgets.items())
+        assert builtin.grab().save(str(output/'post-stage8-standard-fields.png'))
+    finally:builtin.reject()
+    proof['post_stage8_review']={'status_choices_preserved':True,'standard_fields_self_mapped':True}
     proof.update(qt_layouts=layouts,method_qt='synthetic Qt controls in the running application; not native file picker/Word')
     (output/'STAGE8-REGRESSIONS.json').write_text(json.dumps(proof,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     return ['stage8_history_and_documents']

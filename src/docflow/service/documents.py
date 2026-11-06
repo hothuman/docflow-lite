@@ -332,11 +332,54 @@ def _history(store, repair):
     return result
 
 
+def document_values(snapshot,quote=None):
+    """One lossless projection for readiness and actual DOCX substitution."""
+    context=quote['payload'] if quote else snapshot
+    r=context['repair'];eq=context['equipment'];client=context['client'];organization=context['profile'];amounts=context['totals']
+    owner=context.get('owner') or {}
+    values={k:str(v if v is not None else '') for k,v in r.items()}
+    shown=repair_display(r)
+    values.update({key:shown[key] for key in BUSINESS_FIELDS})
+    values['source_works']=shown['source_works']
+    comparison=(quote['payload'].get('comparison') or snapshot['estimate_comparison']) if quote else snapshot['estimate_comparison']
+    values.update({'repair_number':r['number'],'equipment_number':eq['number'],'equipment_model':eq['model'],'equipment_serial':eq['serial'],
+                   'client_name':client['name'],'client_contact':client.get('contact',''),'client_phone':client.get('phone',''),
+                   'client_email':client.get('email',''),'client_legal_name':client.get('legal_name',''),
+                   'equipment_manufacturer':eq.get('manufacturer',''),'equipment_kind':eq.get('kind',''),
+                   'equipment_identifiers':eq.get('identifiers',''),'status':organization.get('status_labels',{}).get(r['status'],STATUSES[r['status']][0]),
+                   'organization_name':organization['organization_name'],'organization_details':organization['details'],
+                   'organization_contact':organization['contact'],'warranty_terms':organization['warranty_terms'] or '____________________',
+                   **{key:rub(amounts.get(key)) for key in ('discount','total','paid','balance')},
+                   'work_total':rub(amounts['work']),'parts_total':rub(amounts['parts']),
+                   'delivery_total':rub(amounts.get('delivery',0)),'other_total':rub(amounts.get('other',0)),
+                   'expenses_total':rub(sum(amounts.get(k,0) for k in ('parts','delivery','other'))) if all(amounts.get(k,0) is not None for k in ('parts','delivery','other')) else 'Неизвестно',
+                   'approved_preliminary_total':rub(comparison['preliminary_total']) if comparison['approved_estimate_id'] else 'не зафиксирован',
+                   'estimate_difference':rub(comparison['difference']) if comparison['approved_estimate_id'] else 'не определена'})
+    values.update({'owner_'+field:owner.get(field,'') for field in ('name','contact','phone','email')})
+    if quote:
+        states={'prepared':'Подготовлена','sent':'Передача отмечена вручную','approved':'Согласование отмечено вручную','rejected':'Отклонение отмечено вручную','withdrawn':'Отметка отозвана'}
+        values.update({'estimate_version':str(quote['version']),'estimate_date':quote['created_at'],
+                       'estimate_prepared_by':quote['prepared_by'],'estimate_state':states[quote['state']],
+                       'estimate_reason':quote['reason'],'estimate_comment':readable_field(quote['payload']['comment']).text})
+    for field in ('received_at','completed_at','issued_at','started_at'):
+        raw_date=r.get(field,'')
+        try:formatted=datetime.fromisoformat(raw_date).strftime('%d.%m.%Y') if raw_date else ''
+        except ValueError:formatted=raw_date
+        values[field.removesuffix('_at')+'_date']=formatted
+    if quote:
+        values['estimate_day']=datetime.fromisoformat(quote['created_at']).strftime('%d.%m.%Y')
+    # These are document fields, not properties of the template's location.
+    # The organization above may come from an immutable estimate snapshot.
+    values['executor_display']=organization['organization_name'] or 'Исполнитель не указан — нейтральная форма'
+    values['organization_block']='\n'.join(x for x in (('Исполнитель: '+organization['organization_name']) if organization['organization_name'] else 'Исполнитель не указан — нейтральная форма',organization['details'],organization['contact']) if x)
+    return values
+
+
 def generate_document(store, repair_id, kind, template=None, image_ids=(), *, estimate_id=None, image_choices=None):
     if kind not in KINDS: raise ServiceError('Неизвестный документ')
     with store.lock:
-        snapshot=store.snapshot(repair_id); r=snapshot['repair']; eq=snapshot['equipment']; client=snapshot['client']
-        amounts=snapshot['totals']; organization=snapshot['profile']; items=snapshot['repair_items']; quote=None;owner=snapshot['owner']
+        snapshot=store.snapshot(repair_id); r=snapshot['repair']
+        organization=snapshot['profile']; items=snapshot['repair_items']; quote=None
         if kind.startswith('estimate_'):
             from .estimates import get_estimate
             expected='preliminary' if kind=='estimate_preliminary' else 'final'
@@ -346,39 +389,8 @@ def generate_document(store, repair_id, kind, template=None, image_ids=(), *, es
             if not estimate_id: raise ServiceError('Сначала сохраните неизменяемую версию соответствующей сметы')
             with store.db.connection() as c: quote=get_estimate(c,estimate_id)
             if quote['repair_id']!=repair_id or quote['kind']!=expected: raise ServiceError('Выбрана другая смета или другой ремонт')
-            p=quote['payload']; r=p['repair']; eq=p['equipment']; client=p['client']; organization=p['profile']; items=p['lines']; amounts=p['totals']
-            owner=p.get('owner') or {}  # Old snapshots do not imply today's owner.
-        values={k:str(v if v is not None else '') for k,v in r.items()}
-        shown=repair_display(r)
-        values.update({key:shown[key] for key in BUSINESS_FIELDS})
-        values['source_works']=shown['source_works']
-        comparison=(quote['payload'].get('comparison') or snapshot['estimate_comparison']) if quote else snapshot['estimate_comparison']
-        values.update({'repair_number':r['number'],'equipment_number':eq['number'],'equipment_model':eq['model'],'equipment_serial':eq['serial'],
-                       'client_name':client['name'],'client_contact':client.get('contact',''),'client_phone':client.get('phone',''),
-                       'client_email':client.get('email',''),'client_legal_name':client.get('legal_name',''),
-                       'equipment_manufacturer':eq.get('manufacturer',''),'equipment_kind':eq.get('kind',''),
-                       'equipment_identifiers':eq.get('identifiers',''),'status':organization.get('status_labels',{}).get(r['status'],STATUSES[r['status']][0]),
-                       'organization_name':organization['organization_name'],'organization_details':organization['details'],
-                       'organization_contact':organization['contact'],'warranty_terms':organization['warranty_terms'] or '____________________',
-                       **{key:rub(amounts.get(key)) for key in ('discount','total','paid','balance')},
-                       'work_total':rub(amounts['work']),'parts_total':rub(amounts['parts']),
-                       'delivery_total':rub(amounts.get('delivery',0)),'other_total':rub(amounts.get('other',0)),
-                       'expenses_total':rub(sum(amounts.get(k,0) for k in ('parts','delivery','other'))) if all(amounts.get(k,0) is not None for k in ('parts','delivery','other')) else 'Неизвестно',
-                       'approved_preliminary_total':rub(comparison['preliminary_total']) if comparison['approved_estimate_id'] else 'не зафиксирован',
-                       'estimate_difference':rub(comparison['difference']) if comparison['approved_estimate_id'] else 'не определена'})
-        values.update({'owner_'+field:owner.get(field,'') for field in ('name','contact','phone','email')})
-        if quote:
-            states={'prepared':'Подготовлена','sent':'Передача отмечена вручную','approved':'Согласование отмечено вручную','rejected':'Отклонение отмечено вручную','withdrawn':'Отметка отозвана'}
-            values.update({'estimate_version':str(quote['version']),'estimate_date':quote['created_at'],
-                           'estimate_prepared_by':quote['prepared_by'],'estimate_state':states[quote['state']],
-                           'estimate_reason':quote['reason'],'estimate_comment':readable_field(quote['payload']['comment']).text})
-        for field in ('received_at','completed_at','issued_at','started_at'):
-            raw_date=r.get(field,'')
-            try:formatted=datetime.fromisoformat(raw_date).strftime('%d.%m.%Y') if raw_date else ''
-            except ValueError:formatted=raw_date
-            values[field.removesuffix('_at')+'_date']=formatted
-        if quote:
-            values['estimate_day']=datetime.fromisoformat(quote['created_at']).strftime('%d.%m.%Y')
+            p=quote['payload']; r=p['repair']; organization=p['profile']; items=p['lines']
+        values=document_values(snapshot,quote)
         from .document_fields import configured_values
         values,missing=configured_values(values,organization,kind)
         if missing:raise ServiceError('Не заполнены обязательные поля шаблона: '+', '.join(missing))
@@ -393,10 +405,6 @@ def generate_document(store, repair_id, kind, template=None, image_ids=(), *, es
             images.append((attachment_path(store,item['id']),caption,stage))
             selection.append({'id':item['id'],'sha256':item['sha256'],'caption':caption,'stage':stage})
         relative_template=organization.get('template_paths',{}).get(kind)
-        # These are document fields, not properties of the template's location.
-        # The organization above may come from an immutable estimate snapshot.
-        values['executor_display']=organization['organization_name'] or 'Исполнитель не указан — нейтральная форма'
-        values['organization_block']='\n'.join(x for x in (('Исполнитель: '+organization['organization_name']) if organization['organization_name'] else 'Исполнитель не указан — нейтральная форма',organization['details'],organization['contact']) if x)
         if not template and not relative_template:
             # Preserve the established selectable v6 paths for profiles/tools,
             # while new implicit documents use the separate print family7.
