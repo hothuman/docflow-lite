@@ -49,6 +49,7 @@ class HistoryWizard(QWizard):
         self.summary=QLabel();self.summary.setWordWrap(True);l.addWidget(self.summary)
         self.status_container=QWidget();self.status_form=QFormLayout(self.status_container);self.status_form.setFormAlignment(Qt.AlignmentFlag.AlignTop);self.status_scroll=QScrollArea();self.status_scroll.setWidgetResizable(True);self.status_scroll.setMaximumHeight(160);self.status_scroll.setWidget(self.status_container);l.addWidget(self.status_scroll)
         l=self._layouts[3];self.selection=QTableWidget(0,4);self.selection.setHorizontalHeaderLabels(['Выбрать','Ремонт / строки','Результат','Проблемы и предупреждения']);self.selection.horizontalHeader().setStretchLastSection(True);l.addWidget(self.selection)
+        self.selection.setColumnWidth(1,180);self.selection.setColumnWidth(2,150)
         self.confirmed=QCheckBox('Я проверил аппарат, заказчика, даты, статусы, позиции и суммы.\nПрименить выбранные ремонты одной транзакцией; остальные строки отложить.');l.addWidget(self.confirmed)
         l=self._layouts[4];self.report=QPlainTextEdit();self.report.setReadOnly(True);l.addWidget(self.report);button(l,'Сохранить отчёт JSON',self.save_report)
         for label in self.findChildren(QLabel):label.setTextFormat(Qt.TextFormat.PlainText)
@@ -180,7 +181,7 @@ class HistoryWizard(QWizard):
             if g['status'] not in ('ready','already_imported'):item.setFlags(Qt.ItemFlag.NoItemFlags)
             self.selection.setItem(i,0,item)
             for j,value in enumerate([g['data'].get('repair_number','')+' / '+','.join(str(r['row']) for r in g['rows']),IMPORT_STATES.get(g['status'],g['status']),'; '.join(g['errors']+g['warnings'])],1):
-                cell=QTableWidgetItem(value);cell.setFlags(Qt.ItemFlag.ItemIsEnabled|Qt.ItemFlag.ItemIsSelectable);self.selection.setItem(i,j,cell)
+                cell=QTableWidgetItem(value);cell.setToolTip(value);cell.setFlags(Qt.ItemFlag.ItemIsEnabled|Qt.ItemFlag.ItemIsSelectable);self.selection.setItem(i,j,cell)
         self.ready_page=2;self.next()
     def validateCurrentPage(self):
         page=self.currentId()
