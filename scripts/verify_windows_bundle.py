@@ -74,6 +74,25 @@ def assert_completion_checks(checks):
 
 
 
+def stable_main_window(observe,alive,clock,sleep,*,timeout=25,stable_for=.5):
+    """Wait for one owned, visible main HWND to settle before sending a close.
+
+    Qt may recreate its native window during initial Windows theme setup. An
+    HWND from the first EnumWindows callback is not a durable widget identity.
+    This never sends/retries WM_CLOSE and never accepts an exited process.
+    """
+    deadline=clock()+timeout;last=None;since=None;observations=[]
+    while clock()<deadline:
+        assert alive(), 'Normal EXE startup exited early'
+        current=tuple(observe())
+        if current!=last:
+            observations.append({'elapsed_before_deadline':timeout-(deadline-clock()),'windows':current})
+            last=current;since=clock()
+        if len(current)==1 and clock()-since>=stable_for:return current[0],observations
+        sleep(.05)
+    raise AssertionError('Ordinary EXE did not expose one stable main window')
+
+
 def normal_start(exe,cwd,env):
     """Exercise the ordinary entrypoint/event loop, with no diagnostic flag."""
     import ctypes
@@ -83,6 +102,7 @@ def normal_start(exe,cwd,env):
     user32.EnumWindows.argtypes=[callback_type,wintypes.LPARAM]
     user32.GetWindowThreadProcessId.argtypes=[wintypes.HWND,ctypes.POINTER(wintypes.DWORD)]
     user32.IsWindowVisible.argtypes=[wintypes.HWND]
+    user32.IsWindow.argtypes=[wintypes.HWND]
     user32.GetWindowTextW.argtypes=[wintypes.HWND,wintypes.LPWSTR,ctypes.c_int]
     user32.PostMessageW.argtypes=[wintypes.HWND,wintypes.UINT,wintypes.WPARAM,wintypes.LPARAM]
     started=time.monotonic()
@@ -99,14 +119,10 @@ def normal_start(exe,cwd,env):
                 found.append((hwnd,title.value))
         return True
     try:
-        deadline=time.monotonic()+25
-        while not found and time.monotonic()<deadline:
-            assert process.poll() is None, 'Normal EXE startup exited early'
-            user32.EnumWindows(visit,0)
-            time.sleep(0.1)
-        assert found, 'Ordinary EXE did not expose its main window'
+        def observe():
+            found.clear();user32.EnumWindows(visit,0);return tuple(found)
+        target,observations=stable_main_window(observe,lambda:process.poll() is None,time.monotonic,time.sleep)
         startup=time.monotonic()-started
-        time.sleep(.2)
         class Counters(ctypes.Structure):
             _fields_=[('cb',wintypes.DWORD),('faults',wintypes.DWORD)]+[(name,ctypes.c_size_t) for name in
                 ('peakWorkingSet','workingSet','peakPaged','paged','peakNonPaged','nonPaged','pagefile','peakPagefile')]
@@ -121,13 +137,19 @@ def normal_start(exe,cwd,env):
             assert handle and psapi.GetProcessMemoryInfo(handle,ctypes.byref(memory),memory.cb)
         finally:
             if handle:kernel.CloseHandle(handle)
+        # Validate again after the memory query. Never silently post to a stale
+        # or foreign HWND, and never retry a failed close as a successful test.
+        assert observe()==(target,) and user32.IsWindow(target[0]), 'Main window changed after settling'
+        owner=wintypes.DWORD();user32.GetWindowThreadProcessId(target[0],ctypes.byref(owner))
+        assert owner.value==process.pid and process.poll() is None, 'Main window no longer belongs to the tested EXE'
         ctypes.set_last_error(0)
-        sent=user32.PostMessageW(found[0][0],0x0010,0,0)
+        sent=user32.PostMessageW(target[0],0x0010,0,0)
         close_error=ctypes.get_last_error()
-        assert sent, f'WM_CLOSE failed: WinError={close_error}, HWND={found[0][0]}, PID={process.pid}, exit={process.poll()}'
+        assert sent, f'WM_CLOSE failed: WinError={close_error}, HWND={target[0]}, PID={process.pid}, exit={process.poll()}'
         code=process.wait(timeout=20)
         assert code==0, f'Normal EXE close returned {code}'
-        return {'visible_main_window':True,'title':found[0][1],'exit_code':code,'diagnostic_flag':False,
+        return {'visible_main_window':True,'title':target[1],'exit_code':code,'diagnostic_flag':False,
+                'main_window_observations':observations,'close_hwnd':target[0],
                 'startup_to_visible_s':startup,'working_set_bytes':memory.workingSet,'peak_working_set_bytes':memory.peakWorkingSet}
     finally:
         if process.poll() is None:
