@@ -5,13 +5,23 @@ No encryption or signatures are claimed. Restore only into a new empty folder.
 from pathlib import Path
 from contextlib import closing
 import hashlib, json, os, sqlite3, tempfile, zipfile, shutil
-import sys
+import sys,time
 from uuid import uuid4
 from .attachments import safe_path,digest,MAX_ATTACHMENT
 from .database import Database,SCHEMA_VERSION,validate_schema
 from .validation import ServiceError,now
 
 MAX_BACKUP=5*1024**3
+
+def _publish_windows(stage,destination):
+    # Windows refuses replacement in every attempt. A scanner/open handle may
+    # briefly deny directory publication; never delete/copy over the target.
+    for attempt in range(4):
+        if os.path.lexists(destination):raise FileExistsError('Папка восстановления уже существует')
+        try:os.rename(stage,destination);return
+        except PermissionError as exc:
+            if getattr(exc,'winerror',None) not in (5,32,33) or attempt==3:raise
+            time.sleep((.05,.1,.2)[attempt])
 
 def _publish_new_tree(stage,destination):
     """Atomic directory publication without replacing a concurrently created target.
@@ -21,7 +31,7 @@ def _publish_new_tree(stage,destination):
     Unsupported platforms fail safely before touching the target.
     """
     if os.name=='nt':
-        os.rename(stage,destination)
+        _publish_windows(stage,destination)
     elif sys.platform.startswith('linux'):
         import ctypes
         libc=ctypes.CDLL(None,use_errno=True)
@@ -139,4 +149,6 @@ def restore_backup(archive,destination):
             # TemporaryDirectory may clean a now absent directory; this is supported.
             return destination
         except ServiceError:raise
+        except PermissionError as exc:
+            raise ServiceError('Не удалось завершить восстановление: нет доступа к новой папке или её файлы заняты. Закройте программы, использующие папку, и повторите в новую папку. Архив не изменён; рабочая база не заменялась.') from exc
         except (OSError,ValueError,KeyError,zipfile.BadZipFile,RuntimeError,TypeError,sqlite3.Error) as exc:raise ServiceError('Восстановление отменено: повреждённая или недоступная копия') from exc
