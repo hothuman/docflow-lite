@@ -210,4 +210,3 @@ def test_versioned_shell_preferences_roundtrip(app,tmp_path):
         assert restored.service_workspace.tabs.currentIndex()==7
     finally:
         restored.close()
-

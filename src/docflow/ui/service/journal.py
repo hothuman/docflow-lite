@@ -361,4 +361,3 @@ class RepairJournal(QWidget):
             self.empty.setText('По этим условиям ничего не найдено. Измените поиск или сбросьте фильтры.')
         else:
             self.empty.setText('Ремонтов пока нет. Создайте первое обращение.')
-

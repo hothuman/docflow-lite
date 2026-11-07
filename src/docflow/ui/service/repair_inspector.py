@@ -140,4 +140,3 @@ class JournalPanels(QStackedWidget):
             self.return_to_list(restore=False)
         self.context_button.setEnabled(ready and row is not None)
         self.inspector.update_repair(row, equipment, ready)
-

@@ -332,7 +332,7 @@ class MainWindow(QMainWindow):
         self.core_route.setVisible(self.pages.currentIndex()<4)
         self.core_state.setVisible(self.pages.currentIndex()<4 and self.height()>=500)
         self.status.setVisible(not service and self.height()>=500)
-        self.about_button.setVisible(compact and not service)
+        self.about_button.setVisible(compact)
         self.compact_settings.setVisible(compact and service)
         if hasattr(self,'core_next'):
             if self._pinned_action is None:self.footer_layout.addWidget(self.generate_btn);self._pinned_action=True
