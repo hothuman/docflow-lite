@@ -4,13 +4,14 @@ import json
 from contextlib import contextmanager
 
 from PySide6.QtCore import QItemSelectionModel, QSignalBlocker, QSortFilterProxyModel, Qt
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLineEdit, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QComboBox, QHBoxLayout, QLineEdit, QVBoxLayout, QWidget
 
 from ...service.statuses import STATUSES, TERMINAL
 from ..flow import ActionBar
 from ..settings import load_widths, preferences
 from ..widgets import icon, text
 from .presentation import MONEY, display
+from .repair_inspector import JournalPanels
 from .widgets import Grid, button
 
 
@@ -91,9 +92,17 @@ class JournalGrid(Grid):
             header.moveSection(header.visualIndex(keys.index(key)), visual)
 
     def _remember(self, index, old, new):
-        if not self._sizing:
-            self._user_widths[index] = max(48, new)
-            self._save_columns()
+        if self._sizing:
+            return
+        width = max(new, self._content_minimum.get(index, 0), 48)
+        if width != new:
+            self._sizing = True
+            try:
+                self.horizontalHeader().resizeSection(index, width)
+            finally:
+                self._sizing = False
+        self._user_widths[index] = width
+        self._save_columns()
 
     def _save_columns(self, *_):
         header = self.horizontalHeader()
@@ -120,9 +129,24 @@ class JournalGrid(Grid):
             }
             if not widths:
                 return
-            flexible = next(i for i, (key, _) in enumerate(self.records.columns) if key == 'equipment_label')
+            keys = {key:i for i, (key, _) in enumerate(self.records.columns)}
+            available = self.viewport().width()
+            remaining = available - sum(widths.values())
+            for key in ('received_at', 'status', 'client', 'equipment_label'):
+                if remaining >= 0:
+                    break
+                index = keys[key]
+                if index in self._user_widths:
+                    continue
+                minimum = self._minimum[index]
+                if key == 'received_at':
+                    minimum = max(minimum, self.fontMetrics().horizontalAdvance('29.12.2026') + 26)
+                amount = min(-remaining, max(0, widths[index] - minimum))
+                widths[index] -= amount
+                remaining += amount
+            flexible = keys['equipment_label']
             if flexible not in self._user_widths:
-                widths[flexible] += max(0, self.viewport().width() - sum(widths.values()))
+                widths[flexible] += max(0, remaining)
             for i, width in widths.items():
                 self.horizontalHeader().resizeSection(i, width)
         finally:
@@ -132,15 +156,19 @@ class JournalGrid(Grid):
 class RepairJournal(QWidget):
     """Keep explicit selection separate from the fallback row visible under filters."""
 
-    def __init__(self, columns, start, open_repair):
+    def __init__(self, columns, start, open_repair, open_history):
         super().__init__()
         self.preferred_id = None
+        self.equipment = {}
         self._changing = False
         self._ready = False
         self._has_project = False
         self.setObjectName('repairJournalPage')
         self.setAccessibleName('Ремонты')
-        layout = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        list_page = QWidget()
+        layout = QVBoxLayout(list_page)
         layout.setContentsMargins(0, 4, 0, 0)
         layout.setSpacing(6)
         actions = ActionBar()
@@ -183,7 +211,43 @@ class RepairJournal(QWidget):
         self.grid.pressed.connect(lambda _: self._user_selected())
         self.grid.openRequested.connect(self.open_button.click)
         self.grid.doubleClicked.connect(lambda _: self.open_button.click())
+        self.panels = JournalPanels(self, list_page, self.body, actions, open_repair, open_history)
+        outer.addWidget(self.panels)
         self._sync()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.panels.responsive(event.size().width())
+
+    def view_context(self):
+        if self.panels.currentWidget() is self.panels.summary and self.panels.context:
+            return self.panels.context
+        row = self.grid.selected()
+        focus = QApplication.focusWidget()
+        if focus is None or not self.isAncestorOf(focus):
+            focus = self.grid
+        return (row['id'] if row else None, max(0, self.grid.currentIndex().column()),
+                self.grid.verticalScrollBar().value(), self.grid.horizontalScrollBar().value(), focus)
+
+    def restore_view(self, context):
+        repair_id, column, vertical, horizontal, focus = context
+        if repair_id:
+            self.preferred_id = repair_id
+        self._changing = True
+        try:
+            self._select_visible(column)
+            self.grid.updateGeometries()
+            self.grid.verticalScrollBar().setValue(vertical)
+            self.grid.horizontalScrollBar().setValue(horizontal)
+        finally:
+            self._changing = False
+        self._sync()
+        if self.isVisible():
+            (focus if focus.isVisible() and focus.isEnabled() else self.grid).setFocus()
+
+    def selected_equipment(self):
+        row = self.grid.selected()
+        return self.equipment.get(row.get('equipment_id')) if row else None
 
     def _filter(self, layout, name, items):
         control = QComboBox()
@@ -208,17 +272,18 @@ class RepairJournal(QWidget):
             self._changing = False
         self._sync()
 
-    def _select_visible(self):
+    def _select_visible(self, column=0):
         proxy = self.grid.proxy
         current = self.grid.selected()
         if current and current.get('id') == self.preferred_id:
-            return
-        target = proxy.index(0, 0)
+            target = proxy.index(self.grid.currentIndex().row(), column)
+        else:
+            target = proxy.index(0, column)
         if self.preferred_id:
             row = next((i for i, item in enumerate(self.grid.records.rows)
                         if item['id'] == self.preferred_id), None)
             if row is not None:
-                index = proxy.mapFromSource(self.grid.records.index(row, 0))
+                index = proxy.mapFromSource(self.grid.records.index(row, column))
                 if index.isValid():
                     target = index
         self.grid.selectionModel().setCurrentIndex(
@@ -259,11 +324,13 @@ class RepairJournal(QWidget):
             del blockers
             self._set_filter_values()
 
-    def install(self, rows):
+    def install(self, rows, equipment):
+        self.equipment = equipment
         with self._preserve_view():
             self.grid.install(rows)
 
     def project_changed(self):
+        self.panels.return_to_list(restore=False)
         self.preferred_id = None
         self.reset_filters()
         self.grid.verticalScrollBar().setValue(0)
@@ -282,7 +349,9 @@ class RepairJournal(QWidget):
         filtered = bool(self.search.text().strip() or any(control.currentIndex() for control in (
             self.status_filter, self.archive_filter, self.finance_filter)))
         self.reset_button.setEnabled(self._ready and filtered)
-        self.open_button.setEnabled(self._ready and self.grid.selected() is not None)
+        row = self.grid.selected()
+        self.open_button.setEnabled(self._ready and row is not None)
+        self.panels.update_repair(row, self.selected_equipment(), self._ready)
         self.count.setText(f'Найдено обращений: {count}' if self._has_project else '')
         self.count.setVisible(self._has_project)
         self.empty.setVisible(not count)

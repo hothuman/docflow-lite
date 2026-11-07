@@ -61,7 +61,8 @@ class ServiceWorkspace(QWidget):
         'estimates':('Сметы',[('number','Ремонт №'),('client','Клиент'),('kind','Смета'),('version','Версия'),('state','Ручная отметка'),('total','Итог')])}
         for key,(name,cols) in definitions.items():
             if key=='repairs':
-                self.journal=RepairJournal(cols,self.start_intake,lambda:self.open_selected('repairs'))
+                self.journal=RepairJournal(cols,self.start_intake,
+                    lambda:self.open_selected('repairs'),self.open_journal_history)
                 self.views[key]=self.journal.grid
                 self.searches[key]=self.journal.search
                 self.status_filter=self.journal.status_filter
@@ -253,19 +254,27 @@ class ServiceWorkspace(QWidget):
         from ...service.estimates import estimate_summaries
         from ...service.link_audit import audit_links
         docs=s.documents();rows=[{**r,'equipment_label':r['equipment_number']+' · '+r['model']} for r in s.repairs()]
-        return {'clients':s.clients(archived=clients_archived),'equipment':s.equipment(archived=archived,active=active),'repairs':rows,'finance':rows,'documents':docs,'estimates':estimate_summaries(s),'dashboard':s.dashboard(rows),'active_clients':s.clients(),'active_equipment':s.equipment(),'link_audit':audit_links(s),'next_repair_number':s.preview_repair_number()}
+        current_equipment=s.equipment()
+        archived_equipment=s.equipment(archived=True)
+        journal_equipment={row['id']:row for row in (*current_equipment,*archived_equipment)}
+        equipment=s.equipment(archived=archived,active=True) if active else (
+            archived_equipment if archived else current_equipment)
+        return {'clients':s.clients(archived=clients_archived),'equipment':equipment,'repairs':rows,'finance':rows,'documents':docs,'estimates':estimate_summaries(s),'dashboard':s.dashboard(rows),'active_clients':s.clients(),'active_equipment':current_equipment,'journal_equipment':journal_equipment,'link_audit':audit_links(s),'next_repair_number':s.preview_repair_number()}
     def _install_project_data(self,data):
         for key,view in self.views.items():
-            if key=='repairs':self.journal.install(data[key])
+            if key=='repairs':self.journal.install(data[key],data['journal_equipment'])
             else:view.install(data[key])
         self.dashboard.install(data['dashboard']);self.cache=data
-    def refresh(self,*args):
+    def refresh(self,*args,journal_context=None):
         if not self.store or self._project_busy:return
         if self.worker:self._pending_refresh=True;return
         s=self.store;archived=self.archived.isChecked();active=self.active_only.isChecked();clients_archived=self.clients_archived.isChecked()
         def install(data):
             self._install_project_data(data)
             for key in self.views:self.update_list_state(key)
+            if journal_context and self.tabs.currentWidget() is self.journal:
+                self._sync_project_controls()
+                self.journal.restore_view(journal_context)
         self.run(lambda:self._query_project_data(s,archived,active,clients_archived),install,'Обновляю журнал…')
     def reset_list_filters(self,key):
         if key=='repairs':
@@ -412,6 +421,13 @@ class ServiceWorkspace(QWidget):
         from .history import HistoryDialog
         self.modal(HistoryDialog(self,row));return
     @needs_project
+    def open_journal_history(self):
+        equipment=self.journal.selected_equipment()
+        if equipment:
+            from .history import HistoryDialog
+            self.modal(HistoryDialog(self,equipment))
+
+    @needs_project
     def new_repair(self):
         eq=[(x['id'],x['number']+' · '+x['model']) for x in self.cache.get('active_equipment',[])]
         if not eq:
@@ -457,12 +473,16 @@ class ServiceWorkspace(QWidget):
     def open_repair(self,key,section=None):
         self._last_repairs[str(self.store.root)]=key
         s=self.store
+        journal_context=self.journal.view_context() if self.tabs.currentWidget() is self.journal else None
         def show(snapshot):
             d=RepairDialog(self,snapshot)
             if section:d.tabs.show_section(section)
             self.dialogs.append(d)
             try:d.exec()
-            finally:self.dialogs.remove(d);d.deleteLater();self.refresh()
+            finally:
+                self.dialogs.remove(d);d.deleteLater()
+                if journal_context:self.journal.panels.return_to_list(restore=False)
+                self.refresh(journal_context=journal_context)
         self.run(lambda:s.snapshot(key),show)
     @needs_project
     def open_file(self,document=False):
