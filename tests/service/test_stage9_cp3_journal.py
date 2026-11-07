@@ -89,6 +89,9 @@ def test_search_filters_keep_selection_focus_and_empty_inspector(journal):
     w.reset_filters()
     assert ids(w)==['a','b','c'] and w.grid.selected()['id']=='b'
     assert 'Учебный владелец' in w.panels.inspector.fields['owner'].text()
+    QApplication.processEvents()
+    assert w.panels.inspector.horizontalScrollBar().maximum()==0
+    assert w.panels.list_page.horizontalScrollBar().maximum()==0
     w.grid.setFocus()
     QTest.keyClick(w.grid,Qt.Key.Key_Return)
     assert calls==['open']
@@ -120,6 +123,16 @@ def test_stable_columns_and_legacy_preferences(app):
     assert reopened.columnWidth(1)==315
     assert reopened.horizontalHeader().logicalIndex(0)==1
     assert all(not reopened.isColumnHidden(i) for i in range(len(COLUMNS)))
+    reopened.resize(520,240);reopened.show()
+    reopened.install(sample_rows());app.processEvents()
+    horizontal=reopened.horizontalScrollBar()
+    assert horizontal.maximum()>0
+    for column in (5,6):
+        horizontal.setValue(0)
+        horizontal.setValue(reopened.columnViewportPosition(column))
+        x=reopened.columnViewportPosition(column)
+        assert 0<=x and x+reopened.columnWidth(column)<=reopened.viewport().width()
+    reopened.close()
     assert preferences().value('columns/workspace/repairs')=='{"1":300}'
 
 

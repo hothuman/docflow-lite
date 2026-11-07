@@ -2,7 +2,7 @@
 """Two presentations of the same selected repair; amounts come from Service."""
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence, QShortcut
-from PySide6.QtWidgets import QFrame, QScrollArea, QStackedWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QScrollArea, QSizePolicy, QStackedWidget, QVBoxLayout, QWidget
 
 from ..flow import ActionBar
 from ..widgets import text
@@ -20,6 +20,7 @@ class RepairInspector(QScrollArea):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         content = QFrame()
         content.setObjectName('journalInspectorCard')
+        content.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.setWidget(content)
         layout = QVBoxLayout(content)
         layout.setContentsMargins(12, 10, 12, 10)
@@ -35,7 +36,8 @@ class RepairInspector(QScrollArea):
             self.fields[key] = label
             layout.addWidget(label)
         actions = ActionBar()
-        self.open_button = button(actions, 'Открыть карточку ремонта', open_repair, primary=True)
+        self.open_button = button(actions, 'Открыть ремонт', open_repair, primary=True)
+        self.open_button.setAccessibleName('Открыть выбранный ремонт')
         self.history_button = button(actions, 'История аппарата', open_history)
         layout.addWidget(actions)
         layout.addStretch()
@@ -86,6 +88,7 @@ class JournalPanels(QStackedWidget):
         self.list_page.setFrameShape(QFrame.Shape.NoFrame)
         self.list_page.setWidgetResizable(True)
         self.list_page.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        list_page.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.list_page.setWidget(list_page)
         self.list_content = list_page
         self.body = body
@@ -110,7 +113,10 @@ class JournalPanels(QStackedWidget):
         # Reserve an actual usable form and a full first row. In a short
         # window QScrollArea takes the overflow, not the child controls.
         self.list_content.setMinimumHeight(max(272, metrics.height() * 17))
-        panel_width = max(255, metrics.horizontalAdvance('ВЫБРАННЫЙ РЕМОНТ') + 42)
+        action_width = max(self.inspector.open_button.sizeHint().width(),
+                           self.inspector.history_button.sizeHint().width())
+        panel_width = max(255, metrics.horizontalAdvance('ВЫБРАННЫЙ РЕМОНТ') + 42,
+                          action_width + self.inspector.verticalScrollBar().sizeHint().width() + 28)
         compact = width < panel_width + max(620, metrics.horizontalAdvance('Ремонт № · Аппарат · Заказчик') * 2)
         if compact == self.compact:
             return
