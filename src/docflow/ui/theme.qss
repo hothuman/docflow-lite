@@ -90,3 +90,8 @@ QRadioButton {spacing:8px;padding:7px;border:1px solid transparent;}
 QRadioButton::indicator {width:16px;height:16px;border:1px solid @muted@;border-radius:9px;background:@input@;}
 QRadioButton::indicator:checked {background:@accent@;border:1px solid @raised@;}
 QLabel#intakeSummary {background:@surface@;padding:10px;border-left:2px solid @accent@;}
+
+/* Scoped Stage 9 shell controls. Existing editors keep the shared widget theme. */
+QLabel#projectLocation {font-size:14px;padding:3px 6px;border-left:2px solid @border@;}
+QPushButton#compactSettings {padding:4px 10px;min-height:20px;color:@muted@;}
+QPushButton#compactSettings:focus {color:@text@;border-color:@focus@;}

@@ -3,7 +3,7 @@ import copy
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QThread, QTimer, QUrl, Qt, Signal, Slot, QSize
+from PySide6.QtCore import QThread, QTimer, QUrl, Qt, Signal, Slot, QSize, QByteArray
 from PySide6.QtGui import QDesktopServices, QColor, QIcon
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QFileDialog, QFrame, QGridLayout,
@@ -83,12 +83,15 @@ class MainWindow(QMainWindow):
         self._service_root=service_root;self.service_workspace=None;self._full_check=None
         settings=preferences()
         def page_setting(key,maximum):
-            try:return max(0,min(maximum,int(settings.value(key,0))))
+            value=settings.value('workspace/v2/'+key, settings.value('workspace/'+key, 0))
+            try:return max(0,min(maximum,int(value)))
             except (TypeError,ValueError):return 0
-        self._saved_mode=page_setting('workspace/mode',1);self._last_core_page=page_setting('workspace/documents',3);self._last_service_page=page_setting('workspace/workshop',7)
+        self._saved_mode=page_setting('mode',1);self._last_core_page=page_setting('documents',3);self._last_service_page=page_setting('workshop',7)
         self.setWindowTitle(f'DocFlow Lite {__version__}')
         self.setWindowIcon(QIcon(str(Path(__file__).with_name('app.ico'))))
         self.resize(1400,860);self.setMinimumSize(560,320)
+        geometry=settings.value('workspace/v2/geometry')
+        if isinstance(geometry,QByteArray):self.restoreGeometry(geometry)
         self.table=None;self.templates=[];self.worker=None;self.task_worker=None;self.preview_worker=None
         self.last_result=None;self.encoding='auto';self.sheet=None;self._busy=False
         self._mapping_cache={};self._rules_cache={};self._active_paths=set()
@@ -114,21 +117,21 @@ class MainWindow(QMainWindow):
             button.clicked.connect(lambda checked=False,i=index:self.navigate(i))
             nav.addWidget(button);self.nav_buttons.append(button)
         self.service_nav=[]
-        for i,(label,kind) in enumerate(zip(('Обзор','Оборудование','Ремонты','Клиенты','Финансы','Документы','Сметы','Настройки'),('check','tool','history','people','money','document','document','folder'))):
-            button=QPushButton(label);button.setObjectName('nav');button.setCheckable(True);button.setIcon(icon(kind));button.setToolTip(label);button.setAccessibleName('Service: '+label)
+        for i,(label,kind) in enumerate(zip(('Обзор','Оборудование','Ремонты','Клиенты','Финансы','Документы','Сметы','Настройки'),('check','tool','history','people','money','document','document','gear'))):
+            button=QPushButton(label);button.setObjectName('nav');button.setCheckable(True);button.setIcon(icon(kind));button.setToolTip(label);button.setAccessibleName(label if i!=5 else 'Документы мастерской')
             button.clicked.connect(lambda checked=False,index=i:self._navigate_service(index))
             button.hide();self.service_nav.append(button)
         for i in (0,2,1,3,5):nav.addWidget(self.service_nav[i])
         self.account_caption=text('УЧЁТ И НАСТРОЙКИ','eyebrow');self.account_caption.hide();nav.addWidget(self.account_caption)
-        for i in (4,6,7):nav.addWidget(self.service_nav[i])
+        for i in (4,6):nav.addWidget(self.service_nav[i])
         ordered=[self.service_nav[i] for i in (0,2,1,3,5,4,6,7)]
         for a,b in zip(ordered,ordered[1:]):QWidget.setTabOrder(a,b)
-        nav.addStretch()
+        nav.addStretch();nav.addWidget(self.service_nav[7])
         self.local_note=text('Локальная обработка\nБез сети и телеметрии','muted');nav.addWidget(self.local_note)
         outer.addWidget(self.rail)
         self.work=QWidget();self.work.setObjectName('work');outer.addWidget(self.work,1)
         work=QVBoxLayout(self.work);work.setContentsMargins(22,20,22,12);work.setSpacing(10)
-        mode_row=QHBoxLayout();mode_row.addWidget(self.mode_picker,1);self.about_button=self.button('О программе',lambda:self.navigate(4));mode_row.addWidget(self.about_button);work.addLayout(mode_row)
+        mode_row=QHBoxLayout();mode_row.addWidget(self.mode_picker);mode_row.addStretch(1);self.about_button=self.button('О программе',lambda:self.navigate(4));mode_row.addWidget(self.about_button);work.addLayout(mode_row)
         self.mode_help=text('Документы: таблица → Word. Мастерская: клиенты, аппараты и ремонты.','muted');work.addWidget(self.mode_help)
         header=QHBoxLayout();titles=QVBoxLayout();titles.setSpacing(5)
         self.breadcrumb=text('CORE / LITE · ДОКУМЕНТЫ','eyebrow');titles.addWidget(self.breadcrumb)
@@ -152,8 +155,14 @@ class MainWindow(QMainWindow):
         self.cancel_btn.hide();self.footer_layout.addWidget(self.cancel_btn)
         self.core_next=self.button('Выбрать таблицу',self.core_next_step,primary=True);self.footer_layout.addWidget(self.core_next)
         self._pinned_action=None;work.addLayout(self.footer_layout)
+        self.compact_settings=self.button('Настройки',lambda:self._navigate_service(7),'gear')
+        self.compact_settings.setAccessibleName('Настройки мастерской')
+        self.compact_settings.setObjectName('compactSettings')
+        work.addWidget(self.compact_settings,0,Qt.AlignmentFlag.AlignLeft)
         self.navigate(5 if self._saved_mode else self._last_core_page);self._responsive();self.update_readiness()
         from PySide6.QtGui import QShortcut,QKeySequence
+        self.settings_shortcut=QShortcut(QKeySequence('Ctrl+,'),self)
+        self.settings_shortcut.activated.connect(lambda:self._navigate_service(7) if self.pages.currentIndex()==5 else None)
         self.profile_shortcut=QShortcut(QKeySequence.StandardKey.Save,self);self.profile_shortcut.activated.connect(lambda:self.save_profile(background=True) if self.pages.currentIndex()<4 and self.table and not self._busy else None)
 
     def button(self,title,callback,kind=None,primary=False):
@@ -281,7 +290,11 @@ class MainWindow(QMainWindow):
         self._responsive();self.update_readiness();self.remember_location()
 
     def remember_location(self):
-        settings=preferences();settings.setValue('workspace/mode',1 if self.pages.currentIndex()==5 else 0);settings.setValue('workspace/documents',self._last_core_page);settings.setValue('workspace/workshop',self._last_service_page);settings.sync()
+        settings=preferences()
+        settings.setValue('workspace/v2/mode',1 if self.pages.currentIndex()==5 else 0)
+        settings.setValue('workspace/v2/documents',self._last_core_page)
+        settings.setValue('workspace/v2/workshop',self._last_service_page)
+        settings.sync()
 
     def _navigate_service(self,index):
         self.service_workspace.tabs.setCurrentIndex(index)
@@ -304,9 +317,10 @@ class MainWindow(QMainWindow):
 
     def _responsive(self):
         service=self.pages.currentIndex()==5
-        compact=self.width()<760 or self.height()<600
+        fm=self.fontMetrics()
+        compact=self.width()<max(800,fm.horizontalAdvance('Настройки мастерской')*6) or self.height()<max(590,fm.height()*27)
         self.rail.setVisible(not compact);self.rail.setFixedWidth(204)
-        self.mode_help.setVisible(self.height()>=600)
+        self.mode_help.setVisible(not service and self.height()>=600)
         self.version_label.setVisible(self.height()>=650);self.local_note.setVisible(self.height()>=700)
         self.breadcrumb.hide();self.subtitle.setVisible(self.height()>=600)
         self.work.layout().setContentsMargins(12 if compact else 22,10,12 if compact else 22,10)
@@ -318,7 +332,8 @@ class MainWindow(QMainWindow):
         self.core_route.setVisible(self.pages.currentIndex()<4)
         self.core_state.setVisible(self.pages.currentIndex()<4 and self.height()>=500)
         self.status.setVisible(not service and self.height()>=500)
-        self.about_button.setVisible(compact)
+        self.about_button.setVisible(compact and not service)
+        self.compact_settings.setVisible(compact and service)
         if hasattr(self,'core_next'):
             if self._pinned_action is None:self.footer_layout.addWidget(self.generate_btn);self._pinned_action=True
 
@@ -734,4 +749,7 @@ class MainWindow(QMainWindow):
             event.ignore()
         else:
             if self.service_workspace and self.service_workspace.project_lock:self.service_workspace.project_lock.unlock()
+            settings=preferences()
+            settings.setValue('workspace/v2/geometry',self.saveGeometry())
+            settings.sync()
             self._preview_timer.stop();event.accept()

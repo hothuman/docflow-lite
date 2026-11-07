@@ -109,7 +109,10 @@ class ServiceWorkspace(QWidget):
         self.open_project(root or default_root())
     def resizeEvent(self,event):
         super().resizeEvent(event)
-        compact=self.width()<920;self.tabs.tabBar().setVisible(not compact and not self.shell_navigation);self.section_picker.setVisible((compact and not self.shell_navigation) or (self.shell_navigation and (self.window().width()<760 or self.window().height()<600)))
+        if not self.shell_navigation:
+            compact=self.width()<920
+            self.tabs.tabBar().setVisible(not compact)
+            self.section_picker.setVisible(compact)
     def _sync_project_controls(self):
         ready=self.store is not None and not self._project_busy and not self.worker
         available=not self._project_busy and not self.worker
