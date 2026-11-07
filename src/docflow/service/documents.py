@@ -195,7 +195,7 @@ def _append_heading(document, value, level):
     return paragraph
 
 
-def render_service(template_path, values, items, images=(), *, history=(), logo=None):
+def render_service(template_path, values, items, images=(), *, history=(), logo=None, stock_form=False):
     template=Template.load(template_path)
     document=Document(io.BytesIO(template.raw)); extra={}; count=0
     stories=list(_stories(document));item_sequence=0
@@ -204,6 +204,9 @@ def render_service(template_path, values, items, images=(), *, history=(), logo=
         # Custom tables without this explicit marker keep their header rows.
         for p in list(root.iter(W+'p')):
             content=''.join(t.text for t in paragraph_nodes(p))
+            if stock_form and not values.get('equipment_serial') and content == (
+                    'Оборудование: {{equipment_model}} · № {{equipment_number}} · серийный № {{equipment_serial}}'):
+                replace_spans(p,re.compile(r' · серийный № \{\{equipment_serial\}\}$'),lambda _: '')
             if '[[optional:source_works]]' in content:
                 following=p.getnext()
                 if following is None or following.tag!=W+'p' or '{{source_works}}' not in ''.join(t.text for t in paragraph_nodes(following)):
@@ -422,7 +425,7 @@ def generate_document(store, repair_id, kind, template=None, image_ids=(), *, es
         if has_history: history=_history(store,r)
         shown_items=[{**item,**{key:readable_field(item.get(key,''),key).text
                               for key in ('name','description','notes')}} for item in items]
-        rendered=render_service(path,values,shown_items,images,history=history,logo=logo)
+        rendered=render_service(path,values,shown_items,images,history=history,logo=logo,stock_form=not (template or relative_template))
         metadata={'repair_revision':r['revision'],'template_sha256':digest(path),'estimate_id':quote['id'] if quote else None,
                   'estimate_sha256':quote['payload_sha256'] if quote else None,'profile_id':organization['id'],'images':selection}
         target=None; created=False
