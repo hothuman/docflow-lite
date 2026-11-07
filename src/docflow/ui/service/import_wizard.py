@@ -14,7 +14,7 @@ from .widgets import Grid,button
 
 class HistoryWizard(QWizard):
     def __init__(self,workspace):
-        super().__init__(workspace);self.workspace=workspace;self.store=workspace.store;self.setWindowTitle('Исторический импорт XLSX / CSV');fit_dialog(self,1020,720)
+        super().__init__(workspace);self.workspace=workspace;self.store=workspace.store;self.setWindowTitle('Импорт журнала ремонтов из Excel / выгрузки 1С');fit_dialog(self,1020,720)
         # Windows defaults to Aero, which paints a white native footer outside
         # the shared application QSS. Classic uses the same themed controls as Linux.
         self.setWizardStyle(QWizard.WizardStyle.ClassicStyle)
@@ -25,12 +25,14 @@ class HistoryWizard(QWizard):
         for role,label in [(QWizard.WizardButton.BackButton,'Назад'),(QWizard.WizardButton.NextButton,'Далее'),(QWizard.WizardButton.CancelButton,'Отмена'),(QWizard.WizardButton.FinishButton,'Закрыть')]:self.setButtonText(role,label)
         for title in ('Источник и лист','Колонки и исходные строки','Аппараты и клиенты','Проверка и подтверждение','Отчёт'):
             p=QWizardPage();p.setTitle(title);outer=QVBoxLayout(p);scroll=QScrollArea();scroll.setWidgetResizable(True);body=QWidget();inner=QVBoxLayout(body);inner.setAlignment(Qt.AlignmentFlag.AlignTop);scroll.setWidget(body);outer.addWidget(scroll);self._layouts.append(inner);self.addPage(p)
-        l=self._layouts[0];note=QLabel('Старый номер ремонта не определяет аппарат. Программа не угадывает связи по модели или фамилии. Рабочая база изменится только после последнего подтверждения.');note.setWordWrap(True);l.addWidget(note)
+        l=self._layouts[0];note=QLabel('Выберите локальный файл Excel или CSV, в том числе выгрузку из 1С.\nСтарый номер ремонта не определяет аппарат. Программа не угадывает связи по модели или фамилии. Рабочая база изменится только после последнего подтверждения.');note.setWordWrap(True);l.addWidget(note)
         self.path=QLineEdit();self.path.setAccessibleName('Файл исторического журнала');l.addWidget(self.path);button(l,'Выбрать XLSX / CSV',self.choose)
         self.sheet=QComboBox();self.sheet.setAccessibleName('Лист Excel');l.addWidget(self.sheet);button(l,'Прочитать список листов',self.inspect)
         self.encoding=QComboBox();self.encoding.setAccessibleName('Кодировка журнала CSV')
         for label,value in [('Автоматически (UTF-8 / Windows-1251)','auto'),('UTF-8','utf-8'),('UTF-8 с BOM','utf-8-sig'),('Windows-1251 (CP1251)','cp1251')]:self.encoding.addItem(label,value)
         l.addWidget(self.encoding)
+        self.path.textChanged.connect(self.update_source_controls)
+        self.update_source_controls()
         self.source_label=QLineEdit();self.source_label.setPlaceholderText('Необязательный постоянный ID источника для сверки обновлённого журнала');l.addWidget(self.source_label)
         self.copy_documents=QCheckBox('Скопировать указанные локальные документы в проект');l.addWidget(self.copy_documents);self.document_root=QLineEdit();self.document_root.setReadOnly(True);l.addWidget(self.document_root);button(l,'Разрешённая папка исходных документов',self.choose_root)
         l=self._layouts[1];self.count=QLabel();self.count.setWordWrap(True);l.addWidget(self.count);self.preview=Grid([]);l.addWidget(self.preview,1)
@@ -46,6 +48,14 @@ class HistoryWizard(QWizard):
         self.identity=Grid([('number','Ремонт'),('equipment','Постоянный №'),('model','Модель'),('client','Исторический клиент'),('equipment_decision','Решение по аппарату'),('client_decision','Решение по клиенту'),('status','Результат'),('issues','Проблемы / предупреждения')]);l.addWidget(self.identity)
         bar=FlowLayout();l.addLayout(bar);button(bar,'Связать / создать / отложить выбранную строку',self.decide);button(bar,'Подтвердить создание новых записей',self.confirm_new);button(bar,'Проверить повторно',self.refresh_plan)
         self.identity.doubleClicked.connect(self.decide)
+        self.issue_detail=QPlainTextEdit()
+        self.issue_detail.setReadOnly(True)
+        self.issue_detail.setAccessibleName('Ошибки и предупреждения выбранной строки')
+        self.issue_detail.setPlaceholderText('Выберите строку, чтобы увидеть сведения о проверке.')
+        self.issue_detail.setMaximumHeight(95)
+        l.addWidget(self.issue_detail)
+        self.identity.selectionModel().currentRowChanged.connect(self.show_row_issues)
+        button(bar,'К первой проблемной строке',self.focus_first_issue)
         self.summary=QLabel();self.summary.setWordWrap(True);l.addWidget(self.summary)
         self.status_container=QWidget();self.status_form=QFormLayout(self.status_container);self.status_form.setFormAlignment(Qt.AlignmentFlag.AlignTop);self.status_scroll=QScrollArea();self.status_scroll.setWidgetResizable(True);self.status_scroll.setMaximumHeight(160);self.status_scroll.setWidget(self.status_container);l.addWidget(self.status_scroll)
         l=self._layouts[3];self.selection=QTableWidget(0,4);self.selection.setHorizontalHeaderLabels(['Выбрать','Ремонт / строки','Результат','Проблемы и предупреждения']);self.selection.horizontalHeader().setStretchLastSection(True);l.addWidget(self.selection)
@@ -53,6 +63,23 @@ class HistoryWizard(QWizard):
         self.confirmed=QCheckBox('Я проверил аппарат, заказчика, даты, статусы, позиции и суммы.\nПрименить выбранные ремонты одной транзакцией; остальные строки отложить.');l.addWidget(self.confirmed)
         l=self._layouts[4];self.report=QPlainTextEdit();self.report.setReadOnly(True);l.addWidget(self.report);button(l,'Сохранить отчёт JSON',self.save_report)
         for label in self.findChildren(QLabel):label.setTextFormat(Qt.TextFormat.PlainText)
+    def update_source_controls(self):
+        self.encoding.setVisible(Path(self.path.text()).suffix.lower()=='.csv')
+
+    def show_row_issues(self,*_):
+        row=self.identity.selected()
+        self.issue_detail.setPlainText(row.get('issues','') if row else '')
+
+    def focus_first_issue(self):
+        for i in range(self.identity.proxy.rowCount()):
+            index=self.identity.proxy.index(i,0)
+            row=self.identity.records.rows[self.identity.proxy.mapToSource(index).row()]
+            if row['status'] in ('error','conflict','needs_confirmation'):
+                self.identity.selectRow(i)
+                self.identity.scrollTo(index)
+                self.issue_detail.setFocus()
+                return
+
     def run_operation(self,fn,callback=None,message='Проверяю журнал…'):
         if self.workspace.worker:return False
         self.cancel_event.clear();self._operation_active=True
@@ -142,6 +169,8 @@ class HistoryWizard(QWizard):
             self.plan=plan
             counts=plan['counts'];self.summary.setText(f"Готово новых: {counts['ready']} · Уже импортировано: {counts['already_imported']} · Конфликты: {counts['conflict']} · Ошибки: {counts['error']} · Нужны решения: {counts['needs_confirmation']} · Отложено: {counts['deferred']}. База пока не изменена.")
             self.identity.install([{'id':g['key'],'number':g['data'].get('repair_number',''),'equipment':g['data'].get('equipment_number',''),'model':g['data'].get('model',''),'client':g['data'].get('client_name',''),'equipment_decision':g['equipment_decision'] or 'не выбрано','client_decision':g['client_decision'] or 'не выбрано','status':g['status'],'issues':'; '.join(g['errors']+g['warnings'])} for g in plan['groups']])
+            self.show_row_issues()
+            if counts['error'] or counts['conflict']:self.focus_first_issue()
             if callable(after):after()
         self.run_operation(lambda:preview_history(self.store,path,mapping,**options,cancel=self.cancel_event),installed,'Проверяю все строки без изменения базы…')
     def decide(self,*args):

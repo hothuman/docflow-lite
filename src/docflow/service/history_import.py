@@ -106,6 +106,26 @@ def _source_document(root, value):
     return p
 
 
+def _field_problem(group, mapping, field, message):
+    header = mapping.get(field)
+    sources = group['rows']
+    source = next((r for r in sources if header and text(r['values'].get(header))), sources[0])
+    value = source['values'].get(header, '') if header else ''
+    column = f' · колонка «{header}»' if header else ''
+    shown = repr(str(value)[:120]) if value not in ('', None) else 'пусто'
+    return ServiceError(
+        f'Строка {source["row"]} · {HISTORY_FIELDS[field]}{column} · значение {shown}. '
+        f'{message}. Проверьте сопоставление или исправьте исходное значение и перечитайте файл.'
+    )
+
+
+def _group_amount(group, mapping, field, value):
+    try:
+        return import_money(value)
+    except ServiceError as exc:
+        raise _field_problem(group, mapping, field, str(exc)) from exc
+
+
 def _groups(table, mapping, status_map, default_status, cancel=None):
     groups = {}; seen = set()
     for record in table.records:
@@ -149,25 +169,25 @@ def _groups(table, mapping, status_map, default_status, cancel=None):
                 if d.get(description or '') or d.get(cost):
                     if any(x['kind']==kind for x in g['lines']): raise ServiceError('Для одного типа указаны и отдельные позиции, и общий итог; выберите один формат')
                     names = {'work':'Исторические работы','part':'Исторические запчасти','delivery':'Историческая доставка','other':'Другой исторический расход'}
-                    value = import_money(d.get(cost,'0'))
+                    value = _group_amount(g, mapping, cost, d.get(cost, '0'))
                     descr = d.get(description or '', '')
                     line=normalize_lines([{'kind':kind,'name':descr.split('\n')[0][:500] if descr else names[kind],
                                            'description':descr,'quantity':'1','unit':'компл.', 'price_cents':value}])[0]
                     line['price_known']=bool(d.get(cost))
                     g['lines'].append(line)
-            discount = import_money(d.get('discount','0'))
+            discount = _group_amount(g, mapping, 'discount', d.get('discount', '0'))
             if d.get('final_total'):
-                expected = import_money(d['final_total'])
+                expected = _group_amount(g, mapping, 'final_total', d['final_total'])
                 gross = sum(x['total_cents'] for x in g['lines'])
                 if gross == 0 and expected+discount:
                     g['lines'] += normalize_lines([{'kind':'other','name':'Историческая стоимость без разбивки','price_cents':expected+discount}])
                     g['warnings'].append('Общий итог сохранён отдельно без выдуманной разбивки стоимости')
                 if calculate(g['lines'],discount)['total'] != expected:
-                    raise ServiceError('Сумма позиций и скидки не совпадает с указанным окончательным итогом')
+                    raise _field_problem(g, mapping, 'final_total', 'Сумма позиций и скидки не совпадает с указанным окончательным итогом')
             g['totals'] = calculate(g['lines'],discount); d['discount_cents'] = discount
             for field in ('cost_state','payment_state'):
                 if d.get(field) and d[field] not in ('known','unknown'):
-                    raise ServiceError('Полнота расчётов: используйте known или unknown')
+                    raise _field_problem(g, mapping, field, 'Полнота расчётов: используйте known или unknown')
             has_amount=bool(d.get('final_total')) or any(d.get(k) for k in ('work_cost','parts_cost','delivery_cost','other_cost'))
             explicit_prices=all(row.get('values',{}).get(mapping_price,'') not in ('',None)
                                 for row in g['rows']) if (mapping_price := mapping.get('price')) else False
@@ -176,10 +196,10 @@ def _groups(table, mapping, status_map, default_status, cancel=None):
             if d.get('cost_state')=='unknown':cost_known=False
             if d.get('cost_state')=='known' and not cost_known:
                 raise ServiceError('Полная стоимость не подтверждается числовыми полями источника')
-            paid=import_money(d['paid_amount']) if d.get('paid_amount') else 0
+            paid=_group_amount(g, mapping, 'paid_amount', d['paid_amount']) if d.get('paid_amount') else 0
             payments_known=d.get('payment_state')=='known'
             if payments_known and not d.get('paid_amount'):
-                raise ServiceError('Для полной истории оплат укажите сумму, включая явный 0')
+                raise _field_problem(g, mapping, 'paid_amount', 'Для полной истории оплат укажите сумму, включая явный 0')
             d['paid_cents']=paid
             d['payment_date']=import_day(d['payment_date']) if d.get('payment_date') else ''
             g['finance_evidence']={'cost_known':cost_known,'payments_known':payments_known}
