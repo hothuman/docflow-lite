@@ -8,14 +8,15 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QGridLayout,QLabel,QPushButton,QTabWidget,QTableView,QHeaderView,QLineEdit,QComboBox,QCheckBox,QFileDialog,QInputDialog,QMessageBox,QDialog,QPlainTextEdit,QFormLayout,QScrollArea,QToolBar)
 from ...service.repository import ServiceStore,default_root
 from ...service.validation import ServiceError,rub
-from ...service.statuses import STATUSES,APPROVALS
+from ...service.statuses import APPROVALS
 from ...service.documents import generate_document,KINDS
 from ...service.attachments import add_attachment,attachment_path,remove_attachment,export_file
 from ...service.backup import create_backup,restore_backup
 from ...service.demo import seed_demo
 from .widgets import Grid,button,confirm
 from .forms import FieldsDialog
-from ..flow import ActionBar
+from .journal import RepairJournal
+from ..flow import ActionBar, OperationNotice
 from ..diagnostics import record_exception,record_project_event,friendly_error,diagnostic_path
 
 def needs_project(function):
@@ -59,10 +60,18 @@ class ServiceWorkspace(QWidget):
         'documents':('Документы',[('number','Ремонт №'),('kind','Тип'),('version','Версия'),('created_at','Создано'),('path','Файл')]),
         'estimates':('Сметы',[('number','Ремонт №'),('client','Клиент'),('kind','Смета'),('version','Версия'),('state','Ручная отметка'),('total','Итог')])}
         for key,(name,cols) in definitions.items():
+            if key=='repairs':
+                self.journal=RepairJournal(cols,self.start_intake,
+                    lambda:self.open_selected('repairs'),self.open_journal_history)
+                self.views[key]=self.journal.grid
+                self.searches[key]=self.journal.search
+                self.status_filter=self.journal.status_filter
+                self.tabs.addTab(self.journal,name)
+                continue
             page=QWidget();layout=QVBoxLayout(page);layout.setContentsMargins(0,8,0,0);layout.setSpacing(12);bar=ActionBar();layout.addWidget(bar);self.toolbars[key]=bar
             search=QLineEdit();search.setPlaceholderText('Номер, название или описание');search.setAccessibleName('Поиск '+name);layout.addWidget(search)
             self.searches[key]=search
-            empty=QLabel({'equipment':'Пока нет оборудования. Добавьте первый аппарат или импортируйте журнал.','repairs':'Ремонтов пока нет. Создайте первое обращение.','clients':'Клиентов пока нет. Добавьте первого клиента.','finance':'Финансовых записей пока нет. Откройте ремонт для учёта расчётов.','documents':'Документы ещё не создавались.','estimates':'Нет сохранённых смет. Откройте ремонт и подготовьте расчёт.'}[key]);empty.setObjectName('empty');empty.setWordWrap(True);layout.addWidget(empty);self.empty_labels[key]=empty
+            empty=QLabel({'equipment':'Пока нет оборудования. Добавьте первый аппарат или импортируйте журнал.','clients':'Клиентов пока нет. Добавьте первого клиента.','finance':'Финансовых записей пока нет. Откройте ремонт для учёта расчётов.','documents':'Документы ещё не создавались.','estimates':'Нет сохранённых смет. Откройте ремонт и подготовьте расчёт.'}[key]);empty.setObjectName('empty');empty.setWordWrap(True);layout.addWidget(empty);self.empty_labels[key]=empty
             reset=QPushButton('Сбросить фильтры');reset.setVisible(False);reset.clicked.connect(lambda _,k=key:self.reset_list_filters(k));layout.addWidget(reset);self.reset_filter_buttons[key]=reset
             if key in ('clients','equipment'):
                 hint=QLabel();hint.setWordWrap(True);hint.setObjectName('muted');hint.hide();layout.addWidget(hint);self.archive_hints[key]=hint
@@ -70,10 +79,6 @@ class ServiceWorkspace(QWidget):
             view=Grid(cols,settings_key='workspace/'+key);layout.addWidget(view,1);search.textChanged.connect(view.proxy.setFilterFixedString);search.textChanged.connect(lambda _,k=key:self.update_list_state(k));self.views[key]=view;self.tabs.addTab(page,name)
         button(self.toolbars['clients'],'Добавить',self.new_client);button(self.toolbars['clients'],'Изменить',self.edit_client);button(self.toolbars['clients'],'Архив / вернуть',lambda:self.archive('clients'))
         button(self.toolbars['equipment'],'Добавить',self.new_equipment);button(self.toolbars['equipment'],'Карточка / история',self.equipment_card);button(self.toolbars['equipment'],'Изменить',self.edit_equipment);button(self.toolbars['equipment'],'Архив / вернуть',lambda:self.archive('equipment'))
-        button(self.toolbars['repairs'],'Новый ремонт',self.start_intake);button(self.toolbars['repairs'],'Открыть',lambda:self.open_selected('repairs'))
-        self.status_filter=QComboBox();self.status_filter.addItem('Все статусы','')
-        for k,(name,_) in STATUSES.items():self.status_filter.addItem(name,k)
-        self.toolbars['repairs'].addWidget(self.status_filter);self.status_filter.currentIndexChanged.connect(self.refresh)
         self.archived=QCheckBox('Архив');self.toolbars['equipment'].addWidget(self.archived);self.archived.toggled.connect(self.refresh)
         self.clients_archived=QCheckBox('Архивные клиенты');self.toolbars['clients'].addWidget(self.clients_archived);self.clients_archived.toggled.connect(self.refresh)
         self.active_only=QCheckBox('Активные');self.toolbars['equipment'].addWidget(self.active_only);self.active_only.toggled.connect(self.refresh)
@@ -81,10 +86,10 @@ class ServiceWorkspace(QWidget):
         button(self.toolbars['estimates'],'Открыть ремонт и сметы',lambda:self.open_selected('estimates'))
         self.views['estimates'].doubleClicked.connect(lambda _:self.open_selected('estimates'))
         button(self.toolbars['documents'],'Открыть DOCX',lambda:self.open_file(True));button(self.toolbars['documents'],'Экспортировать',self.export_document)
-        for k in ('repairs','finance'):self.views[k].doubleClicked.connect(lambda _,key=k:self.open_selected(key))
+        self.views['finance'].doubleClicked.connect(lambda _:self.open_selected('finance'))
         self.views['equipment'].doubleClicked.connect(self.equipment_card)
         self.views['equipment'].openRequested.connect(self.equipment_card)
-        for key in ('repairs','finance','estimates'):self.views[key].openRequested.connect(lambda k=key:self.open_selected(k))
+        for key in ('finance','estimates'):self.views[key].openRequested.connect(lambda k=key:self.open_selected(k))
         self.views['documents'].openRequested.connect(lambda:self.open_file(True))
         from ..widgets import card
         settings=QWidget();sl=QVBoxLayout(settings);sl.setContentsMargins(0,8,0,0);sl.setSpacing(16)
@@ -103,13 +108,20 @@ class ServiceWorkspace(QWidget):
         sl.addStretch();settings_scroll=QScrollArea();settings_scroll.setWidgetResizable(True);settings_scroll.setWidget(settings);self.tabs.addTab(settings_scroll,'Настройки')
         self.section_picker.addItems([self.tabs.tabText(i) for i in range(self.tabs.count())]);self.section_picker.setCurrentIndex(0)
         if self.shell_navigation:self.tabs.tabBar().hide();self.section_picker.hide()
-        self.message=QLabel('');self.message.setWordWrap(True);out.addWidget(self.message)
+        self.message=OperationNotice();out.addWidget(self.message)
         for label in self.findChildren(QLabel):label.setTextFormat(Qt.TextFormat.PlainText)
         self._sync_project_controls()
         self.open_project(root or default_root())
     def resizeEvent(self,event):
         super().resizeEvent(event)
-        compact=self.width()<920;self.tabs.tabBar().setVisible(not compact and not self.shell_navigation);self.section_picker.setVisible((compact and not self.shell_navigation) or (self.shell_navigation and (self.window().width()<760 or self.window().height()<600)))
+        if not self.shell_navigation:
+            compact=self.width()<920
+            self.tabs.tabBar().setVisible(not compact)
+            self.section_picker.setVisible(compact)
+    def set_short_journal(self,short):
+        self.layout().setSpacing(4 if short else 6)
+        self.message.set_compact(short)
+
     def _sync_project_controls(self):
         ready=self.store is not None and not self._project_busy and not self.worker
         available=not self._project_busy and not self.worker
@@ -117,6 +129,7 @@ class ServiceWorkspace(QWidget):
             control.setEnabled(available if control in self._safe_project_buttons else ready)
         for control in (*self.searches.values(),*self.views.values(),self.status_filter,self.archived,self.clients_archived,self.active_only):control.setEnabled(ready)
         for control in (self.open_project_button,self.new_project_button,self.restore_project_button):control.setEnabled(available)
+        self.journal.project_state(self.store is not None,ready)
         self.project_actions.setVisible(self.store is None or self.project_state in ('cancelled','error','locked'))
         if self.store is None:
             for key in self.views:self.update_list_state(key)
@@ -155,7 +168,7 @@ class ServiceWorkspace(QWidget):
                 except Exception as exc:
                     record_project_event('error_handler_error',exc)
                     if project_operation:self._project_status('error','Ошибка завершения открытия. Повторите выбор проекта.')
-            QMessageBox.warning(self,'Service',error)
+            QMessageBox.warning(self,'Мастерская',error)
         def done():
             self.worker=None;self.tabs.setEnabled(True)
             for d in self.dialogs:d.setEnabled(True)
@@ -211,7 +224,7 @@ class ServiceWorkspace(QWidget):
             lock.unlock();self._project_status('error','Не удалось открыть проект: '+error)
         def installed(result):
             store,data=result;previous=self.cache;previous_store=self.store
-            controls=(*self.searches.values(),self.status_filter,self.archived,self.clients_archived,self.active_only)
+            controls=(*(value for key,value in self.searches.items() if key!='repairs'),self.archived,self.clients_archived,self.active_only)
             prior=[(c,c.text() if isinstance(c,QLineEdit) else c.currentIndex() if isinstance(c,QComboBox) else c.isChecked()) for c in controls]
             def set_filters(values):
                 for control,value in values:
@@ -223,6 +236,7 @@ class ServiceWorkspace(QWidget):
             try:
                 self._install_project_data(data);self.store=store
                 set_filters([(c,'' if isinstance(c,QLineEdit) else 0 if isinstance(c,QComboBox) else False) for c in controls])
+                self.journal.project_changed()
                 self._project_status('opened','Проект открыт. Можно продолжать работу.')
                 for key in self.views:self.update_list_state(key)
             except Exception:
@@ -240,35 +254,47 @@ class ServiceWorkspace(QWidget):
                 return store,self._query_project_data(store)
             except Exception:lock.unlock();raise
         if not self.run(open_store,installed,'Проверяю SQLite и версию схемы…',on_error=failed,project_operation=True):failed('Операция не запущена. Повторите открытие.')
-    def _query_project_data(self,s,archived=False,active=False,status='',clients_archived=False):
+    def _query_project_data(self,s,archived=False,active=False,clients_archived=False):
         from ...service.estimates import estimate_summaries
         from ...service.link_audit import audit_links
         docs=s.documents();rows=[{**r,'equipment_label':r['equipment_number']+' · '+r['model']} for r in s.repairs()]
-        return {'clients':s.clients(archived=clients_archived),'equipment':s.equipment(archived=archived,active=active),'repairs':[r for r in rows if not status or r['status']==status],'finance':rows,'documents':docs,'estimates':estimate_summaries(s),'dashboard':s.dashboard(rows),'active_clients':s.clients(),'active_equipment':s.equipment(),'link_audit':audit_links(s),'next_repair_number':s.preview_repair_number()}
+        current_equipment=s.equipment()
+        archived_equipment=s.equipment(archived=True)
+        journal_equipment={row['id']:row for row in (*current_equipment,*archived_equipment)}
+        equipment=s.equipment(archived=archived,active=True) if active else (
+            archived_equipment if archived else current_equipment)
+        return {'clients':s.clients(archived=clients_archived),'equipment':equipment,'repairs':rows,'finance':rows,'documents':docs,'estimates':estimate_summaries(s),'dashboard':s.dashboard(rows),'active_clients':s.clients(),'active_equipment':current_equipment,'journal_equipment':journal_equipment,'link_audit':audit_links(s),'next_repair_number':s.preview_repair_number()}
     def _install_project_data(self,data):
-        for key,view in self.views.items():view.install(data[key])
+        for key,view in self.views.items():
+            if key=='repairs':self.journal.install(data[key],data['journal_equipment'])
+            else:view.install(data[key])
         self.dashboard.install(data['dashboard']);self.cache=data
-    def refresh(self,*args):
+    def refresh(self,*args,journal_context=None):
         if not self.store or self._project_busy:return
         if self.worker:self._pending_refresh=True;return
-        s=self.store;archived=self.archived.isChecked();active=self.active_only.isChecked();status=self.status_filter.currentData();clients_archived=self.clients_archived.isChecked()
+        s=self.store;archived=self.archived.isChecked();active=self.active_only.isChecked();clients_archived=self.clients_archived.isChecked()
         def install(data):
             self._install_project_data(data)
             for key in self.views:self.update_list_state(key)
-        self.run(lambda:self._query_project_data(s,archived,active,status,clients_archived),install,'Обновляю журнал…')
+            if journal_context and self.tabs.currentWidget() is self.journal:
+                self._sync_project_controls()
+                self.journal.restore_view(journal_context)
+        self.run(lambda:self._query_project_data(s,archived,active,clients_archived),install,'Обновляю журнал…')
     def reset_list_filters(self,key):
+        if key=='repairs':
+            self.journal.reset_filters()
+            return
         self.searches[key].clear()
         if key=='equipment':self.active_only.setChecked(False)
-        elif key=='repairs':self.status_filter.setCurrentIndex(0)
         self.update_list_state(key)
     def show_archived(self,key):
         self.reset_list_filters(key)
         (self.clients_archived if key=='clients' else self.archived).setChecked(True)
     def update_list_state(self,key):
-        if key not in self.views:return
+        if key not in self.views or key=='repairs':return
         if self.store is None:
             self.empty_labels[key].setText('Проект не открыт. Выберите локальную папку или создайте отдельный проект.');self.empty_labels[key].show();self.reset_filter_buttons[key].hide();return
-        query=bool(self.searches[key].text().strip());filtered=query or (key=='equipment' and self.active_only.isChecked()) or (key=='repairs' and bool(self.status_filter.currentData()))
+        query=bool(self.searches[key].text().strip());filtered=query or (key=='equipment' and self.active_only.isChecked())
         visible=self.views[key].proxy.rowCount()
         self.reset_filter_buttons[key].setVisible(filtered)
         label=self.empty_labels[key]
@@ -285,7 +311,7 @@ class ServiceWorkspace(QWidget):
             hint.setText(('Действующих' if key=='clients' else 'Действующего')+f': {current_count}. В архиве: {archive_count}. '+('Показаны архивные записи.' if archived else 'Архивные записи скрыты; связанные обращения и история сохранены.'))
             self.archive_buttons[key].setText(f'Показать архив ({archive_count})');self.archive_buttons[key].setVisible(bool(archive_count) and not archived)
         elif not visible:
-            label.setText({'repairs':'Ремонтов пока нет. Создайте первое обращение.','finance':'Финансовых записей пока нет. Откройте ремонт для учёта расчётов.','documents':'Документы ещё не создавались.','estimates':'Нет сохранённых смет. Откройте ремонт и подготовьте расчёт.'}[key])
+            label.setText({'finance':'Финансовых записей пока нет. Откройте ремонт для учёта расчётов.','documents':'Документы ещё не создавались.','estimates':'Нет сохранённых смет. Откройте ремонт и подготовьте расчёт.'}[key])
     @needs_project
     def open_catalog(self):
         from .catalog import CatalogDialog
@@ -399,6 +425,13 @@ class ServiceWorkspace(QWidget):
         from .history import HistoryDialog
         self.modal(HistoryDialog(self,row));return
     @needs_project
+    def open_journal_history(self):
+        equipment=self.journal.selected_equipment()
+        if equipment:
+            from .history import HistoryDialog
+            self.modal(HistoryDialog(self,equipment))
+
+    @needs_project
     def new_repair(self):
         eq=[(x['id'],x['number']+' · '+x['model']) for x in self.cache.get('active_equipment',[])]
         if not eq:
@@ -444,12 +477,16 @@ class ServiceWorkspace(QWidget):
     def open_repair(self,key,section=None):
         self._last_repairs[str(self.store.root)]=key
         s=self.store
+        journal_context=self.journal.view_context() if self.tabs.currentWidget() is self.journal else None
         def show(snapshot):
             d=RepairDialog(self,snapshot)
             if section:d.tabs.show_section(section)
             self.dialogs.append(d)
             try:d.exec()
-            finally:self.dialogs.remove(d);d.deleteLater();self.refresh()
+            finally:
+                self.dialogs.remove(d);d.deleteLater()
+                if journal_context:self.journal.panels.return_to_list(restore=False)
+                self.refresh(journal_context=journal_context)
         self.run(lambda:s.snapshot(key),show)
     @needs_project
     def open_file(self,document=False):

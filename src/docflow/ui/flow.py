@@ -35,3 +35,25 @@ class ActionBar(QWidget):
  def addWidget(self,widget):
   if isinstance(widget,QLabel):widget.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Preferred)
   self.flow.addWidget(widget)
+
+
+class OperationNotice(QLabel):
+    """A shared text notice that keeps actionable feedback visible when compact."""
+
+    def __init__(self):
+        super().__init__()
+        self._compact = False
+        self.setWordWrap(True)
+        self.setTextFormat(Qt.TextFormat.PlainText)
+
+    def set_compact(self, compact):
+        self._compact = compact
+        self._update_visibility()
+
+    def setText(self, value):
+        super().setText(value)
+        self._update_visibility()
+
+    def _update_visibility(self):
+        repeated = self.text() in ('Проект открыт. Можно продолжать работу.', 'Операция выполнена')
+        self.setVisible(bool(self.text()) and not (self._compact and repeated))

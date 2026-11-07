@@ -90,3 +90,14 @@ QRadioButton {spacing:8px;padding:7px;border:1px solid transparent;}
 QRadioButton::indicator {width:16px;height:16px;border:1px solid @muted@;border-radius:9px;background:@input@;}
 QRadioButton::indicator:checked {background:@accent@;border:1px solid @raised@;}
 QLabel#intakeSummary {background:@surface@;padding:10px;border-left:2px solid @accent@;}
+
+/* Scoped Stage 9 shell controls. Existing editors keep the shared widget theme. */
+QLabel#projectLocation {font-size:14px;padding:3px 6px;border-left:2px solid @border@;}
+QPushButton#compactSettings {padding:4px 10px;min-height:20px;color:@muted@;}
+QPushButton#compactSettings:focus {color:@text@;border-color:@focus@;}
+
+QFrame#journalInspectorCard {background:@surface@;border:1px solid @border@;border-top:2px solid @accent@;border-radius:8px;}
+QLabel#journalSelectionTitle {font-size:19px;font-weight:650;}
+QLabel#journalCount {color:@muted@;}
+QLabel#journalDetail[debt="true"] {color:@error@;font-weight:600;}
+QTableView#repairJournal QHeaderView::section {color:@text@;padding:5px 8px;}

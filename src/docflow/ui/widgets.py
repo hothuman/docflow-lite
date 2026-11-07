@@ -25,6 +25,16 @@ def icon(kind='document', color='#A7BDB5', size=24):
         p.drawEllipse(2,2,20,20);p.drawText(7,17,'₽')
     elif kind == 'tool':
         p.drawLine(5,20,17,8);p.drawEllipse(14,2,8,8);p.drawLine(3,17,6,20)
+    elif kind == 'gear':
+        from math import cos, pi, sin
+        from PySide6.QtCore import QPointF
+        from PySide6.QtGui import QPolygonF
+        points = []
+        for i in range(32):
+            angle = i * pi / 16
+            radius = 10 if i % 4 in (1, 2) else 8
+            points.append(QPointF(12 + radius*cos(angle), 12 + radius*sin(angle)))
+        p.drawPolygon(QPolygonF(points));p.drawEllipse(8,8,8,8)
     elif kind == 'history':
         p.drawEllipse(3,3,18,18);p.drawLine(12,6,12,12);p.drawLine(12,12,17,15)
     elif kind == 'search':
