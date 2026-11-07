@@ -1,0 +1,295 @@
+
+"""Read-only repair journal backed by the existing Service rows model."""
+import json
+from contextlib import contextmanager
+
+from PySide6.QtCore import QItemSelectionModel, QSignalBlocker, QSortFilterProxyModel, Qt
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLineEdit, QVBoxLayout, QWidget
+
+from ...service.statuses import STATUSES, TERMINAL
+from ..flow import ActionBar
+from ..settings import load_widths, preferences
+from ..widgets import icon, text
+from .presentation import MONEY, display
+from .widgets import Grid, button
+
+
+class JournalProxy(QSortFilterProxyModel):
+    status = ''
+    archive = ''
+    finance = ''
+
+    def filterAcceptsRow(self, source_row, source_parent):
+        row = self.sourceModel().rows[source_row]
+        if self.status and row['status'] != self.status:
+            return False
+        archived = row['status'] in TERMINAL
+        if self.archive and archived != (self.archive == 'archive'):
+            return False
+        balance = row.get('balance')
+        if self.finance == 'debt' and (balance is None or balance <= 0):
+            return False
+        if self.finance == 'incomplete' and balance is not None:
+            return False
+        return super().filterAcceptsRow(source_row, source_parent)
+
+    def lessThan(self, left, right):
+        model = self.sourceModel()
+        key = model.columns[left.column()][0]
+        a, b = model.data(left, self.sortRole()), model.data(right, self.sortRole())
+        if key in MONEY and (a is None) != (b is None):
+            return a is not None if self.sortOrder() == Qt.SortOrder.AscendingOrder else a is None
+        if key == 'status':
+            a, b = (display(key, model.rows[i.row()]) for i in (left, right))
+        if a != b:
+            if type(a) is int and type(b) is int:
+                return a < b
+            return str(a).casefold() < str(b).casefold()
+        return model.rows[left.row()]['id'] < model.rows[right.row()]['id']
+
+
+class JournalGrid(Grid):
+    preference_key = 'workspace/v2/journal/columns'
+
+    def __init__(self, columns):
+        super().__init__(columns, proxy_type=JournalProxy)
+        self.setObjectName('repairJournal')
+        self.setAccessibleName('Журнал ремонтов')
+        self.setAccessibleDescription(
+            'Стрелки выбирают запись, Ввод открывает ремонт. '
+            'Таблицу можно прокручивать горизонтально. Полный текст ячейки есть в подсказке.'
+        )
+        self.setHorizontalScrollMode(self.ScrollMode.ScrollPerPixel)
+        self.setVerticalScrollMode(self.ScrollMode.ScrollPerPixel)
+        self.setMinimumHeight(64)
+        header = self.horizontalHeader()
+        header.setSectionsMovable(True)
+        header.setAccessibleName('Столбцы журнала ремонтов')
+        self._load_columns()
+        header.sectionMoved.connect(self._save_columns)
+        self.fit_columns()
+
+    def _load_columns(self):
+        header = self.horizontalHeader()
+        keys = [key for key, _ in self.records.columns]
+        raw = preferences().value(self.preference_key, '')
+        try:
+            saved = json.loads(raw)
+            widths, order = saved['widths'], saved['order']
+            if not isinstance(widths, dict) or not isinstance(order, list):
+                raise ValueError('Invalid column preferences')
+        except (TypeError, ValueError, KeyError):
+            self._user_widths = load_widths('workspace/repairs')
+            return
+        self._user_widths = {
+            i: min(4096, max(48, widths[key]))
+            for i, key in enumerate(keys) if type(widths.get(key)) is int
+        }
+        ordered = [key for key in dict.fromkeys(value for value in order if isinstance(value, str)) if key in keys]
+        ordered.extend(key for key in keys if key not in ordered)
+        for visual, key in enumerate(ordered):
+            header.moveSection(header.visualIndex(keys.index(key)), visual)
+
+    def _remember(self, index, old, new):
+        if not self._sizing:
+            self._user_widths[index] = max(48, new)
+            self._save_columns()
+
+    def _save_columns(self, *_):
+        header = self.horizontalHeader()
+        columns = self.records.columns
+        state = {
+            'widths': {columns[i][0]: width for i, width in self._user_widths.items()},
+            'order': [columns[header.logicalIndex(i)][0] for i in range(len(columns))],
+        }
+        settings = preferences()
+        settings.setValue(self.preference_key, json.dumps(state))
+        settings.sync()
+        if settings.status() != settings.Status.NoError:
+            header.setToolTip('Ширина изменена в этом окне. Не удалось записать настройки столбцов.')
+
+    def fit_columns(self):
+        if self._sizing:
+            return
+        self._sizing = True
+        try:
+            widths = {
+                i: max(self._minimum[i], self._content_minimum.get(i, 0),
+                       self._user_widths.get(i, self._preferred[i]))
+                for i in self._preferred
+            }
+            if not widths:
+                return
+            flexible = next(i for i, (key, _) in enumerate(self.records.columns) if key == 'equipment_label')
+            if flexible not in self._user_widths:
+                widths[flexible] += max(0, self.viewport().width() - sum(widths.values()))
+            for i, width in widths.items():
+                self.horizontalHeader().resizeSection(i, width)
+        finally:
+            self._sizing = False
+
+
+class RepairJournal(QWidget):
+    """Keep explicit selection separate from the fallback row visible under filters."""
+
+    def __init__(self, columns, start, open_repair):
+        super().__init__()
+        self.preferred_id = None
+        self._changing = False
+        self._ready = False
+        self._has_project = False
+        self.setObjectName('repairJournalPage')
+        self.setAccessibleName('Ремонты')
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 4, 0, 0)
+        layout.setSpacing(6)
+        actions = ActionBar()
+        layout.addWidget(actions)
+        self.new_button = button(actions, 'Новый ремонт', start, primary=True)
+        self.open_button = button(actions, 'Открыть ремонт', open_repair)
+        self.open_button.setAccessibleDescription('Открыть выбранную запись в карточке ремонта')
+
+        self.search = QLineEdit()
+        self.search.setAccessibleName('Поиск ремонтов')
+        self.search.setPlaceholderText('Ремонт, аппарат, серийный номер или заказчик')
+        self.search.addAction(icon('search'), QLineEdit.ActionPosition.LeadingPosition)
+        layout.addWidget(self.search)
+        filters = ActionBar()
+        layout.addWidget(filters)
+        self.status_filter = self._filter(filters, 'Производственный статус',
+            [('Все статусы',''), *((label, key) for key, (label, _) in STATUSES.items())])
+        self.archive_filter = self._filter(filters, 'Обращения в архиве',
+            [('Все обращения',''), ('В работе и ожидают','active'), ('Завершённые и архив','archive')])
+        self.finance_filter = self._filter(filters, 'Финансовый фильтр',
+            [('Все расчёты',''), ('Есть долг','debt'), ('Расчёт неполон','incomplete')])
+        self.reset_button = button(filters, 'Сбросить фильтры', self.reset_filters)
+        self.grid = JournalGrid(columns)
+        self.empty = text('', 'empty')
+        self.empty.setAccessibleName('Состояние выдачи журнала')
+        self.table_area = QVBoxLayout()
+        self.table_area.setContentsMargins(0, 0, 0, 0)
+        self.table_area.setSpacing(5)
+        self.table_area.addWidget(self.empty)
+        self.table_area.addWidget(self.grid, 1)
+        self.body = QHBoxLayout()
+        self.body.setSpacing(12)
+        self.body.addLayout(self.table_area, 1)
+        layout.addLayout(self.body, 1)
+        self.count = text('', 'journalCount')
+        self.count.setAccessibleName('Количество найденных ремонтов')
+        layout.addWidget(self.count)
+        self.search.textChanged.connect(self.apply_filters)
+        self.grid.selectionModel().currentRowChanged.connect(self._user_selected)
+        self.grid.pressed.connect(lambda _: self._user_selected())
+        self.grid.openRequested.connect(self.open_button.click)
+        self.grid.doubleClicked.connect(lambda _: self.open_button.click())
+        self._sync()
+
+    def _filter(self, layout, name, items):
+        control = QComboBox()
+        control.setAccessibleName(name)
+        for label, key in items:
+            control.addItem(label, key)
+        layout.addWidget(control)
+        control.currentIndexChanged.connect(self.apply_filters)
+        return control
+
+    @contextmanager
+    def _preserve_view(self):
+        vertical, horizontal = self.grid.verticalScrollBar(), self.grid.horizontalScrollBar()
+        position = vertical.value(), horizontal.value()
+        self._changing = True
+        try:
+            yield
+            self._select_visible()
+            vertical.setValue(position[0])
+            horizontal.setValue(position[1])
+        finally:
+            self._changing = False
+        self._sync()
+
+    def _select_visible(self):
+        proxy = self.grid.proxy
+        current = self.grid.selected()
+        if current and current.get('id') == self.preferred_id:
+            return
+        target = proxy.index(0, 0)
+        if self.preferred_id:
+            row = next((i for i, item in enumerate(self.grid.records.rows)
+                        if item['id'] == self.preferred_id), None)
+            if row is not None:
+                index = proxy.mapFromSource(self.grid.records.index(row, 0))
+                if index.isValid():
+                    target = index
+        self.grid.selectionModel().setCurrentIndex(
+            target, QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows
+        )
+
+    def _user_selected(self, *_):
+        if not self._changing:
+            row = self.grid.selected()
+            if row:
+                self.preferred_id = row['id']
+            self._sync()
+
+    def _set_filter_values(self):
+        proxy = self.grid.proxy
+        proxy.status = self.status_filter.currentData()
+        proxy.archive = self.archive_filter.currentData()
+        proxy.finance = self.finance_filter.currentData()
+        query = self.search.text().strip()
+        if query != getattr(proxy, 'query', ''):
+            proxy.query = query
+            proxy.setFilterFixedString(query)
+        else:
+            proxy.beginFilterChange()
+            proxy.endFilterChange(QSortFilterProxyModel.Direction.Rows)
+
+    def apply_filters(self, *_):
+        with self._preserve_view():
+            self._set_filter_values()
+
+    def reset_filters(self):
+        controls = (self.search, self.status_filter, self.archive_filter, self.finance_filter)
+        with self._preserve_view():
+            blockers = [QSignalBlocker(control) for control in controls]
+            self.search.clear()
+            for control in controls[1:]:
+                control.setCurrentIndex(0)
+            del blockers
+            self._set_filter_values()
+
+    def install(self, rows):
+        with self._preserve_view():
+            self.grid.install(rows)
+
+    def project_changed(self):
+        self.preferred_id = None
+        self.reset_filters()
+        self.grid.verticalScrollBar().setValue(0)
+        self.grid.horizontalScrollBar().setValue(0)
+
+    def project_state(self, has_project, ready):
+        self._has_project = has_project
+        self._ready = ready
+        for control in (self.new_button, self.search, self.grid, self.status_filter,
+                        self.archive_filter, self.finance_filter):
+            control.setEnabled(ready)
+        self._sync()
+
+    def _sync(self):
+        count = self.grid.proxy.rowCount()
+        filtered = bool(self.search.text().strip() or any(control.currentIndex() for control in (
+            self.status_filter, self.archive_filter, self.finance_filter)))
+        self.reset_button.setEnabled(self._ready and filtered)
+        self.open_button.setEnabled(self._ready and self.grid.selected() is not None)
+        self.count.setText(f'Найдено обращений: {count}' if self._has_project else '')
+        self.count.setVisible(self._has_project)
+        self.empty.setVisible(not count)
+        if not self._has_project:
+            self.empty.setText('Откройте проект, чтобы увидеть журнал ремонтов.')
+        elif filtered:
+            self.empty.setText('По этим условиям ничего не найдено. Измените поиск или сбросьте фильтры.')
+        else:
+            self.empty.setText('Ремонтов пока нет. Создайте первое обращение.')
+
