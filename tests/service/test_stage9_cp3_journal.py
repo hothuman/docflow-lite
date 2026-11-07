@@ -13,6 +13,7 @@ from PySide6.QtWidgets import QApplication
 from docflow.service.repository import ServiceStore
 from docflow.ui.service.journal import JournalGrid, RepairJournal
 from docflow.ui.settings import preferences
+from docflow.ui.theme import stylesheet
 from docflow.ui.window import MainWindow
 
 
@@ -138,6 +139,7 @@ def test_stable_columns_and_legacy_preferences(app):
 
 def test_compact_details_preserve_scroll_and_return_focus(app,journal):
     w,calls=journal
+    w.setStyleSheet(stylesheet())
     many=[dict(sample_rows()[0],id=str(i),number=f'ТЕСТ-{i}') for i in range(30)]
     w.install(many,{'pump':{'owner':'Учебный владелец'}})
     w.resize(650,420)
