@@ -282,7 +282,8 @@ class MainWindow(QMainWindow):
             old=self.pages.widget(5);self.pages.removeWidget(old);old.deleteLater();self.pages.addWidget(self.service_workspace)
             self.service_workspace.tabs.setCurrentIndex(self._last_service_page)
         if (index==5)!=(previous==5):self._clear_notice()
-        self.pages.setCurrentIndex(index);self.title.setText(self.PAGE_NAMES[index])
+        self.pages.setCurrentIndex(index)
+        self.title.setText('Результаты создания' if index==3 and self.last_result else self.PAGE_NAMES[index])
         if index<4:self._last_core_page=index
         self.mode_picker.blockSignals(True);self.mode_picker.setCurrentIndex(1 if index==5 else 0);self.mode_picker.blockSignals(False)
         self.nav_caption.setText('МАСТЕРСКАЯ' if index==5 else 'ДОКУМЕНТЫ')
@@ -683,6 +684,7 @@ class MainWindow(QMainWindow):
         try:
             if not self.output_path.text().strip():raise DocFlowError('Выберите папку результата')
             self.last_result=None
+            if self.pages.currentIndex()==3:self.title.setText(self.PAGE_NAMES[3])
             for control in (self.folder_btn,self.result_open_btn,self.report_btn):control.setEnabled(False)
             self.result_summary.setText('Новый запуск: документы ещё не созданы')
             self.result_path.setText('Предыдущие файлы остаются в своих папках. Здесь появится результат нового запуска.')
@@ -774,6 +776,8 @@ class MainWindow(QMainWindow):
         # Native Windows normally blocks an owner while its modal is active.
         # Programmatic close() and other Qt platforms must preserve that guard
         # too: hiding the owner here would also release the project lock.
+        if self.service_workspace and self.service_workspace.history_window and not self.service_workspace.worker:
+            self.service_workspace.history_window.close()
         modal=QApplication.activeModalWidget()
         tracked=self.service_workspace.dialogs if self.service_workspace else ()
         dialog=next((d for d in tracked if d.isVisible()),None)

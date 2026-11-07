@@ -10,16 +10,20 @@ from .forms import fit_dialog,DateField
 from .widgets import Grid,button
 
 class HistoryDialog(QDialog):
-    def __init__(self,workspace,equipment,view=None):
+    def __init__(self,workspace,equipment,view=None,workspace_view=False):
         super().__init__(workspace);self.workspace=workspace;self.equipment=equipment;self.setWindowTitle('История оборудования '+equipment['number']);fit_dialog(self,1050,650)
         self._saved_view=view
+        self.workspace_view=workspace_view
         outer=QVBoxLayout(self);scroll=QScrollArea();scroll.setWidgetResizable(True);body=QWidget();scroll.setWidget(body);outer.addWidget(scroll,1);layout=QVBoxLayout(body)
         layout.addWidget(text('История аппарата','title'))
         serial=' · Серийный № '+equipment['serial'] if equipment['serial'] else ''
         self.identity=text('Аппарат № '+equipment['number']+' · '+equipment['model']+serial+'\nТекущий владелец: '+equipment['owner'],'section')
         layout.addWidget(self.identity)
-        bar=FlowLayout();layout.addLayout(bar);self.search=QLineEdit();self.search.setPlaceholderText('Жалоба, дефект, производитель, работа или деталь');bar.addWidget(self.search)
-        self.since=DateField();self.since.setPlaceholderText('С даты ДД.ММ.ГГГГ');bar.addWidget(self.since);self.until=DateField();self.until.setPlaceholderText('По дату ДД.ММ.ГГГГ');bar.addWidget(self.until)
+        self.search=QLineEdit();self.search.setPlaceholderText('Поиск по жалобе, диагностике, работам или запчастям')
+        layout.addWidget(self.search)
+        bar=FlowLayout();layout.addLayout(bar)
+        self.since=DateField();self.since.setPlaceholderText('С даты');self.since.setAccessibleName('Начальная дата ДД.ММ.ГГГГ');bar.addWidget(self.since)
+        self.until=DateField();self.until.setPlaceholderText('По дату');self.until.setAccessibleName('Конечная дата ДД.ММ.ГГГГ');bar.addWidget(self.until)
         self.order=QComboBox();self.order.addItem('От старых к новым',True);self.order.addItem('От новых к старым',False);bar.addWidget(self.order);button(bar,'Применить даты',self.refresh);button(bar,'Сбросить фильтры',self.reset_filters)
         self.grid=Grid([('number','Ремонт'),('received_at','Дата'),('client','Заказчик'),('status','Статус'),('total','Стоимость'),('financial_status','Расчёты')])
         self.grid.setAccessibleName('Хронология ремонтов выбранного аппарата')
@@ -104,9 +108,12 @@ class HistoryDialog(QDialog):
               'order':self.order.currentData(),'current':row['id'],'selected':{r['id'] for r in self.selected_rows()},
               'sort':header.sortIndicatorSection(),'direction':header.sortIndicatorOrder(),
               'vertical':self.grid.verticalScrollBar().value(),'horizontal':self.grid.horizontalScrollBar().value()}
+        if self.workspace_view:
+            reopen=lambda:workspace.show_history(equipment,view)
+        else:
+            reopen=lambda:workspace.modal(HistoryDialog(workspace,equipment,view))
         self.accept()
-        workspace.open_repair(row['id'],'Документы',
-                              return_to=lambda:workspace.modal(HistoryDialog(workspace,equipment,view)))
+        workspace.open_repair(row['id'],'Документы',return_to=reopen)
     def new(self):self.accept();self.workspace.start_intake(self.equipment)
     def compare(self):
         rows=self.selected_rows();keys=[r['id'] for r in rows]
@@ -122,4 +129,4 @@ class HistoryDialog(QDialog):
         button(outer,'Закрыть',d.accept);d.exec()
     def closeEvent(self,event):
         if self.workspace.worker:event.ignore()
-        else:event.accept()
+        else:super().closeEvent(event)

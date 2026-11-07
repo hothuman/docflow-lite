@@ -212,7 +212,6 @@ class RepairJournal(QWidget):
         self.count.setAccessibleName('Количество найденных ремонтов')
         self.selected_summary = text('', 'journalSelectedSummary')
         self.selected_summary.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        layout.addWidget(self.selected_summary)
         layout.addWidget(self.count)
         self.search.textChanged.connect(self.apply_filters)
         self.grid.selectionModel().currentRowChanged.connect(self._user_selected)
@@ -220,7 +219,9 @@ class RepairJournal(QWidget):
         self.grid.openRequested.connect(self.open_button.click)
         self.grid.doubleClicked.connect(lambda _: self.open_button.click())
         self.panels = JournalPanels(self, list_page, self.body, actions, open_repair, open_history)
-        outer.addWidget(self.panels)
+        outer.addWidget(self.panels, 1)
+        outer.addWidget(self.selected_summary)
+        self.panels.currentChanged.connect(self._sync)
         self._sync()
 
     def resizeEvent(self, event):
@@ -245,14 +246,15 @@ class RepairJournal(QWidget):
         self._changing = True
         try:
             self._select_visible(column)
-            self.grid.updateGeometries()
-            self.grid.verticalScrollBar().setValue(vertical)
-            self.grid.horizontalScrollBar().setValue(horizontal)
         finally:
             self._changing = False
         self._sync()
+        self.layout().activate()
         if self.isVisible():
             (focus if focus.isVisible() and focus.isEnabled() else self.grid).setFocus()
+        self.grid.updateGeometries()
+        self.grid.verticalScrollBar().setValue(vertical)
+        self.grid.horizontalScrollBar().setValue(horizontal)
         self.panels.list_page.verticalScrollBar().setValue(page_scroll)
 
     def selected_equipment(self):
@@ -404,7 +406,7 @@ class RepairJournal(QWidget):
             control.setEnabled(ready)
         self._sync()
 
-    def _sync(self):
+    def _sync(self,*_):
         count = self.grid.proxy.rowCount()
         filtered = bool(self.search.text().strip() or any(control.currentIndex() for control in (
             self.status_filter, self.archive_filter, self.finance_filter)))
@@ -412,9 +414,8 @@ class RepairJournal(QWidget):
         row = self.grid.selected()
         self.open_button.setEnabled(self._ready and row is not None)
         self.panels.update_repair(row, self.selected_equipment(), self._ready)
-        self.selected_summary.setVisible(row is not None)
+        self.selected_summary.setVisible(row is not None and self.panels.currentWidget() is self.panels.list_page)
         if row:
-            from .presentation import display
             self.selected_summary.setText(f"Выбран ремонт № {row['number']}   ·   Остаток: {display('balance', row)}")
         else:
             self.selected_summary.clear()

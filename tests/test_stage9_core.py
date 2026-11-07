@@ -48,6 +48,7 @@ def test_core_qt_generates_four_ooxml_files_and_skips_negative_amount(tmp_path):
         wait_idle(window)
         result = window.last_result
         assert (result.documents,result.accepted,result.rejected) == (4,2,1)
+        assert window.title.text() == 'Результаты создания'
         assert window.result_files_model.rowCount() == 4
         assert window.result_file_btn.isEnabled()
         assert 'Строка 4' in window.result_report.toPlainText()

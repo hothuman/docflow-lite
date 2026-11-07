@@ -46,6 +46,7 @@ def test_repair_id_and_sort_are_restored_per_project(tmp_path):
     journal.grid.selectRow(0)
     assert journal.grid.selected()['id'] == repair
     assert 'QA-ONE' in journal.selected_summary.text()
+    assert not journal.panels.list_content.isAncestorOf(journal.selected_summary)
     window.close()
 
     reopened = MainWindow(service_root=root)

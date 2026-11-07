@@ -120,6 +120,7 @@ class ServiceWorkspace(QWidget):
         button(self.backup_result_actions,'К журналу ремонтов',self.finish_backup_notice)
         self.backup_result_actions.hide()
         self._restored_target=None
+        self.history_window=None
         for label in self.findChildren(QLabel):label.setTextFormat(Qt.TextFormat.PlainText)
         self._sync_project_controls()
         self.open_project(root or default_root())
@@ -210,7 +211,9 @@ class ServiceWorkspace(QWidget):
         job.finished.connect(done);job.start();return True
     def open_project(self,root):
         self.journal.persist_context()
-        if self.worker or self._project_busy or self.dialogs:return False
+        if self.worker or self._project_busy:return False
+        if self.history_window:self.history_window.close()
+        if self.dialogs:return False
         root=Path(root).absolute()
         if self.store and root.resolve()==self.store.root.resolve():self._project_status('opened','Проект уже открыт.');self.refresh();return
         if str(root).startswith('\\\\'):
@@ -393,8 +396,7 @@ class ServiceWorkspace(QWidget):
         rows=self.cache.get('active_equipment',[])
         if not rows:QMessageBox.information(self,'История','Добавьте оборудование или импортируйте журнал.');return
         if len(rows)==1:
-            from .history import HistoryDialog
-            self.modal(HistoryDialog(self,rows[0]))
+            self.show_history(rows[0])
         else:self.find_equipment();self.message.setText('Найдите аппарат, выберите строку и нажмите «Карточка / история» или Enter.')
     def open_local(self,path):
         if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(path))):
@@ -446,14 +448,26 @@ class ServiceWorkspace(QWidget):
     def equipment_card(self,*args):
         row=self.selection('equipment')
         if not row:return
-        from .history import HistoryDialog
-        self.modal(HistoryDialog(self,row));return
+        self.show_history(row)
     @needs_project
     def open_journal_history(self):
         equipment=self.journal.selected_equipment()
-        if equipment:
-            from .history import HistoryDialog
-            self.modal(HistoryDialog(self,equipment))
+        if equipment:self.show_history(equipment)
+
+    @needs_project
+    def show_history(self,equipment,view=None):
+        from .history import HistoryDialog
+        if self.history_window:self.history_window.close()
+        window=HistoryDialog(self,equipment,view,workspace_view=True)
+        self.history_window=window
+        self.dialogs.append(window)
+        def closed(_):
+            self.dialogs.remove(window)
+            self.history_window=None
+            window.deleteLater()
+        window.finished.connect(closed)
+        window.setEnabled(not self.worker)
+        window.show()
 
     @needs_project
     def new_repair(self):

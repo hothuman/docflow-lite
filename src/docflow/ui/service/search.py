@@ -29,8 +29,8 @@ class SearchDialog(QDialog):
         if not row:self.hint.setText('Выберите строку и нажмите Enter или «Открыть».');return
         if grid is self.repairs:self.accept();self.workspace.open_repair(row['id'])
         else:
-            from .history import HistoryDialog
-            self.workspace.modal(HistoryDialog(self.workspace,row))
+            self.accept()
+            self.workspace.show_history(row)
 
     def reject(self):
         if not self.workspace.worker:super().reject()

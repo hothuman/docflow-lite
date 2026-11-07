@@ -1,6 +1,6 @@
 
 """Grouped entry points for the existing workshop project operations."""
-from PySide6.QtWidgets import QComboBox, QScrollArea, QStackedWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QScrollArea, QStackedWidget, QTabBar, QVBoxLayout, QWidget
 
 from ..flow import ActionBar
 from ..widgets import card
@@ -16,6 +16,11 @@ class SettingsPage(QWidget):
         self.category=QComboBox()
         self.category.setAccessibleName('Категория настроек')
         layout.addWidget(self.category)
+        self.category_bar=QTabBar()
+        self.category_bar.setAccessibleName('Разделы настроек мастерской')
+        self.category_bar.setExpanding(False)
+        self.category_bar.setUsesScrollButtons(False)
+        layout.addWidget(self.category_bar)
         self.pages=QStackedWidget()
         layout.addWidget(self.pages, 1)
 
@@ -44,6 +49,7 @@ class SettingsPage(QWidget):
         available_without_project=(workspace.choose_project,workspace.new_project,workspace.demo,workspace.restore)
         for title,description,actions in groups:
             self.category.addItem(title)
+            self.category_bar.addTab(title)
             scroll=QScrollArea()
             scroll.setWidgetResizable(True)
             page=QWidget()
@@ -60,4 +66,12 @@ class SettingsPage(QWidget):
             scroll.setWidget(page)
             self.pages.addWidget(scroll)
         self.category.currentIndexChanged.connect(self.pages.setCurrentIndex)
+        self.category.currentIndexChanged.connect(self.category_bar.setCurrentIndex)
+        self.category_bar.currentChanged.connect(self.category.setCurrentIndex)
         self.category.setCurrentIndex(1)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        enough_space=self.width()>=self.category_bar.sizeHint().width()+16
+        self.category_bar.setVisible(enough_space)
+        self.category.setVisible(not enough_space)
