@@ -22,8 +22,11 @@ class Dashboard(QWidget):
   self.preference_note=text(self.preference_warning,'muted');self.preference_note.setWordWrap(True);self.preference_note.setVisible(bool(self.preference_warning));layout.addWidget(self.preference_note)
   for control in (self.new_button,self.search_button,self.continue_button,self.documents_button):control.setMinimumHeight(50)
   self.cards=[];self.values={};self.metric_grid=QGridLayout();layout.addLayout(self.metric_grid)
-  for key,title in [('active','В работе'),('ready','Готовы к выдаче'),('attention','Требует внимания')]:
+  for key,title in [('active','В работе'),('ready','Готовы к выдаче'),('attention','Нужна проверка')]:
    panel=QFrame();panel.setObjectName('metricCard');panel.setMaximumHeight(80);box=QVBoxLayout(panel);box.setContentsMargins(14,8,14,8);box.addWidget(text(title,'muted'));value=text('—','metricValue');box.addWidget(value);self.values[key]=value;self.cards.append(panel)
+   if key=='attention':
+    detail='Согласование, ожидание запчастей или неполные расчёты. Подтверждённый долг показан отдельно.'
+    panel.setToolTip(detail);value.setAccessibleName(title);value.setAccessibleDescription(detail)
   self.finance_hint=text('','muted');layout.addWidget(self.finance_hint)
   self.onboarding,help_body=card('Первый ремонт','Добавьте клиента → оборудование → ремонт. Всё это можно сделать в одной форме «Новый ремонт».')
   helpers=ActionBar();help_body.addWidget(helpers);button(helpers,'Начать приёмку',workspace.start_intake,primary=True);button(helpers,'Как работать за 5 минут',workspace.quick_help);layout.addWidget(self.onboarding)
@@ -31,7 +34,7 @@ class Dashboard(QWidget):
   self.empty=text('Обращений пока нет. Начните с кнопки «Новый ремонт».','empty');layout.addWidget(self.empty)
   self.recent=Grid([('number','Ремонт №'),('equipment_label','Аппарат'),('client','Клиент'),('received_at','Приёмка'),('status','Статус'),('total','Стоимость')]);self.recent.setMinimumHeight(160);self.recent.setMaximumHeight(340);layout.addWidget(self.recent,1);self.recent.clicked.connect(self.open_recent);self.recent.openRequested.connect(self.open_recent)
   self.totals=QWidget();bar=QHBoxLayout(self.totals);bar.setContentsMargins(0,0,0,0)
-  for key,title in [('equipment','Аппаратов'),('debt','Подтверждённый остаток'),('approval','Согласование'),('parts','Запчасти')]:
+  for key,title in [('equipment','Аппаратов'),('debt','Подтверждённая задолженность'),('approval','Согласование'),('parts','Запчасти')]:
    value=text('—','muted');value.setAccessibleName(title);value.setToolTip(title);self.values[key]=value;holder=QVBoxLayout();holder.addWidget(text(title,'muted'));holder.addWidget(value);bar.addLayout(holder)
   layout.addWidget(self.totals);self._columns=0;self.arrange()
  def apply_actions(self):
@@ -54,7 +57,10 @@ class Dashboard(QWidget):
  def install(self,data):
   for key,label in self.values.items():label.setText(rub(data[key]) if key=='debt' else str(data[key]))
   self.totals.setToolTip('Аппаратов / подтверждённый остаток / на согласовании / ожидают запчасти')
-  n=data.get('finance_unknown',0);self.finance_hint.setText(f'Неполная история расчётов: {n}. Неизвестные оплаты не считаются нулём или долгом.');self.finance_hint.setVisible(n>0)
+  n=data.get('finance_unknown',0)
+  self.finance_hint.setText('«Нужна проверка»: согласование, запчасти или неполные расчёты. Подтверждённый долг показан отдельно.'+
+      (f' Неполных расчётов: {n}.' if n else ''))
+  self.finance_hint.setVisible(bool(n or data['debt']))
   rows=[{**r,'equipment_label':r['equipment_number']+' · '+r['model']} for r in data['recent_repairs']]
   self.recent.install(rows);self.empty.setVisible(not rows);self.recent.setVisible(bool(rows));self.onboarding.setVisible(not rows)
  def open_recent(self,*args):

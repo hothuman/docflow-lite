@@ -29,12 +29,20 @@ class RepairInspector(QScrollArea):
         self.title = text('', 'journalSelectionTitle')
         layout.addWidget(self.title)
         self.fields = {}
-        for key in ('status', 'equipment_number', 'serial', 'client', 'owner', 'total', 'paid', 'balance', 'context'):
+        self.money_card = QFrame()
+        self.money_card.setObjectName('journalMoney')
+        money = QVBoxLayout(self.money_card)
+        money.setContentsMargins(8, 5, 8, 5)
+        money.setSpacing(3)
+        for key in ('status', 'total', 'paid', 'balance', 'equipment_number', 'serial', 'client', 'owner', 'context'):
             label = text('', 'journalDetail')
             label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse |
                                           Qt.TextInteractionFlag.TextSelectableByKeyboard)
             self.fields[key] = label
-            layout.addWidget(label)
+            if key in ('total', 'paid', 'balance'):
+                money.addWidget(label)
+                if key=='balance':layout.addWidget(self.money_card)
+            else:layout.addWidget(label)
         actions = ActionBar()
         self.open_button = button(actions, 'Открыть ремонт', open_repair, primary=True)
         self.open_button.setAccessibleName('Открыть выбранный ремонт')
@@ -45,6 +53,7 @@ class RepairInspector(QScrollArea):
 
     def update_repair(self, row, equipment, ready):
         self.title.setText('Ремонт № '+str(row['number']) if row else 'Нет выбранного ремонта')
+        self.money_card.setVisible(row is not None)
         fields = {}
         if row:
             fields = {

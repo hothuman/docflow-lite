@@ -97,4 +97,12 @@ def button(layout,title,fn,primary=False,danger=False):
  if primary:b.setObjectName('primary')
  if danger:b.setObjectName('danger')
  b.clicked.connect(fn);layout.addWidget(b);return b
-def confirm(parent,text):return QMessageBox.question(parent,'Подтверждение',text,QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)==QMessageBox.StandardButton.Yes
+def confirm(parent, text, action='Подтвердить', title='Подтверждение'):
+    yes, no = QMessageBox.StandardButton.Yes, QMessageBox.StandardButton.No
+    dialog = QMessageBox(QMessageBox.Icon.Question, title, text, yes | no, parent)
+    dialog.setTextFormat(Qt.TextFormat.PlainText)
+    dialog.button(yes).setText(action)
+    dialog.button(no).setText('Отмена')
+    dialog.setDefaultButton(no)
+    dialog.setEscapeButton(no)
+    return dialog.exec() == yes

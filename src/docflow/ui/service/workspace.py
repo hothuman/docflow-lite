@@ -192,6 +192,7 @@ class ServiceWorkspace(QWidget):
         QTimer.singleShot(15000,self,slow)
         job.finished.connect(done);job.start();return True
     def open_project(self,root):
+        self.journal.persist_context()
         if self.worker or self._project_busy or self.dialogs:return False
         root=Path(root).absolute()
         if self.store and root.resolve()==self.store.root.resolve():self._project_status('opened','Проект уже открыт.');self.refresh();return
@@ -236,7 +237,7 @@ class ServiceWorkspace(QWidget):
             try:
                 self._install_project_data(data);self.store=store
                 set_filters([(c,'' if isinstance(c,QLineEdit) else 0 if isinstance(c,QComboBox) else False) for c in controls])
-                self.journal.project_changed()
+                self.journal.project_changed(store.root)
                 self._project_status('opened','Проект открыт. Можно продолжать работу.')
                 for key in self.views:self.update_list_state(key)
             except Exception:

@@ -753,7 +753,9 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self,'Обработка продолжается','Дождитесь завершения текущей операции перед закрытием')
             event.ignore()
         else:
-            if self.service_workspace and self.service_workspace.project_lock:self.service_workspace.project_lock.unlock()
+            if self.service_workspace:
+                self.service_workspace.journal.persist_context()
+                if self.service_workspace.project_lock:self.service_workspace.project_lock.unlock()
             settings=preferences()
             settings.setValue('workspace/v2/geometry',self.saveGeometry())
             settings.sync()

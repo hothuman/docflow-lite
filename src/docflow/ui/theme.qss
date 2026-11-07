@@ -101,3 +101,9 @@ QLabel#journalSelectionTitle {font-size:19px;font-weight:650;}
 QLabel#journalCount {color:@muted@;}
 QLabel#journalDetail[debt="true"] {color:@error@;font-weight:600;}
 QTableView#repairJournal QHeaderView::section {color:@text@;padding:5px 8px;}
+
+QTableView#repairJournal::item:hover:!selected {background:@raised@;}
+QTableView#repairJournal::item:selected {background:@journalSelection@;color:@text@;}
+QTableView#repairJournal::item:selected:focus {border:1px solid @focus@;}
+QLabel#journalSelectedSummary {background:@raised@;color:@text@;padding:4px 8px;border-left:2px solid @accent@;}
+QFrame#journalMoney {background:@raised@;border:1px solid @border@;border-radius:6px;}

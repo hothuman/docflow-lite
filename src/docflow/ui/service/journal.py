@@ -1,9 +1,11 @@
 
 """Read-only repair journal backed by the existing Service rows model."""
 import json
+import hashlib
+import os
 from contextlib import contextmanager
 
-from PySide6.QtCore import QItemSelectionModel, QSignalBlocker, QSortFilterProxyModel, Qt
+from PySide6.QtCore import QItemSelectionModel, QSignalBlocker, QSortFilterProxyModel, QTimer, Qt
 from PySide6.QtWidgets import QApplication, QComboBox, QHBoxLayout, QLineEdit, QVBoxLayout, QWidget
 
 from ...service.statuses import STATUSES, TERMINAL
@@ -55,6 +57,7 @@ class JournalGrid(Grid):
     def __init__(self, columns):
         super().__init__(columns, proxy_type=JournalProxy)
         self.setObjectName('repairJournal')
+        self.setMouseTracking(True)
         self.setAccessibleName('Журнал ремонтов')
         self.setAccessibleDescription(
             'Стрелки выбирают запись, Ввод открывает ремонт. '
@@ -159,6 +162,8 @@ class RepairJournal(QWidget):
     def __init__(self, columns, start, open_repair, open_history):
         super().__init__()
         self.preferred_id = None
+        self.project_key = None
+        self.pending_context = None
         self.equipment = {}
         self._changing = False
         self._ready = False
@@ -205,6 +210,9 @@ class RepairJournal(QWidget):
         layout.addLayout(self.body, 1)
         self.count = text('', 'journalCount')
         self.count.setAccessibleName('Количество найденных ремонтов')
+        self.selected_summary = text('', 'journalSelectedSummary')
+        self.selected_summary.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        layout.addWidget(self.selected_summary)
         layout.addWidget(self.count)
         self.search.textChanged.connect(self.apply_filters)
         self.grid.selectionModel().currentRowChanged.connect(self._user_selected)
@@ -331,13 +339,62 @@ class RepairJournal(QWidget):
         with self._preserve_view():
             self.grid.install(rows)
 
-    def project_changed(self):
+    def persist_context(self):
+        if not self.project_key or self.pending_context:
+            return
+        grid = self.grid
+        context = self.view_context()
+        sort = grid.horizontalHeader().sortIndicatorSection()
+        settings = preferences()
+        settings.setValue(self.project_key, json.dumps({
+            'id': self.preferred_id or context[0],
+            'column': grid.records.columns[context[1]][0],
+            'sort': grid.records.columns[sort][0] if 0 <= sort < len(grid.records.columns) else '',
+            'descending': grid.horizontalHeader().sortIndicatorOrder() == Qt.SortOrder.DescendingOrder,
+            'vertical': context[2], 'horizontal': context[3], 'page': context[5],
+            'focus_search': context[4] is self.search,
+        }))
+        settings.sync()
+
+    def project_changed(self, root):
         self.panels.return_to_list(restore=False)
+        key = hashlib.sha256(os.path.normcase(str(root)).encode('utf-8')).hexdigest()
+        self.project_key = 'workspace/v2/journal/project/' + key
         self.preferred_id = None
         self.reset_filters()
         self.grid.verticalScrollBar().setValue(0)
         self.grid.horizontalScrollBar().setValue(0)
         self.panels.list_page.verticalScrollBar().setValue(0)
+        self.pending_context = self._read_context()
+        if self.isVisible():
+            QTimer.singleShot(0, self, self._restore_pending)
+
+    def _read_context(self):
+        try:
+            data = json.loads(preferences().value(self.project_key, '{}'))
+            if not isinstance(data, dict):
+                return None
+            columns = {key: i for i, (key, _) in enumerate(self.grid.records.columns)}
+            repair_id = data.get('id')
+            if not isinstance(repair_id, str) or not any(r['id']==repair_id for r in self.grid.records.rows):
+                return None
+            order = Qt.SortOrder.DescendingOrder if data.get('descending') else Qt.SortOrder.AscendingOrder
+            self.grid.sortByColumn(columns.get(data.get('sort'), -1), order)
+            return (repair_id, columns.get(data.get('column'), 0), int(data.get('vertical', 0)),
+                    int(data.get('horizontal', 0)), self.search if data.get('focus_search') else self.grid,
+                    int(data.get('page', 0)))
+        except (TypeError, ValueError):
+            return None
+
+    def _restore_pending(self):
+        if self.isVisible() and self.pending_context:
+            context, self.pending_context = self.pending_context, None
+            self.restore_view(context)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self.pending_context:
+            QTimer.singleShot(0, self, self._restore_pending)
 
     def project_state(self, has_project, ready):
         self._has_project = has_project
@@ -355,6 +412,12 @@ class RepairJournal(QWidget):
         row = self.grid.selected()
         self.open_button.setEnabled(self._ready and row is not None)
         self.panels.update_repair(row, self.selected_equipment(), self._ready)
+        self.selected_summary.setVisible(row is not None)
+        if row:
+            from .presentation import display
+            self.selected_summary.setText(f"Выбран ремонт № {row['number']}   ·   Остаток: {display('balance', row)}")
+        else:
+            self.selected_summary.clear()
         self.count.setText(f'Найдено обращений: {count}' if self._has_project else '')
         self.count.setVisible(self._has_project)
         self.empty.setVisible(not count)
