@@ -77,7 +77,8 @@ def package(bundle,out,sources):
           'commit':commit,
           'runner_os':os.environ.get('RUNNER_OS'),'runner_image':os.environ.get('ImageOS'),
           'runner_image_version':os.environ.get('ImageVersion'),
-          'dependencies':{d.metadata['Name']:d.version for d in importlib.metadata.distributions()},
+          'dependencies':{d.metadata['Name']:d.version for d in importlib.metadata.distributions()
+                          if d.metadata['Name'].lower().replace('_','-')!='docflow-lite'},
           'exe_sha256':sha256(bundle/'DocFlow-Lite.exe'),
           'procedure':'Pinned Windows wheels with SHA256, PyInstaller onedir; byte-for-byte reproducibility is not claimed'}
     (out/'BUILD-INFO.json').write_text(json.dumps(info,indent=2),encoding='utf-8')
