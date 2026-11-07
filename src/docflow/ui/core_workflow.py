@@ -1,8 +1,10 @@
 """Four document steps, with source/preview hidden until data exists."""
 from pathlib import Path
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QFrame,QVBoxLayout,QHBoxLayout,QTabWidget,QWidget,QComboBox,QTextBrowser,QLineEdit,QCheckBox,QProgressBar)
+from PySide6.QtCore import QStringListModel, Qt
+from PySide6.QtWidgets import (QFrame,QVBoxLayout,QHBoxLayout,QTabWidget,QWidget,QComboBox,QTextBrowser,QLineEdit,QCheckBox,QProgressBar,QListView)
 from .widgets import card,text,DataView,DataModel,RecordModel
+from .flow import ActionBar
+from ..safety import safe_name
 
 def build_create(w):
     page,layout=w.page()
@@ -19,7 +21,12 @@ def build_create(w):
     w.row_selector.currentIndexChanged.connect(w.update_preview);w.template_selector.currentIndexChanged.connect(w.update_preview);pv.addWidget(text('Текст документа. Оформление проверьте в Word или другом редакторе.','muted'));w.preview_text=QTextBrowser();w.preview_text.setOpenExternalLinks(False);w.preview_text.setAccessibleName('Текстовый предпросмотр документа');pv.addWidget(w.preview_text);w.tabs.addTab(preview,'Пример документа');w.report_text=QTextBrowser();w.report_text.setOpenExternalLinks(False);w.tabs.addTab(w.report_text,'Подробности проверки');layout.addStretch()
     w.template_summary=text('Шаблон ещё не выбран','muted')
     w.options_card,options=card('4. Создание документов','Проверьте папку сохранения. Каждый запуск создаёт новый пакет.');w.options_layout=options
-    w.name_selector=QComboBox();w.name_selector.setAccessibleName('Столбец для названий папок');options.addWidget(text('Назвать папки по столбцу (необязательно)','muted'));options.addWidget(w.name_selector)
+    w.name_selector=QComboBox();w.name_selector.setAccessibleName('Столбец для названий папок')
+    options.addWidget(text('Имя папки для каждой строки','section'))
+    options.addWidget(text('Добавьте к номеру строки значение из столбца, например имя заказчика. Каждый пакет сохраняется в отдельную папку.','muted'))
+    options.addWidget(w.name_selector)
+    w.folder_preview=text('','muted');options.addWidget(w.folder_preview)
+    w.name_selector.currentTextChanged.connect(lambda: update_folder_preview(w))
     w.output_path=QLineEdit(str(Path.home()/'Documents'/'DocFlow Lite'));w.output_path.setAccessibleName('Папка результатов');options.addWidget(text('Куда сохранить','section'));options.addWidget(w.output_path);w.output_btn=w.button('Выбрать папку',w.select_output,'folder');options.addWidget(w.output_btn);w.open_after=QCheckBox('Открыть папку после завершения');options.addWidget(w.open_after)
     w.check_btn=w.button('Проверить все строки ещё раз',w.check_all,'check');options.addWidget(w.check_btn)
     w.progress=QProgressBar();w.progress.setRange(0,100);w.progress.setValue(0);w.progress.setTextVisible(False);options.addWidget(w.progress);w.progress_label=text('Документы ещё не созданы','muted');options.addWidget(w.progress_label)
@@ -28,7 +35,41 @@ def build_create(w):
 
 def build_result(w):
     page,layout=w.page();layout.addWidget(w.options_card)
-    w.result_card,body=card('Готовые документы','Результаты предыдущих запусков остаются в своих папках.');layout.addWidget(w.result_card);w.result_summary=text('Документы ещё не созданы','section');body.addWidget(w.result_summary);w.result_path=text('','muted');w.result_path.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse);body.addWidget(w.result_path);w.result_open_btn=w.button('Открыть папку с документами',w.open_result,'folder');w.result_open_btn.setEnabled(False);body.addWidget(w.result_open_btn);w.report_btn=w.button('Открыть технический отчёт',w.open_report);w.report_btn.setEnabled(False);body.addWidget(w.report_btn);w.result_report=QTextBrowser();w.result_report.setMinimumHeight(160);w.result_report.setOpenExternalLinks(False);body.addWidget(w.result_report);layout.addStretch()
+    w.result_card,body=card('Результаты','Каждый запуск создаёт свой комплект. Выберите документ, чтобы открыть его.')
+    layout.addWidget(w.result_card)
+    w.result_summary=text('Документы ещё не созданы','section');body.addWidget(w.result_summary)
+    w.result_path=text('','muted')
+    w.result_path.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+    body.addWidget(w.result_path)
+    w.result_files=QListView()
+    w.result_files.setAccessibleName('Созданные документы Word')
+    w.result_files.setMinimumHeight(100)
+    w.result_files_model=QStringListModel(w.result_files)
+    w.result_files.setModel(w.result_files_model)
+    body.addWidget(w.result_files)
+    actions=ActionBar();body.addWidget(actions)
+    w.result_file_btn=w.button('Открыть документ',w.open_result_file,'document')
+    w.result_file_btn.setEnabled(False);actions.addWidget(w.result_file_btn)
+    w.result_open_btn=w.button('Показать в папке',w.open_result,'folder')
+    w.result_open_btn.setEnabled(False);actions.addWidget(w.result_open_btn)
+    w.report_btn=w.button('Отчёт о строках',w.open_report)
+    w.report_btn.setEnabled(False);actions.addWidget(w.report_btn)
+    w.result_files.selectionModel().currentChanged.connect(
+        lambda current,_:w.result_file_btn.setEnabled(current.isValid() and bool(w.last_result)))
+    w.result_files.activated.connect(lambda _:w.open_result_file())
+    w.result_report=QTextBrowser();w.result_report.setMinimumHeight(100)
+    w.result_report.setAccessibleName('Обработанные и пропущенные строки')
+    w.result_report.setOpenExternalLinks(False);body.addWidget(w.result_report)
+    layout.addStretch()
+
+
+def update_folder_preview(w):
+    if not w.table or not w.table.records:
+        w.folder_preview.clear()
+        return
+    record=w.table.records[0]
+    value=record.values.get(w.name_selector.currentText(),'')
+    w.folder_preview.setText(f'Пример папки: row_{record.row_number:04d}_{safe_name(value)}')
 
 def readiness(w,valid,message):
     loaded=bool(w.table);w.empty_card.setVisible(not loaded);w.source_card.setVisible(loaded);w.result_card.setVisible(bool(w.last_result))
@@ -55,6 +96,7 @@ def readiness(w,valid,message):
     w.core_next.setEnabled(not w._busy and (page!=2 or valid or not loaded or not w.active_templates()));w.generate_btn.setEnabled(valid and not w._busy)
     state=('Таблица не выбрана' if not loaded else f'Таблица: {len(w.table.records)} строк')+' · '+('Шаблон не выбран' if not w.active_templates() else f'Шаблонов: {len(w.active_templates())}')
     w.core_state.setText(state)
+    update_folder_preview(w)
     feedback=(f'Все {w._full_check[2]} строк проверены. С ошибками: {w._full_check[1]}.' if checked else 'Поля связаны. Все строки ещё не проверены.' if valid else message)
     w.mapping_feedback.setText(feedback);w.readiness.setText(feedback)
 

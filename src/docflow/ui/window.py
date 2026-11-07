@@ -92,7 +92,7 @@ class MainWindow(QMainWindow):
         self.resize(1400,860);self.setMinimumSize(560,320)
         geometry=settings.value('workspace/v2/geometry')
         if isinstance(geometry,QByteArray):self.restoreGeometry(geometry)
-        self.table=None;self.templates=[];self.worker=None;self.task_worker=None;self.preview_worker=None
+        self.table=None;self._demo_table=None;self.templates=[];self.worker=None;self.task_worker=None;self.preview_worker=None
         self.last_result=None;self.encoding='auto';self.sheet=None;self._busy=False
         self._mapping_cache={};self._rules_cache={};self._active_paths=set()
         self._preview_revision=0;self._pending_preview=None;self._preview_job=None
@@ -107,7 +107,7 @@ class MainWindow(QMainWindow):
         self.brand=text('d/ DocFlow','brand');nav.addWidget(self.brand)
         self.version_label=text(f'v{__version__} · {stage(__version__)}','version');nav.addWidget(self.version_label)
         self.mode_picker=ModeSwitch();self.mode_picker.setAccessibleName('Документы или Мастерская')
-        self.mode_picker.currentIndexChanged.connect(lambda i:self.navigate(5 if i else getattr(self,'_last_core_page',0)))
+        self.mode_picker.currentIndexChanged.connect(lambda i:self.navigate(5 if i else self.resume_core_page()))
         self.nav_caption=text('ДОКУМЕНТЫ','eyebrow');nav.addWidget(self.nav_caption)
         nav.addSpacing(8);self.nav_buttons=[]
         for index,kind in enumerate(('document','templates','fields','check','info','templates')):
@@ -159,7 +159,7 @@ class MainWindow(QMainWindow):
         self.compact_settings.setAccessibleName('Настройки мастерской')
         self.compact_settings.setObjectName('compactSettings')
         work.addWidget(self.compact_settings,0,Qt.AlignmentFlag.AlignLeft)
-        self.navigate(5 if self._saved_mode else self._last_core_page);self._responsive();self.update_readiness()
+        self.navigate(5 if self._saved_mode else self.resume_core_page());self._responsive();self.update_readiness()
         from PySide6.QtGui import QShortcut,QKeySequence
         self.settings_shortcut=QShortcut(QKeySequence('Ctrl+,'),self)
         self.settings_shortcut.activated.connect(lambda:self._navigate_service(7) if self.pages.currentIndex()==5 else None)
@@ -252,6 +252,18 @@ class MainWindow(QMainWindow):
         license_button.clicked.connect(lambda:QDesktopServices.openUrl(QUrl.fromLocalFile(str(license_path))))
         body.addWidget(license_button)
         layout.addStretch()
+
+    def resume_core_page(self):
+        if not self.table:
+            return 0
+        if not self.active_templates():
+            return min(1, self._last_core_page)
+        if self._last_core_page == 3:
+            try:
+                self.snapshot()
+            except DocFlowError:
+                return 2
+        return self._last_core_page
 
     def navigate(self,index,*,internal=False):
         previous=self.pages.currentIndex()
@@ -372,7 +384,10 @@ class MainWindow(QMainWindow):
         if not self.status.text().startswith('Ошибка:'):self.operation_notice.hide()
 
     def load_demo(self):
-        self._task(lambda:prepare(Profile.load(demo_profile())),self._install_prepared,'Загружаю встроенный демопример…')
+        def install_demo(prepared):
+            self._demo_table=prepared.table
+            self._install_prepared(prepared)
+        self._task(lambda:prepare(Profile.load(demo_profile())),install_demo,'Загружаю встроенный демопример…')
 
     def apply_profile(self,profile):
         """Synchronous installation API for tests/tools; interactive actions use _task."""
@@ -460,7 +475,7 @@ class MainWindow(QMainWindow):
         self.template_list.clear();self.template_selector.clear();self.name_selector.clear()
         active=self.active_templates()
         for template in self.templates:
-            item=QListWidgetItem(icon('document',COLORS['accent']),template.path.name+'\n'+f'{len(template.raw)/1024:.1f} КБ · {len(template.fields)} полей · {template.path.parent}')
+            item=QListWidgetItem(icon('document',COLORS['accent']),template.path.name+'\n'+f'{len(template.raw)/1024:.1f} КБ · полей: {len(template.fields)}')
             item.setFlags(item.flags()|Qt.ItemFlag.ItemIsUserCheckable)
             item.setData(Qt.ItemDataRole.UserRole,str(template.path));item.setToolTip(str(template.path)+'\nПоля: '+', '.join(sorted(template.fields)))
             item.setCheckState(Qt.CheckState.Checked if template.path in self._active_paths else Qt.CheckState.Unchecked);self.template_list.addItem(item)
@@ -495,9 +510,10 @@ class MainWindow(QMainWindow):
         self.name_selector.addItem('');self.name_selector.addItems(list(headers))
         if name_column in headers:self.name_selector.setCurrentText(name_column)
         if self.table:
-            self.data_path.setText(str(self.table.source));self.data_path.setToolTip(str(self.table.source))
+            self.data_path.setText(self.table.source.name);self.data_path.setToolTip(str(self.table.source))
             self.row_selector.setCurrentIndex(max(0,min(previous_row,len(self.table.records)-1)))
-            self.stats.setText(f'{len(self.table.records)} записей · {len(headers)} столбцов · все строки доступны в таблице')
+            prefix='Учебный пример · ' if self.table is self._demo_table else ''
+            self.stats.setText(prefix+f'{len(self.table.records)} записей · {len(headers)} столбцов')
         else:self.data_path.clear();self.stats.setText('Данные ещё не загружены')
         self.template_summary.setText(f'Выбрано {len(active)} из {len(self.templates)} шаблонов'+ ('\n'+'\n'.join(t.path.name for t in active[:3]) if active else ''))
         self.template_summary.setToolTip('\n'.join(str(t.path) for t in active))
@@ -671,6 +687,7 @@ class MainWindow(QMainWindow):
             self.result_summary.setText('Новый запуск: документы ещё не созданы')
             self.result_path.setText('Предыдущие файлы остаются в своих папках. Здесь появится результат нового запуска.')
             self.result_report.clear()
+            self.result_files_model.setStringList([]);self.result_file_btn.setEnabled(False)
             self.set_busy(True);self.progress.setValue(0);self.progress_label.setText('Подготовка пакета…')
             self.status.setText('Создаю документы из загруженного снимка данных…')
             if self.worker:self.worker.deleteLater()
@@ -725,13 +742,27 @@ class MainWindow(QMainWindow):
         self.progress.setValue(100);self.progress_label.setText(f'Завершено: {result.total} / {result.total} записей')
         summary=f'Готово: {result.documents} DOCX · {result.accepted} записей обработано · {result.rejected} пропущено'
         self.status.setText(summary);self.result_summary.setText(summary)
-        self.result_path.setText(str(result.directory));self.result_path.setToolTip(str(result.directory))
+        self.result_path.setText(result.directory.name);self.result_path.setToolTip(str(result.directory))
+        self.result_files_model.setStringList(list(getattr(result,'files',())))
+        if self.result_files_model.rowCount():self.result_files.setCurrentIndex(self.result_files_model.index(0,0))
         message=f'Всего записей: {result.total}\nСоздано DOCX: {result.documents}\nОбработано: {result.accepted}\nПропущено: {result.rejected}\n\n'+'\n'.join(f'Строка {x.row} · {x.field}: {x.message}' for x in result.issues)+'\n\nПолные отчёты: report.json и report.csv'
         self.report_text.setPlainText(message);self.result_report.setPlainText(message);self.tabs.setCurrentIndex(2);self.navigate(3,internal=True)
         # Bring the completed package and its folder action into view, rather
         # than leaving the user above the fold at the generation settings.
         QTimer.singleShot(0,self,lambda:self.pages.widget(3).ensureWidgetVisible(self.result_open_btn,12,12))
         if self.open_after.isChecked():self.open_result()
+
+    def open_result_file(self):
+        index=self.result_files.currentIndex()
+        if not self.last_result or not index.isValid():
+            return
+        root=self.last_result.directory.resolve()
+        path=(root / index.data()).resolve()
+        if not path.is_relative_to(root) or not path.is_file():
+            self.error('Документ недоступен. Проверьте папку результатов.')
+            return
+        if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(path))):
+            self.error('Система не смогла открыть документ Word.')
 
     def open_result(self):
         if self.last_result and not QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.last_result.directory))):self.error('Система не смогла открыть папку. Скопируйте путь из раздела «Результат»')
