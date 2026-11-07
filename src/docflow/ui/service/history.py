@@ -1,6 +1,6 @@
 """Equipment chronology and explicit side-by-side repair comparison."""
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLabel,QLineEdit,QComboBox,QTabWidget,QPlainTextEdit,QAbstractItemView,QMessageBox,QScrollArea,QWidget
+from PySide6.QtCore import QItemSelectionModel, Qt
+from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLabel,QLineEdit,QComboBox,QTabWidget,QPlainTextEdit,QAbstractItemView,QMessageBox,QScrollArea,QSplitter,QWidget
 from ...service.validation import rub
 from ...service.record_text import repair_display, readable_field
 from .presentation import date_text,KINDS_DISPLAY
@@ -10,21 +10,48 @@ from .forms import fit_dialog,DateField
 from .widgets import Grid,button
 
 class HistoryDialog(QDialog):
-    def __init__(self,workspace,equipment):
+    def __init__(self,workspace,equipment,view=None):
         super().__init__(workspace);self.workspace=workspace;self.equipment=equipment;self.setWindowTitle('История оборудования '+equipment['number']);fit_dialog(self,1050,650)
-        outer=QVBoxLayout(self);scroll=QScrollArea();scroll.setWidgetResizable(True);body=QWidget();scroll.setWidget(body);outer.addWidget(scroll,1);layout=QVBoxLayout(body);self.identity=text(equipment['number']+' · '+equipment['model']+'\nСерийный №: '+(equipment['serial'] or '—')+' · Текущий владелец: '+equipment['owner']);layout.addWidget(self.identity)
+        self._saved_view=view
+        outer=QVBoxLayout(self);scroll=QScrollArea();scroll.setWidgetResizable(True);body=QWidget();scroll.setWidget(body);outer.addWidget(scroll,1);layout=QVBoxLayout(body)
+        layout.addWidget(text('История аппарата','title'))
+        serial=' · Серийный № '+equipment['serial'] if equipment['serial'] else ''
+        self.identity=text('Аппарат № '+equipment['number']+' · '+equipment['model']+serial+'\nТекущий владелец: '+equipment['owner'],'section')
+        layout.addWidget(self.identity)
         bar=FlowLayout();layout.addLayout(bar);self.search=QLineEdit();self.search.setPlaceholderText('Жалоба, дефект, производитель, работа или деталь');bar.addWidget(self.search)
         self.since=DateField();self.since.setPlaceholderText('С даты ДД.ММ.ГГГГ');bar.addWidget(self.since);self.until=DateField();self.until.setPlaceholderText('По дату ДД.ММ.ГГГГ');bar.addWidget(self.until)
         self.order=QComboBox();self.order.addItem('От старых к новым',True);self.order.addItem('От новых к старым',False);bar.addWidget(self.order);button(bar,'Применить даты',self.refresh);button(bar,'Сбросить фильтры',self.reset_filters)
-        self.grid=Grid([('number','Ремонт'),('received_at','Дата'),('client','Клиент этого ремонта'),('status','Статус'),('total','Стоимость'),('financial_status','Расчёты')]);self.grid.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection);layout.addWidget(self.grid)
-        self.empty_hint=QLabel();self.empty_hint.setWordWrap(True);layout.addWidget(self.empty_hint);self.selection_heading=text('Выберите обращение','section');layout.addWidget(self.selection_heading)
-        self.detail=QPlainTextEdit();self.detail.setReadOnly(True);self.detail.setMinimumHeight(110);self.detail.setMaximumHeight(210);self.detail.setPlaceholderText('Выберите ремонт: здесь появятся жалоба, диагностика и выполненные работы.');layout.addWidget(self.detail)
+        self.grid=Grid([('number','Ремонт'),('received_at','Дата'),('client','Заказчик'),('status','Статус'),('total','Стоимость'),('financial_status','Расчёты')])
+        self.grid.setAccessibleName('Хронология ремонтов выбранного аппарата')
+        self.grid.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.empty_hint=text('','muted');layout.addWidget(self.empty_hint)
+        self.splitter=QSplitter(Qt.Orientation.Vertical);self.splitter.setChildrenCollapsible(False)
+        self.splitter.addWidget(self.grid);layout.addWidget(self.splitter,1)
+        details=QWidget();detail_layout=QVBoxLayout(details);detail_layout.setContentsMargins(0,0,0,0)
+        self.selection_heading=text('Выберите обращение','section');detail_layout.addWidget(self.selection_heading)
+        self.detail=QPlainTextEdit();self.detail.setReadOnly(True);self.detail.setMinimumHeight(105)
+        self.detail.setAccessibleName('Жалоба, диагностика и выполненные работы')
+        self.detail.setPlaceholderText('Выберите ремонт, чтобы посмотреть его подробности.')
+        detail_layout.addWidget(self.detail);self.splitter.addWidget(details)
+        self.splitter.setStretchFactor(0,2);self.splitter.setStretchFactor(1,1)
+        self.search.setAccessibleName('Поиск по истории аппарата')
         self.compare_hint=QLabel('Сравнение доступно для 2–6 обращений. Выделяйте строки с Ctrl или Shift.');self.compare_hint.setWordWrap(True);layout.addWidget(self.compare_hint)
         self.grid.selectionModel().currentRowChanged.connect(self.selected_detail);self.grid.openRequested.connect(self.open)
         self.search.textChanged.connect(self.grid.proxy.setFilterFixedString);self.order.currentIndexChanged.connect(self.refresh)
         bar=FlowLayout();outer.addLayout(bar);self.open_button=button(bar,'Открыть ремонт',self.open,primary=True);self.compare_button=button(bar,'Сравнить выбранные (2–6)',self.compare);self.new_button=button(bar,'Новое обращение',self.new);button(bar,'Закрыть',self.accept)
         self.compare_button.setToolTip('Выделите от двух до шести ремонтов одного аппарата с Ctrl или Shift.');self.compare_button.setEnabled(False)
-        self.grid.selectionModel().selectionChanged.connect(self.update_selection);self.grid.proxy.modelReset.connect(self.update_selection);self.grid.proxy.rowsRemoved.connect(self.update_selection);self.search.textChanged.connect(self.update_selection);self.update_selection();self.refresh()
+        self.grid.selectionModel().selectionChanged.connect(self.update_selection);self.grid.proxy.modelReset.connect(self.update_selection);self.grid.proxy.rowsRemoved.connect(self.update_selection);self.search.textChanged.connect(self.update_selection);self.update_selection()
+        if view:
+            self.search.setText(view['query']);self.since.set_date(view['since']);self.until.set_date(view['until'])
+            self.order.blockSignals(True);self.order.setCurrentIndex(self.order.findData(view['order']));self.order.blockSignals(False)
+        self.refresh()
+
+    def resizeEvent(self,event):
+        super().resizeEvent(event)
+        if hasattr(self,'splitter'):
+            orientation=Qt.Orientation.Horizontal if self.width()>=920 else Qt.Orientation.Vertical
+            self.splitter.setOrientation(orientation)
+
     def reset_filters(self):
         self.search.clear();self.since.set_date('');self.until.set_date('');self.refresh()
     def selected_rows(self):
@@ -41,14 +68,45 @@ class HistoryDialog(QDialog):
             self.selection_heading.setText('Ремонт №'+row['number']+' · '+date_text(row['received_at'])+' · '+row['client'])
             shown=repair_display(row)
             source_works=('\nРаботы из источника: '+shown['source_works']) if shown['source_works'] else ''
-            self.detail.setPlainText('Приёмка: '+date_text(row['received_at'])+'\nЖалоба: '+shown['complaint']+'\nДиагностика: '+shown['defects']+'\nРаботы и материалы: '+readable_field(row['item_text'],'description').text+source_works+'\nОткройте ремонт для прежних DOCX, фото и подробностей.')
+            self.detail.setPlainText('Приёмка: '+date_text(row['received_at'])+'\n\nЖалоба: '+shown['complaint']+
+                '\n\nДиагностика: '+shown['defects']+'\n\nРаботы и материалы: '+
+                readable_field(row['item_text'],'description').text+source_works+
+                '\n\nОткройте ремонт для DOCX, фото и подробностей.')
         else:self.selection_heading.setText('Выберите обращение');self.detail.clear()
     def refresh(self,*args):
         eq=self.equipment['id'];start=self.since.storage_text();end=self.until.storage_text();ascending=self.order.currentData()
-        self.workspace.run(lambda:self.workspace.store.repairs(equipment_id=eq,date_from=start or None,date_to=end or None,ascending=ascending),self.grid.install)
+        store=self.workspace.store
+        self.workspace.run(lambda:store.repairs(equipment_id=eq,date_from=start or None,date_to=end or None,ascending=ascending),self.install)
+
+    def install(self, rows):
+        self.grid.install(rows)
+        view,self._saved_view=self._saved_view,None
+        if not view:return
+        if view['sort']>=0:self.grid.sortByColumn(view['sort'],view['direction'])
+        selection=self.grid.selectionModel()
+        for i in range(self.grid.proxy.rowCount()):
+            index=self.grid.proxy.index(i,0)
+            row=self.grid.records.rows[self.grid.proxy.mapToSource(index).row()]
+            if row['id']==view['current']:
+                selection.setCurrentIndex(index,QItemSelectionModel.SelectionFlag.NoUpdate)
+            if row['id'] in view['selected']:
+                selection.select(index,QItemSelectionModel.SelectionFlag.Select|QItemSelectionModel.SelectionFlag.Rows)
+        self.grid.verticalScrollBar().setValue(view['vertical'])
+        self.grid.horizontalScrollBar().setValue(view['horizontal'])
+        self.update_selection()
+
     def open(self):
         row=self.grid.selected()
-        if row and self.selected_rows():self.accept();self.workspace.open_repair(row['id'],'Документы')
+        if not row or not self.selected_rows():return
+        workspace=self.workspace;equipment=self.equipment
+        header=self.grid.horizontalHeader()
+        view={'query':self.search.text(),'since':self.since.storage_text(),'until':self.until.storage_text(),
+              'order':self.order.currentData(),'current':row['id'],'selected':{r['id'] for r in self.selected_rows()},
+              'sort':header.sortIndicatorSection(),'direction':header.sortIndicatorOrder(),
+              'vertical':self.grid.verticalScrollBar().value(),'horizontal':self.grid.horizontalScrollBar().value()}
+        self.accept()
+        workspace.open_repair(row['id'],'Документы',
+                              return_to=lambda:workspace.modal(HistoryDialog(workspace,equipment,view)))
     def new(self):self.accept();self.workspace.start_intake(self.equipment)
     def compare(self):
         rows=self.selected_rows();keys=[r['id'] for r in rows]

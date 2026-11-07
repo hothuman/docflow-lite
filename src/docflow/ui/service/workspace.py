@@ -3,7 +3,7 @@ from pathlib import Path
 from uuid import uuid4
 from datetime import datetime
 from functools import wraps
-from PySide6.QtCore import QThread,Qt,QSortFilterProxyModel,QTimer,QUrl,QLockFile,Signal
+from PySide6.QtCore import QThread,Qt,QSortFilterProxyModel,QTimer,QUrl,QLockFile,Signal,QStandardPaths
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QGridLayout,QLabel,QPushButton,QTabWidget,QTableView,QHeaderView,QLineEdit,QComboBox,QCheckBox,QFileDialog,QInputDialog,QMessageBox,QDialog,QPlainTextEdit,QFormLayout,QScrollArea,QToolBar)
 from ...service.repository import ServiceStore,default_root
@@ -11,7 +11,8 @@ from ...service.validation import ServiceError,rub
 from ...service.statuses import APPROVALS
 from ...service.documents import generate_document,KINDS
 from ...service.attachments import add_attachment,attachment_path,remove_attachment,export_file
-from ...service.backup import create_backup,restore_backup
+from ...service.backup import create_backup,inspect_backup,restore_backup
+from ..settings import preferences
 from ...service.demo import seed_demo
 from .widgets import Grid,button,confirm
 from .forms import FieldsDialog
@@ -68,21 +69,37 @@ class ServiceWorkspace(QWidget):
                 self.status_filter=self.journal.status_filter
                 self.tabs.addTab(self.journal,name)
                 continue
-            page=QWidget();layout=QVBoxLayout(page);layout.setContentsMargins(0,8,0,0);layout.setSpacing(12);bar=ActionBar();layout.addWidget(bar);self.toolbars[key]=bar
-            search=QLineEdit();search.setPlaceholderText('Номер, название или описание');search.setAccessibleName('Поиск '+name);layout.addWidget(search)
+            page=QWidget();layout=QVBoxLayout(page);layout.setContentsMargins(0,6,0,0);layout.setSpacing(8)
+            from ..widgets import text
+            help_text={
+                'equipment':'Постоянный номер идентифицирует аппарат. Карточка покажет владельца и отдельные обращения.',
+                'clients':'Карточка клиента хранит контакты. Заказчик ремонта и текущий владелец аппарата могут различаться.',
+                'finance':'Здесь учтены только сохранённые оплаты и возвраты. Неизвестный остаток требует сверки источника.',
+                'documents':'Найдите акт, смету или гарантию. Проверьте номер ремонта и версию перед открытием.',
+                'estimates':'Открывайте сохранённые версии расчёта. Черновик и ручные отметки доступны в карточке ремонта.',
+            }
+            layout.addWidget(text(help_text[key],'muted'))
+            bar=ActionBar();layout.addWidget(bar);self.toolbars[key]=bar
+            search=QLineEdit()
+            search.setPlaceholderText({'equipment':'Номер аппарата, серийный номер или модель',
+                'clients':'Клиент, контакт, телефон или email','finance':'Ремонт, заказчик или статус',
+                'documents':'Номер ремонта, вид документа или имя файла','estimates':'Номер ремонта, заказчик или вид сметы'}[key])
+            search.setAccessibleName('Поиск '+name);layout.addWidget(search)
             self.searches[key]=search
             empty=QLabel({'equipment':'Пока нет оборудования. Добавьте первый аппарат или импортируйте журнал.','clients':'Клиентов пока нет. Добавьте первого клиента.','finance':'Финансовых записей пока нет. Откройте ремонт для учёта расчётов.','documents':'Документы ещё не создавались.','estimates':'Нет сохранённых смет. Откройте ремонт и подготовьте расчёт.'}[key]);empty.setObjectName('empty');empty.setWordWrap(True);layout.addWidget(empty);self.empty_labels[key]=empty
             reset=QPushButton('Сбросить фильтры');reset.setVisible(False);reset.clicked.connect(lambda _,k=key:self.reset_list_filters(k));layout.addWidget(reset);self.reset_filter_buttons[key]=reset
             if key in ('clients','equipment'):
                 hint=QLabel();hint.setWordWrap(True);hint.setObjectName('muted');hint.hide();layout.addWidget(hint);self.archive_hints[key]=hint
                 show_archive=QPushButton('Показать архив');show_archive.hide();show_archive.clicked.connect(lambda _,k=key:self.show_archived(k));layout.addWidget(show_archive);self.archive_buttons[key]=show_archive
-            view=Grid(cols,settings_key='workspace/'+key);layout.addWidget(view,1);search.textChanged.connect(view.proxy.setFilterFixedString);search.textChanged.connect(lambda _,k=key:self.update_list_state(k));self.views[key]=view;self.tabs.addTab(page,name)
+            view=Grid(cols,settings_key='workspace/'+key);view.setAccessibleName(name)
+            layout.addWidget(view,1);search.textChanged.connect(view.proxy.setFilterFixedString);search.textChanged.connect(lambda _,k=key:self.update_list_state(k));self.views[key]=view;self.tabs.addTab(page,name)
         button(self.toolbars['clients'],'Добавить',self.new_client);button(self.toolbars['clients'],'Изменить',self.edit_client);button(self.toolbars['clients'],'Архив / вернуть',lambda:self.archive('clients'))
         button(self.toolbars['equipment'],'Добавить',self.new_equipment);button(self.toolbars['equipment'],'Карточка / история',self.equipment_card);button(self.toolbars['equipment'],'Изменить',self.edit_equipment);button(self.toolbars['equipment'],'Архив / вернуть',lambda:self.archive('equipment'))
         self.archived=QCheckBox('Архив');self.toolbars['equipment'].addWidget(self.archived);self.archived.toggled.connect(self.refresh)
         self.clients_archived=QCheckBox('Архивные клиенты');self.toolbars['clients'].addWidget(self.clients_archived);self.clients_archived.toggled.connect(self.refresh)
         self.active_only=QCheckBox('Активные');self.toolbars['equipment'].addWidget(self.active_only);self.active_only.toggled.connect(self.refresh)
         button(self.toolbars['finance'],'Карточка и платежи',lambda:self.open_selected('finance'))
+        button(self.toolbars['finance'],'Найти ремонты с долгом',self.show_repair_debt)
         button(self.toolbars['estimates'],'Открыть ремонт и сметы',lambda:self.open_selected('estimates'))
         self.views['estimates'].doubleClicked.connect(lambda _:self.open_selected('estimates'))
         button(self.toolbars['documents'],'Открыть DOCX',lambda:self.open_file(True));button(self.toolbars['documents'],'Экспортировать',self.export_document)
@@ -91,24 +108,18 @@ class ServiceWorkspace(QWidget):
         self.views['equipment'].openRequested.connect(self.equipment_card)
         for key in ('finance','estimates'):self.views[key].openRequested.connect(lambda k=key:self.open_selected(k))
         self.views['documents'].openRequested.connect(lambda:self.open_file(True))
-        from ..widgets import card
-        settings=QWidget();sl=QVBoxLayout(settings);sl.setContentsMargins(0,8,0,0);sl.setSpacing(16)
-        groups=[('Рабочий проект','Данные хранятся отдельно от программы. Переключение не удаляет текущий проект.',[
-            ('Открыть другой проект',self.choose_project),('Открыть папку проекта',self.open_folder),('Профили организаций',self.organization_profiles)]),
-            ('Импорт и начало работы','Связи оборудования и обращений подтверждаются перед импортом.',[
-            ('Каталог из XLSX / CSV',self.open_catalog),('Настроить стартовые действия',self.customize_dashboard),('Исторический импорт XLSX / CSV',self.import_history),('Импорт оборудования XLSX / CSV',self.import_equipment),('Word → проверочный CSV',self.review_docx),('Проверить связи без изменений',self.diagnose_links),('Создать отдельное демо',self.demo)]),
-            ('Резервное копирование','Копия включает базу и связанные файлы. Восстановление — в новую папку. Архив не зашифрован.',[
-            ('Быстрый старт: ремонт за 5 минут',self.quick_help),('История действий / диагностика',self.diagnostics),('Создать резервную копию',self.backup),('Восстановить в новую папку',self.restore)])]
-        for title,note,actions in groups:
-            frame,body=card(title,note);bar=ActionBar();body.addWidget(bar)
-            for label,fn in actions:
-                control=button(bar,label,fn)
-                if fn in (self.choose_project,self.demo,self.restore):self._safe_project_buttons.append(control)
-            sl.addWidget(frame)
-        sl.addStretch();settings_scroll=QScrollArea();settings_scroll.setWidgetResizable(True);settings_scroll.setWidget(settings);self.tabs.addTab(settings_scroll,'Настройки')
+        from .settings_page import SettingsPage
+        self.settings_page=SettingsPage(self)
+        self.tabs.addTab(self.settings_page,'Настройки')
         self.section_picker.addItems([self.tabs.tabText(i) for i in range(self.tabs.count())]);self.section_picker.setCurrentIndex(0)
         if self.shell_navigation:self.tabs.tabBar().hide();self.section_picker.hide()
         self.message=OperationNotice();out.addWidget(self.message)
+        self.backup_result_actions=ActionBar();out.addWidget(self.backup_result_actions)
+        self._backup_result=None
+        button(self.backup_result_actions,'Открыть папку',lambda:self.open_local(self._backup_result) if self._backup_result else None)
+        button(self.backup_result_actions,'К журналу ремонтов',self.finish_backup_notice)
+        self.backup_result_actions.hide()
+        self._restored_target=None
         for label in self.findChildren(QLabel):label.setTextFormat(Qt.TextFormat.PlainText)
         self._sync_project_controls()
         self.open_project(root or default_root())
@@ -118,6 +129,12 @@ class ServiceWorkspace(QWidget):
             compact=self.width()<920
             self.tabs.tabBar().setVisible(not compact)
             self.section_picker.setVisible(compact)
+    def show_repair_debt(self):
+        self.journal.reset_filters()
+        self.journal.finance_filter.setCurrentIndex(self.journal.finance_filter.findData('debt'))
+        self.tabs.setCurrentWidget(self.journal)
+        self.journal.finance_filter.setFocus()
+
     def set_short_journal(self,short):
         self.layout().setSpacing(4 if short else 6)
         self.message.set_compact(short)
@@ -238,7 +255,12 @@ class ServiceWorkspace(QWidget):
                 self._install_project_data(data);self.store=store
                 set_filters([(c,'' if isinstance(c,QLineEdit) else 0 if isinstance(c,QComboBox) else False) for c in controls])
                 self.journal.project_changed(store.root)
-                self._project_status('opened','Проект открыт. Можно продолжать работу.')
+                if self._restored_target==store.root:
+                    self._project_status('opened','Восстановленная копия открыта как активный проект: '+store.root.name)
+                    self._restored_target=None
+                    self.show_backup_location(store.root)
+                else:
+                    self._project_status('opened','Проект открыт. Можно продолжать работу.')
                 for key in self.views:self.update_list_state(key)
             except Exception:
                 self.store=previous_store;self.cache=previous;set_filters(prior)
@@ -270,7 +292,7 @@ class ServiceWorkspace(QWidget):
             if key=='repairs':self.journal.install(data[key],data['journal_equipment'])
             else:view.install(data[key])
         self.dashboard.install(data['dashboard']);self.cache=data
-    def refresh(self,*args,journal_context=None):
+    def refresh(self,*args,journal_context=None,on_complete=None):
         if not self.store or self._project_busy:return
         if self.worker:self._pending_refresh=True;return
         s=self.store;archived=self.archived.isChecked();active=self.active_only.isChecked();clients_archived=self.clients_archived.isChecked()
@@ -280,6 +302,7 @@ class ServiceWorkspace(QWidget):
             if journal_context and self.tabs.currentWidget() is self.journal:
                 self._sync_project_controls()
                 self.journal.restore_view(journal_context)
+            if on_complete:QTimer.singleShot(0,self,on_complete)
         self.run(lambda:self._query_project_data(s,archived,active,clients_archived),install,'Обновляю журнал…')
     def reset_list_filters(self,key):
         if key=='repairs':
@@ -475,7 +498,7 @@ class ServiceWorkspace(QWidget):
         if target and confirm(self,'Сохранить текст таблиц с координатами источника? Это не импорт ремонтов: связи, колонки и суммы нужно проверить вручную.'):
             self.run(lambda:export_review_csv(source,target),lambda _:self.message.setText('CSV сохранён. Исправьте и сопоставьте колонки перед историческим импортом.'))
     @needs_project
-    def open_repair(self,key,section=None):
+    def open_repair(self,key,section=None,return_to=None):
         self._last_repairs[str(self.store.root)]=key
         s=self.store
         journal_context=self.journal.view_context() if self.tabs.currentWidget() is self.journal else None
@@ -487,7 +510,7 @@ class ServiceWorkspace(QWidget):
             finally:
                 self.dialogs.remove(d);d.deleteLater()
                 if journal_context:self.journal.panels.return_to_list(restore=False)
-                self.refresh(journal_context=journal_context)
+                self.refresh(journal_context=journal_context,on_complete=return_to)
         self.run(lambda:s.snapshot(key),show)
     @needs_project
     def open_file(self,document=False):
@@ -520,20 +543,58 @@ class ServiceWorkspace(QWidget):
         p=default_root().with_name('Service-Synthetic-Demo-'+datetime.now().strftime('%Y%m%d-%H%M%S'))
         if not confirm(self,'Создать отдельный вымышленный проект? Рабочая база не меняется.'):return
         self.run(lambda:seed_demo(p),lambda _:self.open_project(p),'Создаю отдельное синтетическое демо…')
+    def backup_directory(self):
+        fallback=QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)
+        saved=preferences().value('workspace/v2/backup/lastDirectory', fallback)
+        path=Path(saved or Path.home()/'Documents')
+        return path if path.is_dir() else Path(fallback or Path.home()/'Documents')
+
+    def show_backup_location(self, path):
+        self._backup_result=Path(path)
+        self.backup_result_actions.show()
+
+    def finish_backup_notice(self):
+        self.backup_result_actions.hide()
+        self._backup_result=None
+        self.tabs.setCurrentIndex(2)
+
     @needs_project
     def backup(self):
-        path,_=QFileDialog.getSaveFileName(self,'Новая резервная копия',f'DocFlow-{datetime.now():%Y%m%d-%H%M%S}.service-backup.zip','ZIP (*.zip)')
-        if path:
-            s=self.store;self.run(lambda:create_backup(s,path),lambda _:self.message.setText('Копия создана: '+path),'Резервирую SQLite и вложения…')
+        suggested=self.backup_directory()/f'DocFlow-{datetime.now():%Y%m%d-%H%M%S}.service-backup.zip'
+        path,_=QFileDialog.getSaveFileName(self,'Сохранить резервную копию',str(suggested),'ZIP (*.zip)')
+        if not path:return
+        store=self.store
+
+        def completed(_):
+            folder=Path(path).parent
+            preferences().setValue('workspace/v2/backup/lastDirectory',str(folder))
+            self.message.setText('Резервная копия создана: '+path)
+            self.show_backup_location(folder)
+        self.run(lambda:create_backup(store,path),completed,'Резервирую SQLite и вложения…')
+
     def restore(self):
         if self.worker or self._project_busy:return False
-        archive,_=QFileDialog.getOpenFileName(self,'Проверенная резервная копия','','ZIP (*.zip)')
+        archive,_=QFileDialog.getOpenFileName(self,'Выбрать архив для проверки',str(self.backup_directory()),'ZIP (*.zip)')
         if not archive:return
-        parent=QFileDialog.getExistingDirectory(self,'Родительская папка восстановления')
+        self.run(lambda:inspect_backup(archive),lambda info:self._restore_verified(archive,info),
+                 'Проверяю архив и целостность базы без восстановления…')
+
+    def _restore_verified(self, archive, info):
+        self.message.setText(f"Архив проверен · схема {info['schema']} · файлов: {info['files']}.")
+        parent=QFileDialog.getExistingDirectory(self,'Выбрать место для новой папки проекта',str(self.backup_directory()))
         if not parent:return
-        target=Path(parent)/('DocFlow-Restored-'+datetime.now().strftime('%Y%m%d-%H%M%S'))
-        if confirm(self,'Проверить и восстановить копию в новую папку '+str(target)+'? Текущие данные не заменяются.'):
-            self.run(lambda:restore_backup(archive,target),lambda p:self.open_project(p),'Проверяю манифест и восстанавливаю новую папку…')
+        target=Path(parent)/('DocFlow-Restored-'+datetime.now().strftime('%Y%m%d-%H%M%S')+'-'+uuid4().hex[:6])
+        if not confirm(self,f"Архив проверен. Схема: {info['schema']}, файлов: {info['files']}.\n"
+                       f'Новая папка: {target}\nАктивный проект сменится после успешного открытия копии.',
+                       'Восстановить копию'):
+            return
+
+        def completed(root):
+            self._restored_target=root
+            self.open_project(root)
+
+        self.run(lambda:restore_backup(archive,target,expected_sha256=info['sha256']),completed,
+                 'Восстанавливаю архив в отдельную папку…')
     @needs_project
     def import_equipment(self):
         path,_=QFileDialog.getOpenFileName(self,'Таблица оборудования','','Таблицы (*.xlsx *.csv)')
