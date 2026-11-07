@@ -80,9 +80,16 @@ class JournalPanels(QStackedWidget):
     def __init__(self, journal, list_page, body, toolbar, open_repair, history):
         super().__init__()
         self.journal = journal
-        self.list_page = list_page
+        self.list_page = QScrollArea()
+        self.list_page.setObjectName('repairJournalScroll')
+        self.list_page.setAccessibleName('Прокручиваемая область журнала')
+        self.list_page.setFrameShape(QFrame.Shape.NoFrame)
+        self.list_page.setWidgetResizable(True)
+        self.list_page.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.list_page.setWidget(list_page)
+        self.list_content = list_page
         self.body = body
-        self.addWidget(list_page)
+        self.addWidget(self.list_page)
         self.context_button = button(toolbar, 'Кратко о ремонте', self.show_summary)
         self.context_button.setAccessibleDescription('Стоимость, остаток и история выбранного аппарата')
         self.summary = QWidget()
@@ -100,6 +107,9 @@ class JournalPanels(QStackedWidget):
 
     def responsive(self, width):
         metrics = self.fontMetrics()
+        # Reserve an actual usable form and a full first row. In a short
+        # window QScrollArea takes the overflow, not the child controls.
+        self.list_content.setMinimumHeight(max(272, metrics.height() * 17))
         panel_width = max(255, metrics.horizontalAdvance('ВЫБРАННЫЙ РЕМОНТ') + 42)
         compact = width < panel_width + max(620, metrics.horizontalAdvance('Ремонт № · Аппарат · Заказчик') * 2)
         if compact == self.compact:

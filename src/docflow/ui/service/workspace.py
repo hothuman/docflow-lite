@@ -16,7 +16,7 @@ from ...service.demo import seed_demo
 from .widgets import Grid,button,confirm
 from .forms import FieldsDialog
 from .journal import RepairJournal
-from ..flow import ActionBar
+from ..flow import ActionBar, OperationNotice
 from ..diagnostics import record_exception,record_project_event,friendly_error,diagnostic_path
 
 def needs_project(function):
@@ -108,7 +108,7 @@ class ServiceWorkspace(QWidget):
         sl.addStretch();settings_scroll=QScrollArea();settings_scroll.setWidgetResizable(True);settings_scroll.setWidget(settings);self.tabs.addTab(settings_scroll,'Настройки')
         self.section_picker.addItems([self.tabs.tabText(i) for i in range(self.tabs.count())]);self.section_picker.setCurrentIndex(0)
         if self.shell_navigation:self.tabs.tabBar().hide();self.section_picker.hide()
-        self.message=QLabel('');self.message.setWordWrap(True);out.addWidget(self.message)
+        self.message=OperationNotice();out.addWidget(self.message)
         for label in self.findChildren(QLabel):label.setTextFormat(Qt.TextFormat.PlainText)
         self._sync_project_controls()
         self.open_project(root or default_root())
@@ -118,6 +118,10 @@ class ServiceWorkspace(QWidget):
             compact=self.width()<920
             self.tabs.tabBar().setVisible(not compact)
             self.section_picker.setVisible(compact)
+    def set_short_journal(self,short):
+        self.layout().setSpacing(4 if short else 6)
+        self.message.set_compact(short)
+
     def _sync_project_controls(self):
         ready=self.store is not None and not self._project_busy and not self.worker
         available=not self._project_busy and not self.worker

@@ -309,6 +309,7 @@ class MainWindow(QMainWindow):
         if self.pages.currentIndex()==5:
             self.title.setText(('Обзор мастерской','Оборудование','Журнал ремонтов','Клиенты','Финансы','Документы','Сметы','Настройки мастерской')[index])
             self.subtitle.setText(self._service_subtitle(index))
+            self._responsive()
             self.remember_location()
 
     def resizeEvent(self,event):
@@ -323,8 +324,12 @@ class MainWindow(QMainWindow):
         self.mode_help.setVisible(not service and self.height()>=600)
         self.version_label.setVisible(self.height()>=650);self.local_note.setVisible(self.height()>=700)
         self.breadcrumb.hide();self.subtitle.setVisible(self.height()>=600)
-        self.work.layout().setContentsMargins(12 if compact else 22,10,12 if compact else 22,10)
+        short_journal=service and self._last_service_page==2 and self.height()<490
+        self.work.layout().setSpacing(5 if short_journal else 10)
+        vertical_margin=6 if short_journal else 10
+        self.work.layout().setContentsMargins(12 if compact else 22,vertical_margin,12 if compact else 22,vertical_margin)
         if self.service_workspace:
+            self.service_workspace.set_short_journal(short_journal)
             self.service_workspace.location.setVisible(True)
             self.service_workspace.section_picker.setVisible(service and compact)
         self.account_caption.setVisible(service and self.height()>=600)

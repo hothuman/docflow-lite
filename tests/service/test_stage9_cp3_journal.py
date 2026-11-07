@@ -190,6 +190,26 @@ def test_real_card_returns_to_journal_and_new_project_clears_old_selection(app,t
         window.close()
 
 
+def test_short_journal_scrolls_instead_of_clipping_actions(app,tmp_path):
+    window=MainWindow(service_root=tmp_path/'Учебный проект')
+    window.show();window.navigate(5)
+    try:
+        wait_idle(window)
+        workspace=window.service_workspace
+        workspace.tabs.setCurrentWidget(workspace.journal)
+        window.resize(560,320)
+        app.processEvents()
+        journal=workspace.journal
+        scroll=journal.panels.list_page
+        assert scroll.verticalScrollBar().maximum()>0
+        for control in (journal.new_button,journal.search,journal.status_filter,journal.grid):
+            assert control.height()>=control.fontMetrics().height()
+        assert journal.new_button.mapTo(journal,journal.new_button.rect().bottomLeft()).y()<journal.search.mapTo(journal,journal.search.rect().topLeft()).y()
+        assert window.compact_settings.isVisible()
+    finally:
+        window.close()
+
+
 def test_versioned_shell_preferences_roundtrip(app,tmp_path):
     root=tmp_path/'Учебный проект'
     settings=preferences()

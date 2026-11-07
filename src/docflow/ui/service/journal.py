@@ -227,10 +227,11 @@ class RepairJournal(QWidget):
         if focus is None or not self.isAncestorOf(focus):
             focus = self.grid
         return (row['id'] if row else None, max(0, self.grid.currentIndex().column()),
-                self.grid.verticalScrollBar().value(), self.grid.horizontalScrollBar().value(), focus)
+                self.grid.verticalScrollBar().value(), self.grid.horizontalScrollBar().value(), focus,
+                self.panels.list_page.verticalScrollBar().value())
 
     def restore_view(self, context):
-        repair_id, column, vertical, horizontal, focus = context
+        repair_id, column, vertical, horizontal, focus, page_scroll = context
         if repair_id:
             self.preferred_id = repair_id
         self._changing = True
@@ -244,6 +245,7 @@ class RepairJournal(QWidget):
         self._sync()
         if self.isVisible():
             (focus if focus.isVisible() and focus.isEnabled() else self.grid).setFocus()
+        self.panels.list_page.verticalScrollBar().setValue(page_scroll)
 
     def selected_equipment(self):
         row = self.grid.selected()
@@ -335,6 +337,7 @@ class RepairJournal(QWidget):
         self.reset_filters()
         self.grid.verticalScrollBar().setValue(0)
         self.grid.horizontalScrollBar().setValue(0)
+        self.panels.list_page.verticalScrollBar().setValue(0)
 
     def project_state(self, has_project, ready):
         self._has_project = has_project
