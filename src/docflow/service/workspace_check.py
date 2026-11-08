@@ -157,9 +157,14 @@ def exercise(app, output):
         wizard.preview()
         idle()
         assert wizard.prepared and '850,00' in wizard.preview_text.toPlainText()
+        assert not page.next_button.isVisible()
+        viewport=page.body_scroll.viewport()
+        forward=wizard.preview_continue.mapTo(viewport,wizard.preview_continue.rect().center())
+        assert viewport.rect().contains(forward),(forward,viewport.size())
         preview = wizard.prepared.rendered
         shot('05-document-preview')
-        wizard.create()
+        wizard.preview_continue.click()
+        wizard.generate_button.click()
         idle()
         [document] = store.documents()
         path = store.root/document['path']

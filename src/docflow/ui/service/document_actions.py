@@ -193,16 +193,16 @@ class ServiceDocumentWizard(QWidget):
     def _preview_page(self):
         layout = self._page()
         layout.addWidget(text('Проверьте содержание. Разметку страниц можно посмотреть в системном редакторе DOCX.', 'muted'))
+        actions = self._actions(layout)
+        self.preview_continue = button(actions, 'Продолжить к созданию', lambda: self._show(3), primary=True)
+        button(actions, 'Посмотреть разметку DOCX', self.open_preview)
+        button(actions, 'Назад к проверке', lambda: self._show(1))
         self.preview_text = QPlainTextEdit()
         self.preview_text.setReadOnly(True)
         self.preview_text.setAccessibleName('Содержимое DOCX перед созданием')
         self.preview_text.setMinimumHeight(100)
         self.preview_text.setMaximumHeight(235)
         layout.addWidget(self.preview_text)
-        actions = self._actions(layout)
-        button(actions, 'Продолжить к созданию', lambda: self._show(3), primary=True)
-        button(actions, 'Посмотреть разметку DOCX', self.open_preview)
-        button(actions, 'Назад к проверке', lambda: self._show(1))
 
     def _create_page(self):
         layout = self._page()

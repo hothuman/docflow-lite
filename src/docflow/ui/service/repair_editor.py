@@ -178,6 +178,9 @@ class RepairEditor:
         label=('Диагностика →','Смета →','Работы →','К выдаче →','Документы' if terminal else 'Выдать аппарат')[stage]
         if self.embedded:
             overview=stage==0
+            documents=self.tabs.is_section('Документы')
+            self.overview.setVisible(not documents)
+            self.next_button.setVisible(not documents)
             self.compact_status.setVisible(not overview)
             self.state_frame.setVisible(overview)
             self.checklist.setVisible(overview)
@@ -689,10 +692,11 @@ class RepairEditor:
         if hasattr(self,'identity'):self.identity.setMinimumHeight(self.identity.fontMetrics().lineSpacing()*2+4)
         if self.embedded and hasattr(self,'overview'):
             pinned=event.size().height()>=650
+            visible=not self.overview.isHidden()
             if pinned and self.overview.parentWidget() is not self:
-                self.layout().insertWidget(0,self.overview);self.overview.show()
+                self.layout().insertWidget(0,self.overview);self.overview.setVisible(visible)
             elif not pinned and self.overview.parentWidget() is self:
-                self.body_scroll.widget().layout().insertWidget(0,self.overview);self.overview.show()
+                self.body_scroll.widget().layout().insertWidget(0,self.overview);self.overview.setVisible(visible)
         elif hasattr(self,'finance_strip'):
             self.finance_strip.hide();self.state_frame.hide()
 
