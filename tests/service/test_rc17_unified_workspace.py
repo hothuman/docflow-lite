@@ -1,0 +1,14 @@
+from PySide6.QtWidgets import QApplication
+
+from docflow.gui import configure_app
+from docflow.service.workspace_check import exercise
+
+
+def test_one_window_keeps_status_finance_document_and_repeat_context(tmp_path):
+    app=QApplication.instance()
+    configure_app(app)
+    result=exercise(app,tmp_path/'unified-workshop')
+    assert result['status']=='passed'
+    assert result['operational_top_level_windows']==1
+    assert 'status_changes_only_on_explicit_confirmed_action' in result['checks']
+    assert 'backup_restores_two_repairs_statuses_and_exact_document' in result['checks']

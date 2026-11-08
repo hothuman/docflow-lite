@@ -21,6 +21,7 @@ from .finance import calculate
 from .profiles import profile
 from .statuses import STATUSES
 from .validation import ServiceError, day, money, now, text
+from ..validation import Issue
 
 HISTORY_FIELDS = {
  'repair_number':'Исторический номер ремонта *', 'repair_key':'Внешний ID ремонта (если есть)',
@@ -106,17 +107,22 @@ def _source_document(root, value):
     return p
 
 
+class _FieldProblem(ServiceError):
+    def __init__(self, issue):
+        super().__init__(issue.message)
+        self.issue=issue
+
+
 def _field_problem(group, mapping, field, message):
     header = mapping.get(field)
     sources = group['rows']
-    source = next((r for r in sources if header and text(r['values'].get(header))), sources[0])
+    source = next((r for r in reversed(sources) if header and text(r['values'].get(header))), sources[0])
     value = source['values'].get(header, '') if header else ''
     column = f' · колонка «{header}»' if header else ''
     shown = repr(str(value)[:120]) if value not in ('', None) else 'пусто'
-    return ServiceError(
+    return _FieldProblem(Issue(source['row'],field,
         f'Строка {source["row"]} · {HISTORY_FIELDS[field]}{column} · значение {shown}. '
-        f'{message}. Проверьте сопоставление или исправьте исходное значение и перечитайте файл.'
-    )
+        f'{message}. Проверьте сопоставление или исправьте исходное значение и перечитайте файл.'))
 
 
 def _group_amount(group, mapping, field, value):
@@ -160,11 +166,15 @@ def _groups(table, mapping, status_map, default_status, cancel=None):
             if d.get('client_kind') and d['client_kind'] not in ('organization','individual','entrepreneur'): raise ServiceError('Неизвестный тип клиента')
             production = d.get('status','')
             if production:
-                if production not in status_map: raise ServiceError('Явно сопоставьте производственный статус: '+production)
+                if production not in status_map:
+                    raise _field_problem(g,mapping,'status','Выберите статус DocFlow для этого значения в разделе проверки')
                 d['status'] = status_map[production]
             else: d['status'] = default_status
             if d['status'] not in STATUSES: raise ServiceError('Выберите производственный статус для пустых исходных значений')
-            d['received_at'] = import_day(d.get('received_at',''),allow_unknown=d['status']=='historical')
+            try:
+                d['received_at'] = import_day(d.get('received_at',''),allow_unknown=d['status']=='historical')
+            except ServiceError as exc:
+                raise _field_problem(g,mapping,'received_at',str(exc)) from exc
             for kind,description,cost in (('work','works','work_cost'),('part','parts','parts_cost'),('delivery',None,'delivery_cost'),('other',None,'other_cost')):
                 if d.get(description or '') or d.get(cost):
                     if any(x['kind']==kind for x in g['lines']): raise ServiceError('Для одного типа указаны и отдельные позиции, и общий итог; выберите один формат')
@@ -201,13 +211,19 @@ def _groups(table, mapping, status_map, default_status, cancel=None):
             if payments_known and not d.get('paid_amount'):
                 raise _field_problem(g, mapping, 'paid_amount', 'Для полной истории оплат укажите сумму, включая явный 0')
             d['paid_cents']=paid
-            d['payment_date']=import_day(d['payment_date']) if d.get('payment_date') else ''
+            try:
+                d['payment_date']=import_day(d['payment_date']) if d.get('payment_date') else ''
+            except ServiceError as exc:
+                raise _field_problem(g,mapping,'payment_date',str(exc)) from exc
             g['finance_evidence']={'cost_known':cost_known,'payments_known':payments_known}
             if not cost_known:g['warnings'].append('Стоимость неизвестна: отсутствующие суммы не считаются нулевыми')
             if not payments_known:g['warnings'].append('История оплат неизвестна или неполна: задолженность не вычисляется')
             if paid and not d['payment_date']:g['warnings'].append('Дата исторической оплаты неизвестна; текущая дата не подставляется')
             for position, row in enumerate(g['lines']): row['position'] = position
             if len(g['lines']) > 2000: raise ServiceError('Слишком много позиций у одного ремонта')
+        except _FieldProblem as exc:
+            g['errors'].append(str(exc))
+            g.setdefault('field_issues',[]).append(exc.issue.to_dict())
         except ServiceError as exc: g['errors'].append(str(exc))
         d['equipment_key'] = text(d.get('equipment_number') or 'repair:'+g['key']).casefold()
         d['client_key'] = text(d.get('client_key') or d.get('client_name') or 'repair:'+g['key']).casefold()

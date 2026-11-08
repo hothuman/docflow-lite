@@ -2,6 +2,8 @@ from PySide6.QtCore import QAbstractListModel, QAbstractTableModel, QModelIndex,
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QFrame, QLabel, QSizePolicy, QTableView, QVBoxLayout
 
+from .theme import COLORS
+
 
 def icon(kind='document', color='#A7BDB5', size=24):
     """Small original line icons; painted at 2x for fractional Windows scaling."""
@@ -62,19 +64,68 @@ def card(title, description=''):
 
 class DataModel(QAbstractTableModel):
     """Read-only virtual view of every loaded record, without per-cell widgets."""
-    def __init__(self,parent=None):super().__init__(parent);self.table=None
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.table = None
+        self._row_positions = {}
+        self._column_positions = {}
+        self._issues = {}
+        self._mapping = {}
+
     def set_table(self,table):
-        self.beginResetModel();self.table=table;self.endResetModel()
+        self.beginResetModel()
+        self.table = table
+        self._row_positions = {record.row_number: index for index, record in enumerate(table.records)} if table else {}
+        self._column_positions = {header: index for index, header in enumerate(table.headers)} if table else {}
+        self._issues.clear()
+        self._mapping = {}
+        self.endResetModel()
+
+    def set_issues(self, issues, mapping):
+        if not issues and not self._issues:
+            return
+        self._issues = {}
+        for issue in issues:
+            self._issues.setdefault(issue.row, []).append(issue)
+        self._mapping = mapping
+        if self.rowCount() and self.columnCount():
+            self.dataChanged.emit(self.index(0, 0), self.index(self.rowCount() - 1, self.columnCount() - 1))
+
+    def issues_for(self, row):
+        if not self.table or not 0 <= row < self.rowCount():
+            return ()
+        return self._issues.get(self.table.records[row].row_number, ())
+
+    def index_for_issue(self, issue, mapping):
+        row = self._row_positions.get(issue.row, -1)
+        column = self._column_positions.get(mapping.get(issue.field), 0)
+        return self.index(row, column)
+
     def rowCount(self,parent=QModelIndex()):return 0 if parent.isValid() or not self.table else len(self.table.records)
     def columnCount(self,parent=QModelIndex()):return 0 if parent.isValid() or not self.table else len(self.table.headers)
     def data(self,index,role=Qt.ItemDataRole.DisplayRole):
         if not self.table or not index.isValid():return None
-        if role in (Qt.ItemDataRole.DisplayRole,Qt.ItemDataRole.ToolTipRole):
-            value=self.table.records[index.row()].values[self.table.headers[index.column()]]
-            return value if role==Qt.ItemDataRole.ToolTipRole else value[:250]
+        column = self.table.headers[index.column()]
+        value = self.table.records[index.row()].values[column]
+        if role == Qt.ItemDataRole.DisplayRole:
+            return value[:250]
+        if role in (Qt.ItemDataRole.ToolTipRole, Qt.ItemDataRole.AccessibleDescriptionRole,
+                    Qt.ItemDataRole.ForegroundRole, Qt.ItemDataRole.BackgroundRole):
+            errors = [issue.message for issue in self.issues_for(index.row())
+                      if self._mapping.get(issue.field) == column]
+            if role == Qt.ItemDataRole.ToolTipRole:
+                return '\n'.join([*errors, value]) if errors else value
+            if errors and role == Qt.ItemDataRole.AccessibleDescriptionRole:
+                return 'Ошибка. ' + ' '.join(errors)
+            if errors and role == Qt.ItemDataRole.ForegroundRole:
+                return QColor(COLORS['error'])
+            if errors and role == Qt.ItemDataRole.BackgroundRole:
+                color = QColor(COLORS['error'])
+                color.setAlpha(36)
+                return color
         return None
     def headerData(self,section,orientation,role=Qt.ItemDataRole.DisplayRole):
-        if not self.table or role!=Qt.ItemDataRole.DisplayRole:return None
+        if not self.table or role not in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole):return None
         return self.table.headers[section] if orientation==Qt.Orientation.Horizontal else str(self.table.records[section].row_number)
 
 

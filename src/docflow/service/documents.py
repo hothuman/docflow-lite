@@ -4,13 +4,16 @@ Templates retain their sections, story parts, tables and embedded graphics.
 Only explicit variables/row prototypes/logo markers are changed. No expressions.
 """
 import bisect
+from dataclasses import dataclass
 from datetime import datetime
 import copy
+import hashlib
 import io
 import json
 import re
 import zipfile
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -67,10 +70,11 @@ def _row_table(document, group):
     return table
 
 
-def create_templates(folder,*,modern=False,quality=False):
+def create_templates(folder,*,modern=False,quality=False,workshop_layout=False,kinds=KINDS):
     """Editable neutral forms. Existing files are never overwritten."""
     folder=Path(folder); folder.mkdir(parents=True,exist_ok=True)
-    for kind,title in KINDS.items():
+    for kind in kinds:
+        title=KINDS[kind]
         path=folder/(kind+'.docx')
         if path.exists(): continue
         d=Document(); section=d.sections[0]
@@ -144,9 +148,9 @@ def create_templates(folder,*,modern=False,quality=False):
             refine(d,kind)
         if quality:
             from .print_forms import refine as refine_print
-            refine_print(d)
+            refine_print(d,workshop_layout=workshop_layout)
         d.save(path)
-    return {kind:folder/(kind+'.docx') for kind in KINDS}
+    return {kind:folder/(kind+'.docx') for kind in kinds}
 
 
 def replace_spans(paragraph, pattern, callback):
@@ -196,7 +200,7 @@ def _append_heading(document, value, level):
 
 
 def render_service(template_path, values, items, images=(), *, history=(), logo=None, stock_form=False):
-    template=Template.load(template_path)
+    template=template_path if isinstance(template_path,Template) else Template.load(template_path)
     document=Document(io.BytesIO(template.raw)); extra={}; count=0
     stories=list(_stories(document));item_sequence=0
     for root,_ in stories:
@@ -305,7 +309,7 @@ def render_service(template_path, values, items, images=(), *, history=(), logo=
                     fields.update(m.group(1) for m in TOKEN.finditer(''.join(t.text for t in paragraph_nodes(p))))
     available={**values,**extra}
     if fields-available.keys(): raise ServiceError('Неизвестные поля шаблона: '+', '.join(sorted(fields-available.keys())))
-    return Template(Path(template_path),raw,frozenset(fields)).render(available)
+    return Template(template.path,raw,frozenset(fields)).render(available)
 
 
 def _history(store, repair):
@@ -378,7 +382,20 @@ def document_values(snapshot,quote=None):
     return values
 
 
-def generate_document(store, repair_id, kind, template=None, image_ids=(), *, estimate_id=None, image_choices=None):
+@dataclass(frozen=True)
+class PreparedServiceDocument:
+    project: Path
+    repair_id: str
+    repair_revision: int
+    kind: str
+    template_name: str
+    metadata: str
+    rendered: bytes
+    stock_template: bytes | None
+
+
+def prepare_document(store, repair_id, kind, template=None, image_ids=(), *, estimate_id=None, image_choices=None):
+    """Render a stable candidate without registering a document or writing to the project."""
     if kind not in KINDS: raise ServiceError('Неизвестный документ')
     with store.lock:
         snapshot=store.snapshot(repair_id); r=snapshot['repair']
@@ -408,39 +425,80 @@ def generate_document(store, repair_id, kind, template=None, image_ids=(), *, es
             images.append((attachment_path(store,item['id']),caption,stage))
             selection.append({'id':item['id'],'sha256':item['sha256'],'caption':caption,'stage':stage})
         relative_template=organization.get('template_paths',{}).get(kind)
-        if not template and not relative_template:
-            # Preserve the established selectable v6 paths for profiles/tools,
-            # while new implicit documents use the separate print family7.
-            create_templates(safe_path(store.root,'templates/default-v6'),modern=True)
-        path=Path(template) if template else (safe_path(store.root,relative_template) if relative_template else create_templates(safe_path(store.root,'templates/default-v7'),modern=True,quality=True)[kind])
+        stock=not (template or relative_template)
+        path=Path(template) if template else safe_path(store.root,relative_template or f'templates/default-v8/{kind}.docx')
         logo=safe_path(store.root,organization['logo_path']) if organization.get('logo_path') else None
+        managed_digest=None
         for file in (path if relative_template and not template else None,logo):
             if file:
                 with store.db.connection() as c: meta=c.execute('SELECT * FROM managed_files WHERE path=?',(file.relative_to(store.root).as_posix(),)).fetchone()
                 if meta is None or not file.is_file() or digest(file)!=meta['sha256']: raise ServiceError('Файл профиля изменён или отсутствует')
-        history=[]
-        raw=Template.load(path)
-        with zipfile.ZipFile(io.BytesIO(raw.raw)) as z:
-            has_history=any('[[items:history]]' in ''.join(t.text or '' for t in parse(z.read(n)).iter(W+'t')) for n in z.namelist() if STORY.fullmatch(n))
-        if has_history: history=_history(store,r)
+                if file==path:managed_digest=meta['sha256']
         shown_items=[{**item,**{key:readable_field(item.get(key,''),key).text
                               for key in ('name','description','notes')}} for item in items]
-        rendered=render_service(path,values,shown_items,images,history=history,logo=logo,stock_form=not (template or relative_template))
-        metadata={'repair_revision':r['revision'],'template_sha256':digest(path),'estimate_id':quote['id'] if quote else None,
+        def render(raw):
+            checksum=hashlib.sha256(raw.raw).hexdigest()
+            if managed_digest and checksum!=managed_digest:
+                raise ServiceError('Файл профиля изменился во время подготовки. Проверьте шаблон.')
+            with zipfile.ZipFile(io.BytesIO(raw.raw)) as z:
+                has_history=any('[[items:history]]' in ''.join(t.text or '' for t in parse(z.read(n)).iter(W+'t')) for n in z.namelist() if STORY.fullmatch(n))
+            history=_history(store,r) if has_history else []
+            data=render_service(raw,values,shown_items,images,history=history,logo=logo,stock_form=stock)
+            return data,checksum
+        if stock and not path.is_file():
+            with TemporaryDirectory(prefix='docflow-form-') as folder:
+                source=create_templates(folder,modern=True,quality=True,workshop_layout=True,kinds=(kind,))[kind]
+                raw=Template.load(source)
+        else:
+            raw=Template.load(path)
+        rendered,template_sha=render(raw)
+        metadata={'repair_revision':r['revision'],'template_sha256':template_sha,'estimate_id':quote['id'] if quote else None,
                   'estimate_sha256':quote['payload_sha256'] if quote else None,'profile_id':organization['id'],'images':selection}
-        target=None; created=False
+        return PreparedServiceDocument(store.root,repair_id,snapshot['repair']['revision'],kind,path.name,
+                                       json.dumps(metadata,ensure_ascii=False),rendered,raw.raw if stock else None)
+
+
+def save_prepared_document(store, prepared):
+    """Commit the exact previewed bytes as the next immutable version."""
+    if prepared.project != store.root: raise ServiceError('Предпросмотр относится к другому проекту')
+    repair_id,kind=prepared.repair_id,prepared.kind
+    metadata=json.loads(prepared.metadata)
+    with store.lock:
+        target=None; created=False; installed_template=None
         try:
             with store.db.connection(True) as db:
                 current=db.execute('SELECT revision FROM repair_orders WHERE id=?',(repair_id,)).fetchone()
-                if not quote and current[0]!=snapshot['repair']['revision']: raise ServiceError('Карточка изменилась во время генерации; повторите по свежей версии')
+                if current is None or (not metadata['estimate_id'] and current[0]!=prepared.repair_revision):
+                    raise ServiceError('Карточка изменилась. Обновите предпросмотр и повторите создание документа.')
+                if prepared.stock_template is not None:
+                    create_templates(safe_path(store.root,'templates/default-v6'),modern=True)
+                    create_templates(safe_path(store.root,'templates/default-v7'),modern=True,quality=True)
+                    folder=safe_path(store.root,'templates/default-v8')
+                    folder.mkdir(parents=True,exist_ok=True)
+                    source=safe_path(folder,kind+'.docx')
+                    try:
+                        stream=source.open('xb')
+                    except FileExistsError:
+                        pass
+                    else:
+                        installed_template=source
+                        with stream:
+                            stream.write(prepared.stock_template)
                 version=db.execute('SELECT COALESCE(MAX(version),0)+1 FROM generated_documents WHERE repair_id=? AND kind=?',(repair_id,kind)).fetchone()[0]
                 relative=f'generated/{repair_id}/{kind}-v{version:03d}-{uuid4().hex[:8]}.docx'
                 target=safe_path(store.root,relative); target.parent.mkdir(parents=True,exist_ok=True)
-                with target.open('xb') as f: created=True; f.write(rendered)
+                with target.open('xb') as f: created=True; f.write(prepared.rendered)
                 db.execute('INSERT INTO generated_documents(id,repair_id,kind,version,created_at,path,sha256,template,metadata_json) VALUES(?,?,?,?,?,?,?,?,?)',
-                           (uuid4().hex,repair_id,kind,version,now(),relative,digest(target),path.name,json.dumps(metadata,ensure_ascii=False)))
+                           (uuid4().hex,repair_id,kind,version,now(),relative,digest(target),prepared.template_name,prepared.metadata))
                 store.audit(db,'document',repair_id,'generate',kind+':'+str(version))
         except Exception:
             if created: target.unlink(missing_ok=True)
+            if installed_template is not None:installed_template.unlink(missing_ok=True)
             raise
         return target
+
+
+def generate_document(store, repair_id, kind, template=None, image_ids=(), *, estimate_id=None, image_choices=None):
+    with store.lock:
+        prepared=prepare_document(store,repair_id,kind,template,image_ids,estimate_id=estimate_id,image_choices=image_choices)
+        return save_prepared_document(store,prepared)

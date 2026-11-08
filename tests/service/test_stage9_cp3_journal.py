@@ -176,19 +176,14 @@ def test_real_card_returns_to_journal_and_new_project_clears_old_selection(app,t
         journal.grid.setFocus()
         app.processEvents()
 
-        from docflow.ui.service import workspace as implementation
-        original=implementation.RepairDialog
-        opened=[]
-        def capture(parent,snapshot):
-            dialog=original(parent,snapshot)
-            opened.append(snapshot['repair']['id'])
-            from PySide6.QtCore import QTimer
-            QTimer.singleShot(0,dialog.reject)
-            return dialog
-        monkeypatch.setattr(implementation,'RepairDialog',capture)
+        from docflow.ui.service.repair_editor import RepairPage
         QTest.keyClick(journal.grid,Qt.Key.Key_Return)
         wait_idle(window);app.processEvents()
-        assert opened==[key]
+        assert isinstance(workspace.current_page,RepairPage)
+        assert workspace.current_page.key==key and workspace.current_page.window() is window
+        QTest.keyClick(workspace.pages.back_button,Qt.Key.Key_Escape)
+        wait_idle(window);app.processEvents()
+        assert workspace.current_page is None
         assert journal.grid.selected()['id']==key and journal.search.text()=='ремонт'
         assert window.focusWidget() is journal.grid
         window.activateWindow();app.processEvents()

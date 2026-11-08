@@ -7,7 +7,7 @@ def exercise(ui,app,output,idle):
     from PySide6.QtWidgets import QDialog,QInputDialog,QMessageBox
     from PySide6.QtGui import QDesktopServices
     from ..ui.service.intake import IntakeDialog
-    from ..ui.service.repair_editor import RepairDialog
+    from ..ui.service.repair_editor import RepairDialog,RepairPage
     from ..ui.service.forms import FieldsDialog
     from ..ui.service.estimates import DraftDialog
     from ..ui.service.history import HistoryDialog
@@ -18,6 +18,17 @@ def exercise(ui,app,output,idle):
     output=Path(output);output.mkdir(parents=True,exist_ok=True);checks=[];routes={}
     def passed(name,actions):checks.append({'name':name,'passed':True});routes[name]=actions
     def intake(equipment=None):
+        if ui.shell_navigation:
+            d=ui.start_intake(equipment)
+            assert isinstance(d,IntakeDialog) and d.window() is ui.window()
+            if not equipment:
+                d.new_equipment.setChecked(True);d.new_client.setChecked(True);d.name.setText('Учебный клиент');d.number.setText('DEVICE-100');d.model.setText('Учебный аппарат')
+            d.complaint.setPlainText('Учебная жалоба\nДлинная строка на русском языке')
+            app.processEvents();d.grab().save(str(output/('repeat-intake.png' if equipment else 'new-intake.png')))
+            d.submit.click();idle(ui)
+            assert isinstance(ui.current_page,RepairPage)
+            key=ui.current_page.key;ui.back_page();idle(ui)
+            return key
         captured=[];handled=[];timer=QTimer()
         def visit():
             d=app.activeModalWidget()

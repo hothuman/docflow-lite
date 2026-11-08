@@ -11,12 +11,12 @@ from ...service.validation import ServiceError,rub
 from ...service.statuses import APPROVALS
 from ...service.documents import generate_document,KINDS
 from ...service.attachments import add_attachment,attachment_path,remove_attachment,export_file
-from ...service.backup import create_backup,inspect_backup,restore_backup
 from ..settings import preferences
 from ...service.demo import seed_demo
 from .widgets import Grid,button,confirm
 from .forms import FieldsDialog
 from .journal import RepairJournal
+from .pages import WorkspacePages
 from ..flow import ActionBar, OperationNotice
 from ..diagnostics import record_exception,record_project_event,friendly_error,diagnostic_path
 
@@ -38,6 +38,8 @@ class Job(QThread):
         finally:self.function=None
 
 class ServiceWorkspace(QWidget):
+    page_changed = Signal()
+
     def __init__(self,parent=None,root=None,shell_navigation=False):
         super().__init__(parent);self.shell_navigation=shell_navigation;self.store=None;self.worker=None;self.project_lock=None;self.cache={};self._pending_refresh=False;self.dialogs=[];self._last_repairs={};self.project_state='not_open';self._project_busy=False;self._safe_project_buttons=[]
         out=QVBoxLayout(self);out.setContentsMargins(0,0,0,0)
@@ -48,6 +50,9 @@ class ServiceWorkspace(QWidget):
         self.restore_project_button=button(self.project_actions,'Восстановить копию',self.restore)
         self.section_picker=QComboBox();self.section_picker.setAccessibleName('Раздел мастерской');out.addWidget(self.section_picker)
         self.tabs=QTabWidget();self.tabs.setUsesScrollButtons(False);out.addWidget(self.tabs,1)
+        self.pages = WorkspacePages(self)
+        out.addWidget(self.pages, 1)
+        self.pages.changed.connect(self._page_changed)
         self.section_picker.currentIndexChanged.connect(self.tabs.setCurrentIndex);self.tabs.currentChanged.connect(self.section_picker.setCurrentIndex)
         from .dashboard import Dashboard
         self.dashboard=Dashboard(self);self.tabs.addTab(self.dashboard,'Обзор')
@@ -114,13 +119,23 @@ class ServiceWorkspace(QWidget):
         self.section_picker.addItems([self.tabs.tabText(i) for i in range(self.tabs.count())]);self.section_picker.setCurrentIndex(0)
         if self.shell_navigation:self.tabs.tabBar().hide();self.section_picker.hide()
         self.message=OperationNotice();out.addWidget(self.message)
-        self.backup_result_actions=ActionBar();out.addWidget(self.backup_result_actions)
+        self.operation_cancel=QPushButton('Отменить операцию')
+        self.operation_cancel.setAccessibleName('Отменить фоновую операцию')
+        self.operation_cancel.hide()
+        out.addWidget(self.operation_cancel,0,Qt.AlignmentFlag.AlignLeft)
+        self.operation_cancel.clicked.connect(self._cancel_operation)
+        self._operation_cancel_callback=None
+        from ..widgets import card,text
+        self.backup_result_panel,backup_result=card('Восстановление завершено')
+        self.backup_result_folder=text('','muted');backup_result.addWidget(self.backup_result_folder)
+        self.backup_result_actions=ActionBar();backup_result.addWidget(self.backup_result_actions);out.addWidget(self.backup_result_panel)
         self._backup_result=None
-        button(self.backup_result_actions,'Открыть папку',lambda:self.open_local(self._backup_result) if self._backup_result else None)
+        button(self.backup_result_actions,'Открыть расположение',lambda:self.open_local(self._backup_result) if self._backup_result else None)
         button(self.backup_result_actions,'К журналу ремонтов',self.finish_backup_notice)
-        self.backup_result_actions.hide()
+        self.backup_result_panel.hide()
         self._restored_target=None
         self.history_window=None
+        self._repair_sections={}
         for label in self.findChildren(QLabel):label.setTextFormat(Qt.TextFormat.PlainText)
         self._sync_project_controls()
         self.open_project(root or default_root())
@@ -129,7 +144,41 @@ class ServiceWorkspace(QWidget):
         if not self.shell_navigation:
             compact=self.width()<920
             self.tabs.tabBar().setVisible(not compact)
-            self.section_picker.setVisible(compact)
+            self.section_picker.setVisible(compact and self.current_page is None)
+
+    @property
+    def current_page(self):
+        return self.pages.current
+
+    def _page_changed(self):
+        self.tabs.setVisible(self.current_page is None)
+        self.location.setVisible(self.current_page is None)
+        self.section_picker.setVisible(not self.shell_navigation and self.width()<920 and self.current_page is None)
+        self.page_changed.emit()
+
+    def push_page(self,widget,title,**options):
+        if self.current_page is None and self.tabs.currentWidget() is self.journal and not options.get('on_close'):
+            context=self.journal.view_context()
+            options['on_close']=lambda:self.journal.restore_view(context)
+        return self.pages.push(widget,title,**options)
+
+    def back_page(self):
+        self.pages.back()
+
+    def go_to_section(self,index):
+        if self.tabs.currentIndex()==index and self.current_page is None:return
+        was_editing=self.current_page is not None
+        def open_section():
+            self.tabs.setCurrentIndex(index)
+            self._page_changed()
+            if was_editing and self.store:self.refresh()
+        self.pages.clear(open_section)
+
+    def embed_form(self,dialog,on_accept=None,**options):
+        self.push_page(dialog,dialog.windowTitle(),**options)
+        if on_accept:
+            dialog.accepted.connect(lambda:on_accept(dialog.values()))
+        return dialog
     def show_repair_debt(self):
         self.journal.reset_filters()
         self.journal.finance_filter.setCurrentIndex(self.journal.finance_filter.findData('debt'))
@@ -174,9 +223,20 @@ class ServiceWorkspace(QWidget):
         if self.store is None:self.message.setText('Проект не открыт. Откройте локальную папку, создайте отдельный проект или восстановите копию.')
         elif not self.worker:self.message.setText('Дождитесь завершения открытия проекта.')
         return False
-    def run(self,fn,callback=None,message='Выполняю операцию…',on_error=None,project_operation=False):
+    def _cancel_operation(self):
+        if self._operation_cancel_callback:
+            self._operation_cancel_callback()
+            self.operation_cancel.setEnabled(False)
+            self.message.setText('Отмена запрошена. Завершаю чтение…')
+
+    def run(self,fn,callback=None,message='Выполняю операцию…',on_error=None,project_operation=False,*,inline_error=False,keep_page_enabled=False,cancel=None):
         if self.worker:return False
         self.tabs.setEnabled(False)
+        if keep_page_enabled:self.pages.back_button.setEnabled(False)
+        else:self.pages.setEnabled(False)
+        self._operation_cancel_callback=cancel
+        self.operation_cancel.setEnabled(bool(cancel))
+        self.operation_cancel.setVisible(bool(cancel))
         for d in self.dialogs:d.setEnabled(False)
         self.message.setText(message);job=Job(fn,self,project_operation);self.worker=job;self._sync_project_controls()
         def failed(error):
@@ -186,9 +246,10 @@ class ServiceWorkspace(QWidget):
                 except Exception as exc:
                     record_project_event('error_handler_error',exc)
                     if project_operation:self._project_status('error','Ошибка завершения открытия. Повторите выбор проекта.')
-            QMessageBox.warning(self,'Мастерская',error)
+            if not inline_error:QMessageBox.warning(self,'Мастерская',error)
         def done():
-            self.worker=None;self.tabs.setEnabled(True)
+            self._operation_cancel_callback=None;self.operation_cancel.hide()
+            self.worker=None;self.tabs.setEnabled(True);self.pages.setEnabled(True);self.pages.back_button.setEnabled(True)
             for d in self.dialogs:d.setEnabled(True)
             error=job.error;value=job.value;job.deleteLater()
             if error:
@@ -212,6 +273,9 @@ class ServiceWorkspace(QWidget):
     def open_project(self,root):
         self.journal.persist_context()
         if self.worker or self._project_busy:return False
+        if self.current_page is not None:
+            self.pages.clear(lambda:self.open_project(root))
+            return
         if self.history_window:self.history_window.close()
         if self.dialogs:return False
         root=Path(root).absolute()
@@ -305,7 +369,9 @@ class ServiceWorkspace(QWidget):
             if journal_context and self.tabs.currentWidget() is self.journal:
                 self._sync_project_controls()
                 self.journal.restore_view(journal_context)
-            if on_complete:QTimer.singleShot(0,self,on_complete)
+            if on_complete:
+                if self.shell_navigation:on_complete()
+                else:QTimer.singleShot(0,self,on_complete)
         self.run(lambda:self._query_project_data(s,archived,active,clients_archived),install,'Обновляю журнал…')
     def reset_list_filters(self,key):
         if key=='repairs':
@@ -351,6 +417,17 @@ class ServiceWorkspace(QWidget):
         from .intake import IntakeDialog
         if isinstance(equipment,bool):equipment=None
         dialog=IntakeDialog(self,equipment)
+        if self.shell_navigation:
+            from .history import HistoryPage
+            previous=self.current_page
+            self.embed_form(dialog)
+            def finished(_):
+                if getattr(dialog,'created_key',None):
+                    key=dialog.created_key
+                    self.refresh(on_complete=lambda:self.open_repair(key,
+                        return_to=previous.refresh if isinstance(previous,HistoryPage) else None))
+            dialog.finished.connect(finished)
+            return dialog
         self.dialogs.append(dialog)
         try:dialog.exec()
         finally:self.dialogs.remove(dialog)
@@ -359,6 +436,10 @@ class ServiceWorkspace(QWidget):
     @needs_project
     def search_all(self):
         from .search import SearchDialog
+        if self.shell_navigation:
+            page=self.embed_form(SearchDialog(self,embedded=True))
+            page.query.setFocus()
+            return page
         self.modal(SearchDialog(self))
     @needs_project
     def continue_repair(self):
@@ -425,7 +506,9 @@ class ServiceWorkspace(QWidget):
     @needs_project
     def _client_dialog(self,row=None):
         d=FieldsDialog('Клиент',self._client_fields(),row,self)
-        key=row['id'] if row else None;s=self.store;d.persist_with(self,lambda data:s.save_client(data,key));self.modal(d)
+        key=row['id'] if row else None;s=self.store;d.persist_with(self,lambda data:s.save_client(data,key))
+        if self.shell_navigation:return self.embed_form(d,on_close=self.refresh)
+        self.modal(d)
     @needs_project
     def _equipment_dialog(self,row=None):
         clients=[(x['id'],x['name']) for x in self.cache.get('active_clients',[])]
@@ -434,7 +517,9 @@ class ServiceWorkspace(QWidget):
             QMessageBox.information(self,'Клиенты','Действующих клиентов нет. Откройте архив и проверьте нужную карточку либо создайте нового клиента. Архивные связи не удалены.' if has_archive else 'Сначала добавьте клиента');return
         fields=[('number','Постоянный номер *','text'),('model','Модель *','text'),('manufacturer','Производитель','text'),('kind','Тип','text'),('serial','Серийный номер','text'),('owner_id','Текущий владелец',clients),('identifiers','Другие идентификаторы','text'),('notes','Примечания','long')]
         d=FieldsDialog('Оборудование',fields,row,self)
-        key=row['id'] if row else None;s=self.store;d.persist_with(self,lambda data:s.save_equipment(data,key));self.modal(d)
+        key=row['id'] if row else None;s=self.store;d.persist_with(self,lambda data:s.save_equipment(data,key))
+        if self.shell_navigation:return self.embed_form(d,on_close=self.refresh)
+        self.modal(d)
     def new_equipment(self):self._equipment_dialog()
     def edit_equipment(self):
         r=self.selection('equipment')
@@ -456,6 +541,14 @@ class ServiceWorkspace(QWidget):
 
     @needs_project
     def show_history(self,equipment,view=None):
+        if self.shell_navigation:
+            from .history import HistoryPage
+            for route in self.pages.routes:
+                if isinstance(route.widget,HistoryPage) and route.widget.equipment['id']==equipment['id']:
+                    self.pages.return_to(route.widget,route.widget.refresh)
+                    return route.widget
+            page=HistoryPage(self,equipment,view,on_back=self.back_page,on_new=self.start_intake)
+            return self.push_page(page,'История аппарата',back_label='К предыдущему экрану')
         from .history import HistoryDialog
         if self.history_window:self.history_window.close()
         window=HistoryDialog(self,equipment,view,workspace_view=True)
@@ -483,9 +576,16 @@ class ServiceWorkspace(QWidget):
         fields=fields+[('client_id','Заказчик',[(None,'Текущий владелец оборудования')]+[(x['id'],x['name']) for x in self.cache.get('active_clients',[])])]
         d=FieldsDialog('Приёмка оборудования',fields,parent=self)
         d.fields['number'].setPlaceholderText('Автоматически: '+self.cache.get('next_repair_number',''))
-        if d.exec()==QDialog.DialogCode.Accepted:
-            v=d.values();s=self.store;request=uuid4().hex
-            self.run(lambda:s.create_repair(v['equipment_id'],v['number'],v['complaint'],request,client_id=v['client_id']),self.open_repair)
+        s=self.store;request=uuid4().hex
+        def create(v):return s.create_repair(v['equipment_id'],v['number'],v['complaint'],request,client_id=v['client_id'])
+        if self.shell_navigation:
+            created=[]
+            def persist(v):created.append(create(v))
+            d.persist_with(self,persist)
+            self.embed_form(d)
+            d.finished.connect(lambda _:self.open_repair(created[0]) if created else None)
+            return d
+        if d.exec()==QDialog.DialogCode.Accepted:self.run(lambda:create(d.values()),self.open_repair)
     @needs_project
     def open_selected(self,key):
         r=self.selection(key)
@@ -498,10 +598,12 @@ class ServiceWorkspace(QWidget):
     @needs_project
     def import_history(self):
         from .import_wizard import HistoryWizard
+        if self.shell_navigation:return self.embed_form(HistoryWizard(self),on_close=self.refresh)
         self.modal(HistoryWizard(self))
     @needs_project
     def organization_profiles(self):
         from .profiles import ProfileDialog
+        if self.shell_navigation:return self.embed_form(ProfileDialog(self),on_close=self.refresh)
         self.modal(ProfileDialog(self))
     @needs_project
     def review_docx(self):
@@ -513,10 +615,28 @@ class ServiceWorkspace(QWidget):
             self.run(lambda:export_review_csv(source,target),lambda _:self.message.setText('CSV сохранён. Исправьте и сопоставьте колонки перед историческим импортом.'))
     @needs_project
     def open_repair(self,key,section=None,return_to=None):
+        if self.shell_navigation:
+            for route in self.pages.routes:
+                if isinstance(route.widget,RepairPage) and route.widget.key==key:
+                    page=route.widget
+                    self.pages.return_to(page,lambda:page.tabs.show_section(section) if section else None)
+                    return
         self._last_repairs[str(self.store.root)]=key
         s=self.store
-        journal_context=self.journal.view_context() if self.tabs.currentWidget() is self.journal else None
+        journal_context=self.journal.view_context() if self.tabs.currentWidget() is self.journal and self.current_page is None else None
         def show(snapshot):
+            if self.shell_navigation:
+                page=RepairPage(self,snapshot)
+                context_key=(s.root,key)
+                active=section or self._repair_sections.get(context_key)
+                if active:page.tabs.show_section(active)
+                page.tabs.sectionChanged.connect(lambda _:self._repair_sections.__setitem__(context_key,page.tabs.selected_section()))
+                def closed():
+                    if journal_context:self.journal.panels.return_to_list(restore=False)
+                    self.refresh(journal_context=journal_context,on_complete=return_to)
+                return self.push_page(page,page.windowTitle(),
+                    back_label='Назад к журналу' if journal_context else 'Назад',
+                    before_close=page.request_exit,on_close=closed)
             d=RepairDialog(self,snapshot)
             if section:d.tabs.show_section(section)
             self.dialogs.append(d)
@@ -565,50 +685,28 @@ class ServiceWorkspace(QWidget):
 
     def show_backup_location(self, path):
         self._backup_result=Path(path)
-        self.backup_result_actions.show()
+        self.backup_result_folder.setText('Открыт отдельный проект '+self._backup_result.name)
+        self.backup_result_folder.setToolTip(str(self._backup_result))
+        self.backup_result_panel.show()
 
     def finish_backup_notice(self):
-        self.backup_result_actions.hide()
+        self.backup_result_panel.hide()
         self._backup_result=None
         self.tabs.setCurrentIndex(2)
 
     @needs_project
     def backup(self):
-        suggested=self.backup_directory()/f'DocFlow-{datetime.now():%Y%m%d-%H%M%S}.service-backup.zip'
-        path,_=QFileDialog.getSaveFileName(self,'Сохранить резервную копию',str(suggested),'ZIP (*.zip)')
-        if not path:return
-        store=self.store
-
-        def completed(_):
-            folder=Path(path).parent
-            preferences().setValue('workspace/v2/backup/lastDirectory',str(folder))
-            self.message.setText('Резервная копия создана: '+path)
-            self.show_backup_location(folder)
-        self.run(lambda:create_backup(store,path),completed,'Резервирую SQLite и вложения…')
+        from .backup_pages import CreateBackupPage
+        self.backup_result_panel.hide()
+        page=CreateBackupPage(self)
+        return self.push_page(page,page.windowTitle())
 
     def restore(self):
         if self.worker or self._project_busy:return False
-        archive,_=QFileDialog.getOpenFileName(self,'Выбрать архив для проверки',str(self.backup_directory()),'ZIP (*.zip)')
-        if not archive:return
-        self.run(lambda:inspect_backup(archive),lambda info:self._restore_verified(archive,info),
-                 'Проверяю архив и целостность базы без восстановления…')
-
-    def _restore_verified(self, archive, info):
-        self.message.setText(f"Архив проверен · схема {info['schema']} · файлов: {info['files']}.")
-        parent=QFileDialog.getExistingDirectory(self,'Выбрать место для новой папки проекта',str(self.backup_directory()))
-        if not parent:return
-        target=Path(parent)/('DocFlow-Restored-'+datetime.now().strftime('%Y%m%d-%H%M%S')+'-'+uuid4().hex[:6])
-        if not confirm(self,f"Архив проверен. Схема: {info['schema']}, файлов: {info['files']}.\n"
-                       f'Новая папка: {target}\nАктивный проект сменится после успешного открытия копии.',
-                       'Восстановить копию'):
-            return
-
-        def completed(root):
-            self._restored_target=root
-            self.open_project(root)
-
-        self.run(lambda:restore_backup(archive,target,expected_sha256=info['sha256']),completed,
-                 'Восстанавливаю архив в отдельную папку…')
+        from .backup_pages import RestoreBackupPage
+        self.backup_result_panel.hide()
+        page=RestoreBackupPage(self)
+        return self.push_page(page,page.windowTitle())
     @needs_project
     def import_equipment(self):
         path,_=QFileDialog.getOpenFileName(self,'Таблица оборудования','','Таблицы (*.xlsx *.csv)')
@@ -629,4 +727,4 @@ class ServiceWorkspace(QWidget):
             self.run(lambda:preview_equipment(path,m),preview,'Проверяю таблицу…')
         self.run(lambda:load_table(Path(path)),mapping,'Открываю таблицу в фоновом потоке…')
 
-from .repair_editor import RepairDialog
+from .repair_editor import RepairDialog, RepairPage

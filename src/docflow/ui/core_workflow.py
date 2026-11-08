@@ -1,10 +1,210 @@
-"""Four document steps, with source/preview hidden until data exists."""
+"""Core document steps and the in-window data review."""
+import hashlib
+from html import escape
+import json
+from math import ceil
 from pathlib import Path
-from PySide6.QtCore import QStringListModel, Qt
-from PySide6.QtWidgets import (QFrame,QVBoxLayout,QHBoxLayout,QTabWidget,QWidget,QComboBox,QTextBrowser,QLineEdit,QCheckBox,QProgressBar,QListView)
+
+from PySide6.QtCore import QModelIndex, QStringListModel, Qt
+from PySide6.QtWidgets import (QFrame,QVBoxLayout,QTabWidget,QWidget,QComboBox,QTextBrowser,QLineEdit,QCheckBox,QProgressBar,QListView)
 from .widgets import card,text,DataView,DataModel,RecordModel
 from .flow import ActionBar
+from .settings import load_widths, save_widths
+from .theme import COLORS
 from ..safety import safe_name
+
+
+def issue_text(issue, mapping):
+    column = mapping.get(issue.field)
+    field = f'{column} ({issue.field})' if column and column != issue.field else issue.field or 'Документ'
+    return f'Строка {issue.row} · {field}: {issue.message}'
+
+
+def issue_summary(issues, mapping, *, limit=50):
+    lines = [issue_text(issue, mapping) for issue in issues[:limit]]
+    if len(issues) > limit:
+        lines.append(f'И ещё замечаний: {len(issues) - limit}. Полный список доступен в отчёте.')
+    return '\n'.join(lines)
+
+
+class ValidationPanel(QFrame):
+    """One review surface for mapping problems and per-record validation."""
+
+    page_size = 30
+
+    def __init__(self, window):
+        super().__init__()
+        self.window = window
+        self.setObjectName('coreValidation')
+        self.setAccessibleName('Результаты проверки данных')
+        self.signature = None
+        self.mode = ''
+        self.issues = ()
+        self.mapping = {}
+        self.offset = 0
+        self.missing = ()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(13, 10, 13, 10)
+        layout.setSpacing(7)
+        self.heading = text('', 'section')
+        layout.addWidget(self.heading)
+        self.report = QTextBrowser()
+        self.report.setAccessibleName('Результаты проверки всех строк')
+        self.report.setOpenExternalLinks(False)
+        self.report.setOpenLinks(False)
+        self.report.setFixedHeight(82)
+        self.report.document().documentLayout().documentSizeChanged.connect(
+            lambda size: self.report.setFixedHeight(max(70, min(154, ceil(size.height()) + 8))))
+        self.report.anchorClicked.connect(self._open_link)
+        layout.addWidget(self.report)
+        actions = ActionBar()
+        self.first = window.button('К первой ошибке', self._first_issue)
+        self.previous = window.button('Предыдущие ошибки', lambda: self._change_page(-1))
+        self.following = window.button('Следующие ошибки', lambda: self._change_page(1))
+        for button in (self.first, self.previous, self.following):
+            actions.addWidget(button)
+        layout.addWidget(actions)
+        self.hide()
+
+    def _appearance(self, severity):
+        self.setProperty('severity', severity)
+        self.setAccessibleDescription(self.heading.text())
+        self.heading.setObjectName('error' if severity == 'error' else 'section')
+        for widget in (self, self.heading):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+        self.show()
+
+    def sync_context(self, signature, valid, message):
+        if signature != self.signature:
+            self.signature = signature
+            self.mode = ''
+            self.issues = ()
+            self.mapping = {}
+            self.window.data_model.set_issues((), {})
+            self.window.source_issue.hide()
+            self.hide()
+        if self.mode in ('rows', 'operation'):
+            return
+        if not valid and self.window.table and self.window.active_templates():
+            missing = tuple(row for row in range(self.window.mapping_table.rowCount())
+                            if not self.window.mapping_table.cellWidget(row, 1).currentText())
+            if self.mode == 'mapping' and self.missing == missing and self.report.toPlainText() == message:
+                return
+            self.mode, self.missing = 'mapping', missing
+            self.heading.setText(f'⚠ Проверьте сопоставление · полей без столбца: {len(missing)}')
+            self.report.setPlainText(message)
+            self.report.show()
+            self.first.setVisible(bool(missing))
+            self.first.setText('К первому полю без столбца')
+            self.first.setAccessibleName(self.first.text())
+            self.first.setAccessibleDescription('Выбрать столбец для указанного поля')
+            self.previous.hide()
+            self.following.hide()
+            self._appearance('error')
+
+    def set_error(self, message, signature):
+        self.signature, self.mode = signature, 'operation'
+        self.heading.setText('⚠ Не удалось выполнить действие')
+        self.report.setPlainText(message)
+        self.report.show()
+        self.first.hide()
+        self.previous.hide()
+        self.following.hide()
+        self._appearance('error')
+
+    def set_results(self, signature, issues, mapping, total, rejected):
+        self.signature, self.mode = signature, 'rows'
+        self.issues, self.mapping, self.offset = tuple(issues), mapping, 0
+        self.window.data_model.set_issues(issues, mapping)
+        self.window.update_source_issue()
+        if issues:
+            self.heading.setText(f'⚠ Найдены ошибки · готовых строк: {total - rejected} из {total} · будут пропущены: {rejected}')
+            self.first.setText('К первой ошибке')
+            self.first.setAccessibleName(self.first.text())
+            self.first.setAccessibleDescription(issue_text(self.issues[0], mapping))
+            self.first.show()
+            self.report.show()
+            self._show_issue_page()
+            self._appearance('error')
+        else:
+            self.heading.setText(f'✓ Проверка завершена · готовых строк: {total} из {total}')
+            self.report.setPlainText('Ошибок данных не обнаружено')
+            self.report.hide()
+            self.first.hide()
+            self.previous.hide()
+            self.following.hide()
+            self._appearance('success')
+
+    def _show_issue_page(self):
+        stop = min(self.offset + self.page_size, len(self.issues))
+        links = [f'<li><a style="color:{COLORS["error"]}" href="issue:{index}">'
+                 f'{escape(issue_text(self.issues[index], self.mapping))}</a></li>'
+                 for index in range(self.offset, stop)]
+        self.report.setHtml(f'<p>Замечания {self.offset + 1}–{stop} из {len(self.issues)}. '
+                            'Откройте замечание, чтобы найти ячейку в таблице.</p>'
+                            f'<ul>{"".join(links)}</ul>')
+        pageable = len(self.issues) > self.page_size
+        self.previous.setVisible(pageable)
+        self.following.setVisible(pageable)
+        self.previous.setEnabled(self.offset > 0)
+        self.following.setEnabled(stop < len(self.issues))
+
+    def _change_page(self, direction):
+        self.offset += direction * self.page_size
+        self._show_issue_page()
+
+    def _open_link(self, link):
+        index = link.path()
+        if link.scheme() == 'issue' and index.isascii() and index.isdecimal() and int(index) < len(self.issues):
+            self.window.go_to_source_issue(self.issues[int(index)], self.mapping)
+
+    def _first_issue(self):
+        if self.mode == 'mapping' and self.missing:
+            row = self.missing[0]
+            table = self.window.mapping_table
+            table.setCurrentCell(row, 1)
+            table.scrollToItem(table.item(row, 0))
+            table.cellWidget(row, 1).setFocus(Qt.FocusReason.OtherFocusReason)
+            self.window.pages.widget(2).ensureWidgetVisible(table, 6, 6)
+        elif self.issues:
+            self.window.go_to_source_issue(self.issues[0], self.mapping)
+
+
+class ResultFilesModel(QStringListModel):
+    """Friendly labels with the original package-relative path in a separate role."""
+
+    def data(self, index: QModelIndex, role=Qt.ItemDataRole.DisplayRole):
+        if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.AccessibleTextRole,
+                    Qt.ItemDataRole.ToolTipRole, Qt.ItemDataRole.UserRole):
+            relative = super().data(index, Qt.ItemDataRole.DisplayRole)
+            if relative is None or role in (Qt.ItemDataRole.UserRole, Qt.ItemDataRole.ToolTipRole):
+                return relative
+            folder, _, filename = relative.rpartition('/')
+            row = folder.split('_', 2)[1] if folder.startswith('row_') and '_' in folder else ''
+            return f'{filename}   ·   строка {int(row)}' if row.isdecimal() else filename
+        return super().data(index, role)
+
+
+def restore_source_columns(w):
+    if not w.table:
+        w.source_widths_key = ''
+        return
+    headers = w.table.headers
+    digest = hashlib.sha256(json.dumps(headers, ensure_ascii=False).encode('utf-8')).hexdigest()
+    w.source_widths_key = ''  # Do not persist programmatic column sizing.
+    w.source_widths = load_widths('core/source/' + digest)
+    for column, title in enumerate(headers):
+        width = w.source_widths.get(column, max(144, min(320, w.source_table.fontMetrics().horizontalAdvance(title) + 30)))
+        w.source_table.setColumnWidth(column, width)
+    w.source_widths_key = 'core/source/' + digest
+
+
+def save_source_column(w, section, _old_width, width):
+    if w.source_widths_key:
+        w.source_widths[section] = width
+        save_widths(w.source_widths_key, w.source_widths)
+
 
 def build_create(w):
     page,layout=w.page()
@@ -14,8 +214,11 @@ def build_create(w):
     w.data_path=QLineEdit();w.data_path.setReadOnly(True);w.data_path.setAccessibleName('Выбранная таблица');source.addWidget(w.data_path)
     w.load_btn=w.button('Выбрать другую таблицу',w.select_data,'folder');source.addWidget(w.load_btn)
     w.stats=text('Таблица ещё не выбрана','muted');source.addWidget(w.stats)
+    w.source_issue=text('', 'error');w.source_issue.setAccessibleName('Ошибки выбранной строки');w.source_issue.hide();source.addWidget(w.source_issue)
+    w.source_widths_key='';w.source_widths={}
     w.tabs=QTabWidget();w.tabs.setMinimumHeight(180);source.addWidget(w.tabs)
-    w.source_table=DataView();w.data_model=DataModel(w);w.source_table.setModel(w.data_model);w.source_table.setAlternatingRowColors(True);w.source_table.setSelectionBehavior(DataView.SelectionBehavior.SelectRows);w.source_table.setSelectionMode(DataView.SelectionMode.SingleSelection);w.source_table.setWordWrap(False);w.source_table.horizontalHeader().setDefaultSectionSize(155);w.source_table.horizontalHeader().setMinimumSectionSize(75);w.source_table.horizontalHeader().setStretchLastSection(True);w.source_table.selectionModel().currentRowChanged.connect(w._table_row_changed);w.tabs.addTab(w.source_table,'Строки таблицы')
+    w.source_table=DataView();w.source_table.setAccessibleName('Исходные строки таблицы');w.data_model=DataModel(w);w.source_table.setModel(w.data_model);w.source_table.setAlternatingRowColors(True);w.source_table.setSelectionBehavior(DataView.SelectionBehavior.SelectRows);w.source_table.setSelectionMode(DataView.SelectionMode.SingleSelection);w.source_table.setWordWrap(False);w.source_table.horizontalHeader().setDefaultSectionSize(155);w.source_table.horizontalHeader().setMinimumSectionSize(75);w.source_table.selectionModel().currentRowChanged.connect(w._table_row_changed);w.tabs.addTab(w.source_table,'Строки таблицы')
+    w.source_table.horizontalHeader().sectionResized.connect(lambda *args: save_source_column(w, *args))
     preview=QWidget();pv=QVBoxLayout(preview);w.row_selector=QComboBox();w.record_model=RecordModel(w);w.row_selector.setModel(w.record_model);w.row_selector.setAccessibleName('Запись для предпросмотра');w.template_selector=QComboBox();w.template_selector.setAccessibleName('Шаблон для предпросмотра')
     for selector in (w.row_selector,w.template_selector):selector.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon);selector.setMinimumContentsLength(12);pv.addWidget(selector)
     w.row_selector.currentIndexChanged.connect(w.update_preview);w.template_selector.currentIndexChanged.connect(w.update_preview);pv.addWidget(text('Текст документа. Оформление проверьте в Word или другом редакторе.','muted'));w.preview_text=QTextBrowser();w.preview_text.setOpenExternalLinks(False);w.preview_text.setAccessibleName('Текстовый предпросмотр документа');pv.addWidget(w.preview_text);w.tabs.addTab(preview,'Пример документа');w.report_text=QTextBrowser();w.report_text.setOpenExternalLinks(False);w.tabs.addTab(w.report_text,'Подробности проверки');layout.addStretch()
@@ -44,7 +247,10 @@ def build_result(w):
     w.result_files=QListView()
     w.result_files.setAccessibleName('Созданные документы Word')
     w.result_files.setMinimumHeight(100)
-    w.result_files_model=QStringListModel(w.result_files)
+    w.result_files.setUniformItemSizes(True)
+    w.result_files.setEditTriggers(QListView.EditTrigger.NoEditTriggers)
+    w.result_files.setTextElideMode(Qt.TextElideMode.ElideMiddle)
+    w.result_files_model=ResultFilesModel(w.result_files)
     w.result_files.setModel(w.result_files_model)
     body.addWidget(w.result_files)
     actions=ActionBar();body.addWidget(actions)

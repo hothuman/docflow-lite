@@ -14,6 +14,85 @@ from docflow.ui.service.history import HistoryDialog
 from docflow.service.documents import KINDS
 from docflow import __version__
 
+def measure_embedded(window,ui,app,idle):
+ from docflow.ui.service.history import HistoryPage
+ from docflow.ui.service.intake import IntakeDialog
+ from docflow.ui.service.repair_editor import RepairPage
+ from PySide6.QtWidgets import QPushButton
+
+ def current(expected,trace):
+  idle()
+  page=ui.current_page
+  assert isinstance(page,expected),type(page)
+  assert page.window() is window and page.isVisible() and not page.isWindow()
+  assert app.activeModalWidget() is None
+  owned=[widget for widget in app.topLevelWidgets()
+         if widget is not window and widget.isVisible() and window.isAncestorOf(widget)]
+  assert not owned,[widget.windowTitle() for widget in owned]
+  trace.append(ui.pages.titles[-1])
+  return page
+
+ def intake(trace,new=False):
+  form=current(IntakeDialog,trace)
+  if new:
+   form.new_equipment.setChecked(True);form.new_client.setChecked(True)
+   form.name.setText('Учебный клиент');form.model.setText('Учебный аппарат');form.number.setText('DEVICE-100')
+  form.complaint.setPlainText('Учебная жалоба');form.submit.click()
+  return current(RepairPage,trace)
+
+ routes={}
+ trace=[]
+ ui.go_to_section(2)
+ ui.journal.new_button.click()
+ editor=intake(trace,new=True)
+ assert len(ui.store.repairs())==1 and ui.store.repairs()[0]['id']==editor.key
+ routes['first_intake']={'observed_dialogs':0,'embedded_pages':len(trace),'trace':trace}
+
+ trace=[]
+ editor.equipment_history()
+ history=current(HistoryPage,trace)
+ history.new_button.click()
+ repeated=intake(trace)
+ assert len(ui.store.repairs())==2 and repeated.key!=editor.key
+ assert repeated.snapshot['equipment']['id']==editor.snapshot['equipment']['id']
+ routes['repeat_intake']={'observed_dialogs':0,'embedded_pages':len(trace),'trace':trace}
+ ui.back_page()
+ current(HistoryPage,[])
+ ui.back_page()
+ assert current(RepairPage,[]) is editor
+
+ events=[]
+ editor.tabs.currentChanged.connect(lambda index:events.append('stage:'+str(index)))
+ editor.tabs.sectionChanged.connect(lambda title:events.append('section:'+title))
+ editor.tabs.show_section('Приёмка');events.clear()
+ editor.tabs.show_section('Сметы');idle()
+ assert editor.estimates.isVisible() and events
+ routes['estimate']={'navigation_changes':len(events),'trace':events[:]}
+
+ editor.tabs.show_section('Приёмка');events.clear()
+ editor.tabs.show_section('Документы')
+ wizard=editor.document_wizard
+ wizard.start('completion')
+ wizard.check_document();wizard.preview_button.click();idle()
+ assert wizard.prepared and not editor.snapshot['generated_documents']
+ ready=wizard.prepared.rendered
+ action=next(item for item in wizard.findChildren(QPushButton) if item.text()=='Продолжить к созданию' and item.isVisible())
+ action.click();wizard.generate_button.click();idle()
+ assert len(editor.snapshot['generated_documents'])==1 and wizard._last_document.read_bytes()==ready
+ routes['act']={'navigation_changes':len(events),'trace':events[:],
+                'wizard_steps':list(wizard.steps[:5]),'preview_matches_docx':True}
+ trace=[]
+ editor.equipment_history()
+ history=current(HistoryPage,trace)
+ assert history.grid.proxy.rowCount()==2
+ routes['history_after_work']={'executed_actions':1,'actions':['История аппарата'],
+                              'dialogs':[],'embedded_pages':trace}
+ ui.back_page()
+ assert current(RepairPage,[]) is editor
+ ui.back_page();idle()
+ assert ui.current_page is None
+ return routes
+
 def run(output):
  output.mkdir(parents=True);app=QApplication.instance() or QApplication([]);configure_app(app);app.setQuitOnLastWindowClosed(False)
  window=MainWindow(service_root=output/'Synthetic');window.show();window.navigate(5);ui=window.service_workspace
@@ -22,6 +101,20 @@ def run(output):
   while ui.worker or ui._pending_refresh:app.processEvents();time.sleep(.005);assert time.monotonic()<until
   app.processEvents()
  idle();modern=hasattr(ui,'start_intake');report={'version':__version__,'modern':modern,'scope':'Observed dialog openings and navigation signals; fixed routes excluding typing; no time or human UX measurement','routes':{}}
+ if hasattr(ui,'current_page'):
+  try:
+   report['embedded']=True
+   report['scope']='Observed main-window pages and navigation signals; fixed routes excluding typing; no elapsed time or human UX measurement'
+   report['routes']=measure_embedded(window,ui,app,idle)
+  finally:
+   idle()
+   # Failure may leave a synthetic unsaved form. Do not block the traceback
+   # waiting for a manual confirmation in this standalone QA runner.
+   while ui.current_page is not None:ui.pages.pop(notify=False)
+   window.close();app.processEvents()
+  (output/'ROUTES.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+  print(json.dumps(report,ensure_ascii=False))
+  return
  def perform(action,values,trace):
   seen=[];timer=QTimer()
   def observe():

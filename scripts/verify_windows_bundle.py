@@ -217,6 +217,8 @@ def verify(archive,evidence,release):
         assert service['completion']['status']=='passed'
         assert_completion_checks(service['completion']['checks'])
         assert service['refinement']['status']=='passed'
+        assert service['workspace']['status']=='passed' and service['workspace']['operational_top_level_windows']==1
+        assert len(service['workspace']['checks'])==6
         assert len(service['refinement']['checks'])==3 and all(c['passed'] for c in service['refinement']['checks'])
         layout=service['refinement']['layout']
         assert layout['status']=='passed' and len(layout['cases'])==90

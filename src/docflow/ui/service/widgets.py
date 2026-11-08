@@ -6,8 +6,8 @@ from .presentation import MONEY,display
 from ..settings import load_widths,save_widths
 class Grid(QTableView):
  openRequested=Signal()
- def __init__(self,columns,parent=None,settings_key=None,proxy_type=MoneyProxy):
-  super().__init__(parent);self.records=RowsModel(columns,self);self.proxy=proxy_type(self);self.proxy.setSourceModel(self.records);self.proxy.setSortRole(Qt.ItemDataRole.UserRole);self.proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive);self.proxy.setFilterKeyColumn(0);self.proxy.setFilterRole(Qt.ItemDataRole.UserRole+1);self.setModel(self.proxy);self.setSortingEnabled(True);self.sortByColumn(-1,Qt.SortOrder.AscendingOrder)
+ def __init__(self,columns,parent=None,settings_key=None,proxy_type=MoneyProxy,model_type=RowsModel):
+  super().__init__(parent);self.records=model_type(columns,self);self.proxy=proxy_type(self);self.proxy.setSourceModel(self.records);self.proxy.setSortRole(Qt.ItemDataRole.UserRole);self.proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive);self.proxy.setFilterKeyColumn(0);self.proxy.setFilterRole(Qt.ItemDataRole.UserRole+1);self.setModel(self.proxy);self.setSortingEnabled(True);self.sortByColumn(-1,Qt.SortOrder.AscendingOrder)
   self.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows);self.setSelectionMode(QTableView.SelectionMode.SingleSelection);self.setAlternatingRowColors(True);self.setWordWrap(False);self.setTextElideMode(Qt.TextElideMode.ElideRight);self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers);self.setMinimumHeight(100);self.setMinimumWidth(0)
   self.verticalHeader().hide();self.verticalHeader().setDefaultSectionSize(38);header=self.horizontalHeader();header.setMinimumSectionSize(48);header.setStretchLastSection(False);header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
   self._sizing=False;self._preferred={};self._user_widths={};self.settings_key=settings_key
@@ -97,12 +97,12 @@ def button(layout,title,fn,primary=False,danger=False):
  if primary:b.setObjectName('primary')
  if danger:b.setObjectName('danger')
  b.clicked.connect(fn);layout.addWidget(b);return b
-def confirm(parent, text, action='Подтвердить', title='Подтверждение'):
+def confirm(parent, text, action='Подтвердить', title='Подтверждение', *, cancel='Отмена'):
     yes, no = QMessageBox.StandardButton.Yes, QMessageBox.StandardButton.No
     dialog = QMessageBox(QMessageBox.Icon.Question, title, text, yes | no, parent)
     dialog.setTextFormat(Qt.TextFormat.PlainText)
     dialog.button(yes).setText(action)
-    dialog.button(no).setText('Отмена')
+    dialog.button(no).setText(cancel)
     dialog.setDefaultButton(no)
     dialog.setEscapeButton(no)
     return dialog.exec() == yes
