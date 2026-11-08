@@ -166,7 +166,9 @@ class ServiceWorkspace(QWidget):
         self.pages.back()
 
     def go_to_section(self,index):
-        if self.tabs.currentIndex()==index and self.current_page is None:return
+        if self.tabs.currentIndex()==index and self.current_page is None:
+            self.page_changed.emit()
+            return
         was_editing=self.current_page is not None
         def open_section():
             self.tabs.setCurrentIndex(index)
@@ -585,7 +587,9 @@ class ServiceWorkspace(QWidget):
             self.embed_form(d)
             d.finished.connect(lambda _:self.open_repair(created[0]) if created else None)
             return d
-        if d.exec()==QDialog.DialogCode.Accepted:self.run(lambda:create(d.values()),self.open_repair)
+        if d.exec()==QDialog.DialogCode.Accepted:
+            values=d.values()
+            self.run(lambda:create(values),self.open_repair)
     @needs_project
     def open_selected(self,key):
         r=self.selection(key)

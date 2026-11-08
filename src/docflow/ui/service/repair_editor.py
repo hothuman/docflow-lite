@@ -339,7 +339,8 @@ class RepairEditor:
         hints={'accepted':'Зафиксируйте жалобу и комплектацию в разделе «Приёмка».','diagnostics':'Опишите неисправности и план работ в разделе «Диагностика».','approval':'Откройте «Сметы» и внесите только фактическую отметку согласования.','parts':'Уточните запчасти и план работ. Этап меняется вручную.','repair':'Запишите выполненные работы и фактическую стоимость.','ready':'Проверьте документы, комплектацию и внутренние расчёты перед выдачей.','issued':'Сведения о выдаче и история доступны в разделе «Статус и история».','closed':'Обращение закрыто. История и документы сохранены.','cancelled':'Отказ или отмена: причина сохраняется в истории.'}
         status=s['profile']['status_labels'].get(r['status'],STATUSES[r['status']][0])
         self.status_value.setText('Статус · '+status);self.status_value.setAccessibleName('Производственный статус: '+status)
-        self.state_hint.setText(hints.get(r['status'],''))
+        hint=hints.get(r['status'],'')
+        self.state_hint.setText(hint if self.embedded else f'{status} · {hint}')
         self.state_frame.setVisible(self.embedded)
         self.payment_summary.setText('Итого '+rub(t['total'])+' · Учтено '+rub(t['paid'])+' · Остаток '+rub(t['balance'])+' · '+t['financial_status'])
         self.update_step_actions()
@@ -492,7 +493,9 @@ class RepairEditor:
             key=row['id'] if row else None;s=self.store;r=self.key
             return s.save_item(r,v,key)
         if self.embedded:return self.persist_form(d,persist)
-        if d.exec()==QDialog.DialogCode.Accepted:self.mutate(lambda:persist(d.values()))
+        if d.exec()==QDialog.DialogCode.Accepted:
+            values=d.values()
+            self.mutate(lambda:persist(values))
     def delete_item(self,kind):
         row=self.selected(kind)
         if row and confirm(self,'Удалить позицию?'):
@@ -511,7 +514,9 @@ class RepairEditor:
         request=uuid4().hex;s=self.store;r=self.key
         def persist(v):return s.add_payment(r,v['amount'],kind or v['kind'],v['method'],v['occurred_at'],v['comment'],request)
         if self.embedded:return self.persist_form(d,persist)
-        if d.exec()==QDialog.DialogCode.Accepted:self.mutate(lambda:persist(d.values()))
+        if d.exec()==QDialog.DialogCode.Accepted:
+            values=d.values()
+            self.mutate(lambda:persist(values))
     def financial_evidence(self):
         t=self.snapshot['totals']
         d=FieldsDialog('Полнота исторических расчётов',[
@@ -523,7 +528,9 @@ class RepairEditor:
         revision=self.revision
         def persist(v):return self.store.set_financial_evidence(self.key,v['cost']=='known',v['paid']=='known',v['reason'],expected_revision=revision)
         if self.embedded:return self.persist_form(d,persist)
-        if d.exec()==QDialog.DialogCode.Accepted:self.mutate(lambda:persist(d.values()))
+        if d.exec()==QDialog.DialogCode.Accepted:
+            values=d.values()
+            self.mutate(lambda:persist(values))
 
     def persist_form(self,form,write):
         result=[]
