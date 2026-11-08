@@ -127,6 +127,14 @@ def exercise(app, output):
         form({'actor':'Учебный сотрудник','reason':'Проверочный финальный расчёт'})
         quotes = page.snapshot['estimates']
         assert len(quotes)==1 and quotes[0]['total']==185000
+        app.processEvents()
+        viewport=page.body_scroll.viewport()
+        estimate_y=page.estimates.summary.mapTo(viewport,page.estimates.summary.rect().bottomLeft()).y()
+        assert 0<estimate_y<viewport.height(),(estimate_y,viewport.height())
+        versions=page.estimates.grid
+        first_row=versions.visualRect(versions.proxy.index(0,0))
+        row_center=versions.viewport().mapTo(viewport,first_row.center())
+        assert viewport.rect().contains(row_center),(row_center,viewport.size())
         shot('03-estimate')
         page.tabs.show_section('Финансы')
         page.payment('payment')

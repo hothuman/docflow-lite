@@ -32,7 +32,10 @@ class RepairEditor:
         outer.addWidget(self.overview)
         passport=QFrame();passport.setObjectName('card');passport_layout=QVBoxLayout(passport);passport_layout.setContentsMargins(12,8,12,8)
         self.identity=QLabel();self.identity.setWordWrap(True);self.heading=text('','section');passport_layout.addWidget(self.heading);passport_layout.addWidget(self.identity)
-        if self.embedded:self.heading.hide()
+        if self.embedded:
+            self.heading.hide()
+            self.compact_status=text('','repairStatus')
+            passport_layout.addWidget(self.compact_status)
         number_bar=FlowLayout();passport_layout.addLayout(number_bar)
 
         self.repair_number=QLineEdit();self.repair_number.setReadOnly(True);self.repair_number.setAccessibleName('№ ремонта');self.repair_number.setMaximumWidth(160);self.repair_number.hide()
@@ -43,6 +46,10 @@ class RepairEditor:
         button(number_bar,'История аппарата',self.equipment_history)
         from PySide6.QtWidgets import QMenu,QPushButton
         more=QPushButton('Дополнительно');menu=QMenu(more);menu.addAction('Изменить № ремонта',lambda:self.with_saved(self.change_number));menu.addAction('Первоисточник',self.show_source);more.setMenu(menu);number_bar.addWidget(more)
+        if self.embedded:
+            menu.addAction('Изменить статус',self.open_status)
+            menu.addAction('История статусов',self.show_status_history)
+            menu.addAction('Что уже заполнено',lambda:self.tabs.show_section('Приёмка'))
         self.summary=QLabel();self.summary.setWordWrap(True);self.summary.setObjectName('muted');passport_layout.insertWidget(2,self.summary);self.overview_layout.addWidget(passport)
         self.finance_strip=QWidget();finance=QHBoxLayout(self.finance_strip);finance.setContentsMargins(0,0,0,0);finance.setSpacing(12);self.finance_values={}
         for key,title in [('total','Стоимость ремонта'),('paid','Учтено оплат'),('balance','Остаток')]:
@@ -58,6 +65,7 @@ class RepairEditor:
         self.tabs=RepairNavigation(self,embedded=self.embedded);self.tabs.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Preferred);self.tabs.setMinimumHeight(0);root_layout.insertWidget(0,self.tabs.stage_bar)
         if self.embedded:
             checklist=QFrame();checklist.setObjectName('card');steps=QVBoxLayout(checklist);steps.addWidget(text('Что уже заполнено','section'));choices=FlowLayout();steps.addLayout(choices)
+            self.checklist=checklist
             self.checks={}
             for section,name in (('Приёмка','Приёмка'),('Дефектовка','Диагностика'),('Согласование','Согласование'),('Сметы','Смета'),('Работы','Работы'),('Документы','Документы'),('Статус и история','Выдача')):
                 self.checks[section]=(name,button(choices,name,lambda _,section=section:self.tabs.show_section(section)))
@@ -169,6 +177,10 @@ class RepairEditor:
         stage=self.tabs.currentIndex();terminal=self.snapshot['repair']['status'] in ('issued','closed','cancelled','historical')
         label=('Диагностика →','Смета →','Работы →','К выдаче →','Документы' if terminal else 'Выдать аппарат')[stage]
         if self.embedded:
+            overview=stage==0
+            self.compact_status.setVisible(not overview)
+            self.state_frame.setVisible(overview)
+            self.checklist.setVisible(overview)
             label=('Продолжить · Диагностика','Продолжить · Смета','Продолжить · Работы','Продолжить · Выдача',
                    'Документы' if self.tabs.is_section('Статус и история') else 'Подготовка к выдаче')[stage]
         self.next_button.setText(label);self.next_button.setAccessibleName(label)
@@ -339,9 +351,12 @@ class RepairEditor:
         hints={'accepted':'Зафиксируйте жалобу и комплектацию в разделе «Приёмка».','diagnostics':'Опишите неисправности и план работ в разделе «Диагностика».','approval':'Откройте «Сметы» и внесите только фактическую отметку согласования.','parts':'Уточните запчасти и план работ. Этап меняется вручную.','repair':'Запишите выполненные работы и фактическую стоимость.','ready':'Проверьте документы, комплектацию и внутренние расчёты перед выдачей.','issued':'Сведения о выдаче и история доступны в разделе «Статус и история».','closed':'Обращение закрыто. История и документы сохранены.','cancelled':'Отказ или отмена: причина сохраняется в истории.'}
         status=s['profile']['status_labels'].get(r['status'],STATUSES[r['status']][0])
         self.status_value.setText('Статус · '+status);self.status_value.setAccessibleName('Производственный статус: '+status)
+        if self.embedded:
+            self.compact_status.setText(self.status_value.text())
+            self.compact_status.setAccessibleName(self.status_value.accessibleName())
         hint=hints.get(r['status'],'')
         self.state_hint.setText(hint if self.embedded else f'{status} · {hint}')
-        self.state_frame.setVisible(self.embedded)
+        if not self.embedded:self.state_frame.hide()
         self.payment_summary.setText('Итого '+rub(t['total'])+' · Учтено '+rub(t['paid'])+' · Остаток '+rub(t['balance'])+' · '+t['financial_status'])
         self.update_step_actions()
         self.issue_button.setEnabled(r['status'] not in ('issued','closed','cancelled') and (not self.embedded or r['status']!='historical'))

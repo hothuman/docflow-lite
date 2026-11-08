@@ -219,7 +219,7 @@ class EstimatesPanel(QWidget):
     def build_workspace(self,layout):
         layout.setContentsMargins(0,0,0,0)
         overview=QFrame();overview.setObjectName('card');overview_layout=QVBoxLayout(overview)
-        overview_layout.setContentsMargins(12,10,12,10);overview_layout.setSpacing(5)
+        overview_layout.setContentsMargins(12,6,12,6);overview_layout.setSpacing(3)
         self.summary=text('','section');overview_layout.addWidget(self.summary)
         overview_layout.addWidget(text('Предварительная смета описывает план. Долг рассчитывается по фактическим расходам и учтённым оплатам.','muted'))
         layout.addWidget(overview)
@@ -232,10 +232,11 @@ class EstimatesPanel(QWidget):
         self.freeze_preliminary=button(bar,'Сохранить предварительную версию',lambda:self.editor.with_saved(lambda:self.freeze('preliminary')))
         self.freeze_actual=button(bar,'Сохранить окончательную версию',lambda:self.editor.with_saved(lambda:self.freeze('final')),primary=True)
         self.version_panel=QWidget();versions=QVBoxLayout(self.version_panel);versions.setContentsMargins(0,0,0,0);layout.addWidget(self.version_panel)
-        self.version_hint=text('Выберите версию, чтобы увидеть её исходный состав. Версии сохраняются без изменений.','muted');versions.addWidget(self.version_hint)
+        self.version_hint=text('Выберите версию, чтобы увидеть её исходный состав. Версии сохраняются без изменений.','muted')
         self.grid=Grid([('kind','Смета'),('version','№'),('created_at','Дата'),('prepared_by','Автор'),('state_label','Состояние'),('total','Итог')],
                        settings_key='repair/quote-versions')
         self.grid.setAccessibleName('Сохранённые версии сметы');versions.addWidget(self.grid)
+        versions.addWidget(self.version_hint)
         self.grid.selectionModel().currentRowChanged.connect(self.show_content)
         version_actions=FlowLayout();versions.addLayout(version_actions)
         self.version_buttons=[
