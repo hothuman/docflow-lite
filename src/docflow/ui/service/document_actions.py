@@ -6,7 +6,7 @@ from threading import Event
 
 from docx import Document
 from docx.text.paragraph import Paragraph
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QLineEdit, QMessageBox, QPlainTextEdit,
                                QSizePolicy, QStackedWidget, QVBoxLayout, QWidget)
@@ -411,6 +411,7 @@ class ServiceDocumentWizard(QWidget):
             self.confirm_text.setText(KINDS[kind] + f" · ремонт № {self.snapshot['repair']['number']}")
             self._show(2)
             self.preview_text.setFocus()
+            QTimer.singleShot(0, self, self._reveal_preview_action)
 
         def cancel():
             cancelled.set()
@@ -427,6 +428,10 @@ class ServiceDocumentWizard(QWidget):
         self._notice('Готовлю предпросмотр…')
         self.workspace.run(work, done, 'Готовлю документ для проверки…', on_error=failed,
                            inline_error=True, cancel=cancel)
+
+    def _reveal_preview_action(self):
+        if self.preview_continue.isVisible():
+            self.editor.body_scroll.ensureWidgetVisible(self.preview_continue, 6, 6)
 
     def open_preview(self):
         if not self.prepared:
