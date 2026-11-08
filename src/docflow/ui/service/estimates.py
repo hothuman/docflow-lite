@@ -356,8 +356,20 @@ class EstimatesPanel(QWidget):
         for position,estimate in enumerate(self.grid.records.rows):
             if estimate['id']==key:
                 proxy=self.grid.proxy.mapFromSource(self.grid.records.index(position,0))
-                if proxy.isValid():self.grid.selectRow(proxy.row())
+                if proxy.isValid():
+                    self.grid.selectRow(proxy.row())
+                    QTimer.singleShot(0,self,self.reveal_selected_version)
                 return
+
+    def reveal_selected_version(self):
+        if self.editor.workspace.current_page is not self.editor or not self.editor.tabs.is_section('Сметы'):
+            return
+        index=self.grid.currentIndex()
+        if not index.isValid():return
+        scroll=self.editor.body_scroll
+        row=self.grid.visualRect(index)
+        point=self.grid.viewport().mapTo(scroll.widget(),row.center())
+        scroll.ensureVisible(point.x(),point.y(),0,row.height()//2)
     def selected(self):
         q=self.grid.selected()
         if not q:QMessageBox.information(self,'Сметы','Выберите версию сметы')
