@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QApplication,QMessageBox,QPlainTextEdit
 from docflow.gui import MainWindow,configure_app
 from docflow.service.demo import seed_demo
 from docflow.service.estimates import normalize_lines
-from docflow.ui.service.repair_editor import RepairDialog
+from docflow.ui.service.repair_editor import RepairDialog,RepairPage
 from docflow.ui.service.estimates import DraftDialog
 from docflow.ui.service.widgets import Grid
 
@@ -23,12 +23,10 @@ def ui(tmp_path,monkeypatch):
 
 def test_dashboard_values_and_actual_row_open(ui):
  app,w,sui,ids,messages=ui;d=sui.dashboard;data=sui.store.dashboard();assert d.values['equipment'].text()==str(data['equipment']);assert d.values['active'].text()==str(data['active']);assert d.recent.proxy.rowCount()==len(data['recent_repairs']);assert not d.findChildren(QPlainTextEdit)
- captured=[];timer=QTimer()
- def capture():
-  dialog=app.activeModalWidget()
-  if isinstance(dialog,RepairDialog):captured.append(dialog.key);dialog.accept()
- timer.timeout.connect(capture);timer.start(2);index=d.recent.proxy.index(0,0);target=d.recent.records.rows[d.recent.proxy.mapToSource(index).row()]['id']
- QTest.mouseClick(d.recent.viewport(),Qt.MouseButton.LeftButton,pos=d.recent.visualRect(index).center());idle(app,sui);timer.stop();assert captured and captured[0]==target
+ index=d.recent.proxy.index(0,0);target=d.recent.records.rows[d.recent.proxy.mapToSource(index).row()]['id']
+ QTest.mouseClick(d.recent.viewport(),Qt.MouseButton.LeftButton,pos=d.recent.visualRect(index).center());idle(app,sui)
+ assert isinstance(sui.current_page,RepairPage) and sui.current_page.key==target and sui.current_page.window() is w
+ sui.back_page();idle(app,sui)
  sui.find_equipment();app.processEvents();assert sui.searches['equipment'].hasFocus();QTest.keyClicks(sui.searches['equipment'],'DEMO-001');assert sui.views['equipment'].proxy.rowCount()==1;assert not messages
 
 def test_real_dialog_shared_light_paint_and_three_groups(ui):

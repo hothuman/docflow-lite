@@ -25,13 +25,15 @@ class TemplateFieldsDialog(QDialog):
             if variable in FIELDS:combo.setEnabled(False);combo.setToolTip('Стандартное поле программы сохраняет своё значение')
             form.addRow('{{'+variable+'}}',combo);self.mapping_widgets[variable]=combo
             check=QCheckBox('Обязательно заполнить');check.setAccessibleName('Обязательное поле '+variable);check.setChecked(variable in required);form.addRow('',check);self.required_widgets[variable]=check
-        self.error=QLabel();self.error.setWordWrap(True);self.error.setTextFormat(Qt.TextFormat.PlainText);outer.addWidget(self.error)
+        self.error=QLabel();self.error.setObjectName('formError');self.error.setWordWrap(True);self.error.setTextFormat(Qt.TextFormat.PlainText);self.error.hide();outer.addWidget(self.error)
         actions=FlowLayout();outer.addLayout(actions);button(actions,'Сохранить поля',self.accept,primary=True);button(actions,'Отмена',self.reject)
     def values(self):
         return ({key:w.currentData() for key,w in self.mapping_widgets.items() if w.currentData() is not None},[key for key,w in self.required_widgets.items() if w.isChecked()])
     def accept(self):
         missing=[key for key,w in self.mapping_widgets.items() if w.currentData() is None]
-        if missing:self.error.setText('Выберите источник или «Оставить пустым»: '+', '.join(missing));return
+        if missing:
+            self.error.setText('Выберите источник или «Оставить пустым»: '+', '.join(missing));self.error.show()
+            self.mapping_widgets[missing[0]].setFocus();return
         super().accept()
 
 
@@ -39,9 +41,11 @@ def configure_template(workspace,parent,path,kind,profile,callback):
     """Validate bytes on the existing worker, then ask only about field choices."""
     def loaded(template):
         dialog=TemplateFieldsDialog(template.fields,profile,kind,parent)
-        if dialog.exec()!=QDialog.DialogCode.Accepted:return
-        aliases,required=dialog.values()
-        updated={**profile,'template_field_mapping':{**profile.get('template_field_mapping',{}),kind:aliases},
-                 'template_required_fields':{**profile.get('template_required_fields',{}),kind:required}}
-        callback(updated)
+        def apply(values):
+            aliases,required=values
+            updated={**profile,'template_field_mapping':{**profile.get('template_field_mapping',{}),kind:aliases},
+                     'template_required_fields':{**profile.get('template_required_fields',{}),kind:required}}
+            callback(updated)
+        if isinstance(parent,QDialog) and not parent.isWindow():workspace.embed_form(dialog,apply)
+        elif dialog.exec()==QDialog.DialogCode.Accepted:apply(dialog.values())
     return workspace.run(lambda:Template.load(path),loaded,'Проверяю Word-шаблон перед настройкой полей…')

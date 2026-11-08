@@ -241,11 +241,19 @@ def test_recovery_buttons_work_with_no_store(app,tmp_path,monkeypatch,action):
         if action=='new':workspace.new_project_button.click()
         else:
             from docflow.service.backup import create_backup
+            from docflow.ui.service import backup_pages
             store=ServiceStore(tmp_path/'backup-source');store.save_client({'name':'Synthetic restored'})
             archive=create_backup(store,tmp_path/'synthetic.zip')
             monkeypatch.setattr(module.QFileDialog,'getOpenFileName',lambda *args:(str(archive),''))
-            monkeypatch.setattr(module,'confirm',lambda *args:True)
+            monkeypatch.setattr(backup_pages,'confirm',lambda *args,**kwargs:True)
             workspace.restore_project_button.click()
+            restore=workspace.current_page
+            assert isinstance(restore,backup_pages.RestoreBackupPage)
+            restore.choose_archive()
+            restore.check();idle(app,workspace)
+            assert restore.checked
+            restore.choose_folder()
+            restore.restore()
         idle(app,workspace)
         assert workspace.project_state=='opened' and workspace.store.root.parent==parent
         if action=='restore':assert workspace.store.clients()[0]['name']=='Synthetic restored'

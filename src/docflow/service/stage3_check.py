@@ -23,10 +23,16 @@ def exercise(ui,app,output,idle):
     dialog=CatalogDialog(ui);ui.dialogs.append(dialog);dialog.tabs.setCurrentIndex(1);dialog.show();app.processEvents();dialog.path=str(path);dialog.source.setText('Synthetic');dialog.read();idle(ui)
     assert dialog.parsed['rows'][0][1]['external_id']=='001';dialog.preview();assert dialog.plan.counts=={'new':1};assert dialog.apply_button.isEnabled()
     dialog.import_scroll.ensureWidgetVisible(dialog.preview_grid);app.processEvents();dialog.grab().save(str(output/'import-preview.png'))
-    question=QMessageBox.question;QMessageBox.question=lambda *args:QMessageBox.StandardButton.Yes
+    def accept_import():
+        modal=app.activeModalWidget()
+        if isinstance(modal,QMessageBox):
+            modal.button(QMessageBox.StandardButton.Yes).click()
+    approval=QTimer()
+    approval.timeout.connect(accept_import)
+    approval.start(20)
     try:
         dialog.apply();idle(ui);dialog.preview();assert dialog.plan.counts=={'unchanged':1};dialog.apply();idle(ui)
-    finally:QMessageBox.question=question
+    finally:approval.stop()
     assert len(api.search(ui.store))==1;checks.append('file_preview_apply_replay')
     config=dialog.config();api.save_profile(ui.store,'Synthetic',config)
     cases=[]

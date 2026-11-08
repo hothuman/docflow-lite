@@ -31,7 +31,9 @@ class ProfileDialog(QDialog):
         for control in self.selection_tools:control.setEnabled(self.grid.selected() is not None)
     def setup(self):
         from .organization_setup import OrganizationWizard
-        self.workspace.modal(OrganizationWizard(self.workspace));self.refresh()
+        wizard=OrganizationWizard(self.workspace)
+        if not self.isWindow():return self.workspace.embed_form(wizard,on_close=self.refresh)
+        self.workspace.modal(wizard);self.refresh()
     def edit(self,existing=False):
         row=self.grid.selected() if existing else None
         if existing and not row:return
@@ -39,9 +41,16 @@ class ProfileDialog(QDialog):
         fields += [('status_'+k,'Название статуса «'+v[0]+'»','text') for k,v in STATUSES.items()]
         data=dict(row or NEUTRAL);data.update({'status_'+k:data.get('status_labels',{}).get(k,v[0]) for k,v in STATUSES.items()})
         d=FieldsDialog('Профиль организации',fields,data,self)
+        store=self.workspace.store
+        def save(values):
+            values['status_labels']={k:values.pop('status_'+k) for k in STATUSES}
+            return save_profile(store,{**data,**values},row['id'] if row else None)
+        if not self.isWindow():
+            d.persist_with(self.workspace,save)
+            return self.workspace.embed_form(d,on_close=self.refresh)
         if d.exec()==QDialog.DialogCode.Accepted:
-            values=d.values();values['status_labels']={k:values.pop('status_'+k) for k in STATUSES};values={**data,**values};s=self.workspace.store
-            self.workspace.run(lambda:save_profile(s,values,row['id'] if row else None),lambda _:self.refresh())
+            values=d.values()
+            self.workspace.run(lambda:save(values),lambda _:self.refresh())
     def activate(self,neutral=False):
         row=self.grid.selected()
         if neutral or row:self.workspace.run(lambda:activate_profile(self.workspace.store,None if neutral else row['id']),lambda _:self.refresh())
@@ -49,8 +58,10 @@ class ProfileDialog(QDialog):
         row=self.grid.selected()
         if not row:return
         d=FieldsDialog('Назначение шаблона',[('kind','Вид документа',list(KINDS.items()))],parent=self)
-        if d.exec()!=QDialog.DialogCode.Accepted:return
-        kind=d.values()['kind']
+        if not self.isWindow():return self.workspace.embed_form(d,lambda values:self._assign_template(row,existing,values['kind']))
+        if d.exec()==QDialog.DialogCode.Accepted:self._assign_template(row,existing,d.values()['kind'])
+
+    def _assign_template(self,row,existing,kind):
         if existing:
             from ...service.attachments import safe_path
             relative=row.get('template_paths',{}).get(kind)

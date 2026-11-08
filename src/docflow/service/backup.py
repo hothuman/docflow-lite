@@ -104,41 +104,67 @@ def create_backup(store,destination):
             raise
         finally:temporary.unlink(missing_ok=True)
 
-def restore_backup(archive,destination):
-    archive=Path(archive);destination=Path(destination).absolute()
-    if destination.exists():raise ServiceError('Восстановление разрешено только в новую папку; текущую базу не заменяем')
+def _extract_backup(z, stage):
+    infos=z.infolist()
+    names=[x.filename for x in infos]
+    if len(infos)>20000 or len(names)!=len(set(names)) or sum(x.file_size for x in infos)>MAX_BACKUP:raise ServiceError('Превышены лимиты или повторяются имена резервной копии')
+    if 'manifest.json' not in names or z.getinfo('manifest.json').file_size>5*1024*1024:raise ServiceError('Нет допустимого манифеста')
+    manifest=json.loads(z.read('manifest.json'))
+    if manifest.get('format')!='docflow-service-backup-1' or manifest.get('schema')>SCHEMA_VERSION:raise ServiceError('Неизвестный формат или новая версия базы')
+    files=manifest['files']
+    if set(names)!=(set(files)|{'manifest.json'}) or 'service.db' not in files:raise ServiceError('Состав архива не совпадает с манифестом')
+    for info in infos:
+        safe_path(stage,info.filename)
+        if info.filename=='manifest.json':continue
+        if (info.external_attr>>16)&0o170000==0o120000:raise ServiceError('Ссылка в архиве запрещена')
+        name=info.filename
+        if name!='service.db' and not name.startswith(('attachments/','generated/','templates/','profiles/')):raise ServiceError('Непредусмотренный файл в архиве')
+        target=safe_path(stage,name);target.parent.mkdir(parents=True,exist_ok=True)
+        h=hashlib.sha256();size=0
+        with z.open(info) as src,target.open('xb') as dst:
+            for part in iter(lambda:src.read(1024*1024),b''):
+                size+=len(part)
+                if size>info.file_size:raise ServiceError('Повреждённое вложение')
+                h.update(part);dst.write(part)
+        if size!=files[name]['size'] or h.hexdigest()!=files[name]['sha256']:raise ServiceError('Контрольная сумма резервной копии не совпала')
+    return manifest
+
+
+def inspect_backup(archive):
+    """Verify the archive and its database in a disposable directory."""
+    return _read_backup(archive)
+
+
+def restore_backup(archive, destination, *, expected_sha256=None):
+    return _read_backup(archive, Path(destination).absolute(), expected_sha256)
+
+
+def _read_backup(archive, destination=None, expected_sha256=None):
+    archive=Path(archive)
+    if destination is not None and destination.exists():
+        raise ServiceError('Восстановление разрешено только в новую папку; текущую базу не заменяем')
     if archive.is_symlink() or archive.stat().st_size>MAX_BACKUP:raise ServiceError('Недопустимый размер резервной копии')
-    destination.parent.mkdir(parents=True,exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix='.docflow-restore-',dir=destination.parent) as temp:
+    parent=destination.parent if destination is not None else None
+    if parent is not None:
+        parent.mkdir(parents=True,exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='.docflow-restore-',dir=parent) as temp:
         stage=Path(temp)
         try:
-            with zipfile.ZipFile(archive) as z:
-                infos=z.infolist();names=[x.filename for x in infos]
-                if len(infos)>20000 or len(names)!=len(set(names)) or sum(x.file_size for x in infos)>MAX_BACKUP:raise ServiceError('Превышены лимиты или повторяются имена резервной копии')
-                if 'manifest.json' not in names or z.getinfo('manifest.json').file_size>5*1024*1024:raise ServiceError('Нет допустимого манифеста')
-                manifest=json.loads(z.read('manifest.json'))
-                if manifest.get('format')!='docflow-service-backup-1' or manifest.get('schema')>SCHEMA_VERSION:raise ServiceError('Неизвестный формат или новая версия базы')
-                files=manifest['files']
-                if set(names)!=(set(files)|{'manifest.json'}) or 'service.db' not in files:raise ServiceError('Состав архива не совпадает с манифестом')
-                for info in infos:
-                    safe_path(stage,info.filename)
-                    if info.filename=='manifest.json':continue
-                    if (info.external_attr>>16)&0o170000==0o120000:raise ServiceError('Ссылка в архиве запрещена')
-                    name=info.filename
-                    if name!='service.db' and not name.startswith(('attachments/','generated/','templates/','profiles/')):raise ServiceError('Непредусмотренный файл в архиве')
-                    target=safe_path(stage,name);target.parent.mkdir(parents=True,exist_ok=True)
-                    h=hashlib.sha256();size=0
-                    with z.open(info) as src,target.open('xb') as dst:
-                        for part in iter(lambda:src.read(1024*1024),b''):
-                            size+=len(part)
-                            if size>info.file_size:raise ServiceError('Повреждённое вложение')
-                            h.update(part);dst.write(part)
-                    if size!=files[name]['size'] or h.hexdigest()!=files[name]['sha256']:raise ServiceError('Контрольная сумма резервной копии не совпала')
+            with archive.open('rb') as source:
+                if destination is None or expected_sha256 is not None:
+                    archive_sha256=hashlib.file_digest(source, 'sha256').hexdigest()
+                    if expected_sha256 is not None and archive_sha256!=expected_sha256:
+                        raise ServiceError('Архив изменился после проверки. Выберите и проверьте его заново.')
+                    source.seek(0)
+                with zipfile.ZipFile(source) as z:
+                    manifest=_extract_backup(z, stage)
             with closing(sqlite3.connect((stage/'service.db').as_uri()+'?mode=ro',uri=True)) as c:
                 source_version=c.execute('PRAGMA user_version').fetchone()[0]
                 if source_version!=manifest['schema']:
                     raise ServiceError('Версия базы не совпадает с манифестом резервной копии')
             _check_tree(stage)
+            if destination is None:
+                return {'schema':source_version, 'files':len(manifest['files']), 'sha256':archive_sha256}
             if source_version<SCHEMA_VERSION:
                 # Migrate only after the original schema, checksums and links passed.
                 # Database keeps a pre-migration SQLite copy; original ZIP is unchanged.

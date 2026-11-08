@@ -7,7 +7,7 @@ from ...service import catalog as api
 from ...service.catalog_loader import parse_file
 from ...service.validation import ServiceError,rub
 from .forms import fit_dialog,FieldsDialog
-from .widgets import Grid,button
+from .widgets import Grid,button,confirm
 from ..flow import FlowLayout
 
 STATES={'new':'Новая','update':'Обновление','unchanged':'Без изменений','conflict':'Конфликт','error':'Ошибка'}
@@ -94,7 +94,7 @@ class CatalogDialog(QDialog):
         dialog=QDialog(self);dialog.setWindowTitle('Проверить переносимые значения');fit_dialog(dialog,650,550);layout=QVBoxLayout(dialog);area=QPlainTextEdit();area.setReadOnly(True);area.setPlainText('\n'.join(lines));layout.addWidget(area);button(layout,'Закрыть',dialog.accept);dialog.exec()
     def apply(self):
         if not self.plan:return
-        if QMessageBox.question(self,'Подтвердить импорт',self.summary.text()+'\nПрименить эти изменения? Проблемные строки пропускаются только при явном выборе.')!=QMessageBox.StandardButton.Yes:return
+        if not confirm(self,self.summary.text()+'\nПроблемные строки пропускаются только при явном выборе.','Применить импорт','Подтвердить импорт'):return
         plan=self.plan;skip=self.skip.isChecked()
         def done(report):self.report.setPlainText('Импорт: '+plan.file_name+'\nИсточник: '+plan.source+'\nSHA256: '+plan.file_sha256+'\n'+'\n'.join(f'{STATES[k]}: {v}' for k,v in report['counts'].items())+'\nЯвно пропущено: '+str(report['skipped']));self.invalidate();self.summary.setText('Импорт завершён. Отчёт сохранён в проекте, сметы не изменены.');self.refresh()
         self.work(lambda cancel:api.apply(self.store,plan,confirmed=True,skip_problems=skip,cancel=cancel),done,'Применяю каталог…')

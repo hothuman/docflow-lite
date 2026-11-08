@@ -4,7 +4,7 @@ import os,sys
 from PySide6.QtGui import QFontDatabase,QPalette,QColor
 from functools import lru_cache
 from PySide6.QtWidgets import QApplication
-COLORS={'background': '#081C20', 'rail': '#0B2226', 'surface': '#102B2F', 'raised': '#17363A', 'input': '#0B2226', 'table': '#102B2F', 'alternate': '#123035', 'border': '#3C5B59', 'text': '#E5EEE5', 'muted': '#A7BDB5', 'accent': '#C2EF92', 'accentText': '#12241A', 'accentHover': '#D2F5AE', 'focus': '#EFBF73', 'error': '#FFABA0', 'success': '#A9E4BB', 'warning': '#EFBF73', 'info': '#A9D8DA', 'selection': '#284C43', 'disabled': '#829B93'}
+COLORS={'background': '#081C20', 'rail': '#0B2226', 'surface': '#102B2F', 'raised': '#17363A', 'input': '#0B2226', 'table': '#102B2F', 'alternate': '#123035', 'border': '#3C5B59', 'text': '#E5EEE5', 'muted': '#A7BDB5', 'accent': '#C2EF92', 'accentText': '#12241A', 'accentHover': '#D2F5AE', 'focus': '#EFBF73', 'error': '#FFABA0', 'success': '#A9E4BB', 'warning': '#EFBF73', 'info': '#A9D8DA', 'selection': '#284C43', 'journalSelection': '#325C50', 'disabled': '#829B93'}
 @lru_cache(maxsize=1)
 def stylesheet():
  result=Path(__file__).with_name('theme.qss').read_text(encoding='utf-8')

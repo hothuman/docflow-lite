@@ -1,8 +1,210 @@
-"""Four document steps, with source/preview hidden until data exists."""
+"""Core document steps and the in-window data review."""
+import hashlib
+from html import escape
+import json
+from math import ceil
 from pathlib import Path
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QFrame,QVBoxLayout,QHBoxLayout,QTabWidget,QWidget,QComboBox,QTextBrowser,QLineEdit,QCheckBox,QProgressBar)
+
+from PySide6.QtCore import QModelIndex, QStringListModel, Qt
+from PySide6.QtWidgets import (QFrame,QVBoxLayout,QTabWidget,QWidget,QComboBox,QTextBrowser,QLineEdit,QCheckBox,QProgressBar,QListView)
 from .widgets import card,text,DataView,DataModel,RecordModel
+from .flow import ActionBar
+from .settings import load_widths, save_widths
+from .theme import COLORS
+from ..safety import safe_name
+
+
+def issue_text(issue, mapping):
+    column = mapping.get(issue.field)
+    field = f'{column} ({issue.field})' if column and column != issue.field else issue.field or 'Документ'
+    return f'Строка {issue.row} · {field}: {issue.message}'
+
+
+def issue_summary(issues, mapping, *, limit=50):
+    lines = [issue_text(issue, mapping) for issue in issues[:limit]]
+    if len(issues) > limit:
+        lines.append(f'И ещё замечаний: {len(issues) - limit}. Полный список доступен в отчёте.')
+    return '\n'.join(lines)
+
+
+class ValidationPanel(QFrame):
+    """One review surface for mapping problems and per-record validation."""
+
+    page_size = 30
+
+    def __init__(self, window):
+        super().__init__()
+        self.window = window
+        self.setObjectName('coreValidation')
+        self.setAccessibleName('Результаты проверки данных')
+        self.signature = None
+        self.mode = ''
+        self.issues = ()
+        self.mapping = {}
+        self.offset = 0
+        self.missing = ()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(13, 10, 13, 10)
+        layout.setSpacing(7)
+        self.heading = text('', 'section')
+        layout.addWidget(self.heading)
+        self.report = QTextBrowser()
+        self.report.setAccessibleName('Результаты проверки всех строк')
+        self.report.setOpenExternalLinks(False)
+        self.report.setOpenLinks(False)
+        self.report.setFixedHeight(82)
+        self.report.document().documentLayout().documentSizeChanged.connect(
+            lambda size: self.report.setFixedHeight(max(70, min(154, ceil(size.height()) + 8))))
+        self.report.anchorClicked.connect(self._open_link)
+        layout.addWidget(self.report)
+        actions = ActionBar()
+        self.first = window.button('К первой ошибке', self._first_issue)
+        self.previous = window.button('Предыдущие ошибки', lambda: self._change_page(-1))
+        self.following = window.button('Следующие ошибки', lambda: self._change_page(1))
+        for button in (self.first, self.previous, self.following):
+            actions.addWidget(button)
+        layout.addWidget(actions)
+        self.hide()
+
+    def _appearance(self, severity):
+        self.setProperty('severity', severity)
+        self.setAccessibleDescription(self.heading.text())
+        self.heading.setObjectName('error' if severity == 'error' else 'section')
+        for widget in (self, self.heading):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+        self.show()
+
+    def sync_context(self, signature, valid, message):
+        if signature != self.signature:
+            self.signature = signature
+            self.mode = ''
+            self.issues = ()
+            self.mapping = {}
+            self.window.data_model.set_issues((), {})
+            self.window.source_issue.hide()
+            self.hide()
+        if self.mode in ('rows', 'operation'):
+            return
+        if not valid and self.window.table and self.window.active_templates():
+            missing = tuple(row for row in range(self.window.mapping_table.rowCount())
+                            if not self.window.mapping_table.cellWidget(row, 1).currentText())
+            if self.mode == 'mapping' and self.missing == missing and self.report.toPlainText() == message:
+                return
+            self.mode, self.missing = 'mapping', missing
+            self.heading.setText(f'⚠ Проверьте сопоставление · полей без столбца: {len(missing)}')
+            self.report.setPlainText(message)
+            self.report.show()
+            self.first.setVisible(bool(missing))
+            self.first.setText('К первому полю без столбца')
+            self.first.setAccessibleName(self.first.text())
+            self.first.setAccessibleDescription('Выбрать столбец для указанного поля')
+            self.previous.hide()
+            self.following.hide()
+            self._appearance('error')
+
+    def set_error(self, message, signature):
+        self.signature, self.mode = signature, 'operation'
+        self.heading.setText('⚠ Не удалось выполнить действие')
+        self.report.setPlainText(message)
+        self.report.show()
+        self.first.hide()
+        self.previous.hide()
+        self.following.hide()
+        self._appearance('error')
+
+    def set_results(self, signature, issues, mapping, total, rejected):
+        self.signature, self.mode = signature, 'rows'
+        self.issues, self.mapping, self.offset = tuple(issues), mapping, 0
+        self.window.data_model.set_issues(issues, mapping)
+        self.window.update_source_issue()
+        if issues:
+            self.heading.setText(f'⚠ Найдены ошибки · готовых строк: {total - rejected} из {total} · будут пропущены: {rejected}')
+            self.first.setText('К первой ошибке')
+            self.first.setAccessibleName(self.first.text())
+            self.first.setAccessibleDescription(issue_text(self.issues[0], mapping))
+            self.first.show()
+            self.report.show()
+            self._show_issue_page()
+            self._appearance('error')
+        else:
+            self.heading.setText(f'✓ Проверка завершена · готовых строк: {total} из {total}')
+            self.report.setPlainText('Ошибок данных не обнаружено')
+            self.report.hide()
+            self.first.hide()
+            self.previous.hide()
+            self.following.hide()
+            self._appearance('success')
+
+    def _show_issue_page(self):
+        stop = min(self.offset + self.page_size, len(self.issues))
+        links = [f'<li><a style="color:{COLORS["error"]}" href="issue:{index}">'
+                 f'{escape(issue_text(self.issues[index], self.mapping))}</a></li>'
+                 for index in range(self.offset, stop)]
+        self.report.setHtml(f'<p>Замечания {self.offset + 1}–{stop} из {len(self.issues)}. '
+                            'Откройте замечание, чтобы найти ячейку в таблице.</p>'
+                            f'<ul>{"".join(links)}</ul>')
+        pageable = len(self.issues) > self.page_size
+        self.previous.setVisible(pageable)
+        self.following.setVisible(pageable)
+        self.previous.setEnabled(self.offset > 0)
+        self.following.setEnabled(stop < len(self.issues))
+
+    def _change_page(self, direction):
+        self.offset += direction * self.page_size
+        self._show_issue_page()
+
+    def _open_link(self, link):
+        index = link.path()
+        if link.scheme() == 'issue' and index.isascii() and index.isdecimal() and int(index) < len(self.issues):
+            self.window.go_to_source_issue(self.issues[int(index)], self.mapping)
+
+    def _first_issue(self):
+        if self.mode == 'mapping' and self.missing:
+            row = self.missing[0]
+            table = self.window.mapping_table
+            table.setCurrentCell(row, 1)
+            table.scrollToItem(table.item(row, 0))
+            table.cellWidget(row, 1).setFocus(Qt.FocusReason.OtherFocusReason)
+            self.window.pages.widget(2).ensureWidgetVisible(table, 6, 6)
+        elif self.issues:
+            self.window.go_to_source_issue(self.issues[0], self.mapping)
+
+
+class ResultFilesModel(QStringListModel):
+    """Friendly labels with the original package-relative path in a separate role."""
+
+    def data(self, index: QModelIndex, role=Qt.ItemDataRole.DisplayRole):
+        if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.AccessibleTextRole,
+                    Qt.ItemDataRole.ToolTipRole, Qt.ItemDataRole.UserRole):
+            relative = super().data(index, Qt.ItemDataRole.DisplayRole)
+            if relative is None or role in (Qt.ItemDataRole.UserRole, Qt.ItemDataRole.ToolTipRole):
+                return relative
+            folder, _, filename = relative.rpartition('/')
+            row = folder.split('_', 2)[1] if folder.startswith('row_') and '_' in folder else ''
+            return f'{filename}   ·   строка {int(row)}' if row.isdecimal() else filename
+        return super().data(index, role)
+
+
+def restore_source_columns(w):
+    if not w.table:
+        w.source_widths_key = ''
+        return
+    headers = w.table.headers
+    digest = hashlib.sha256(json.dumps(headers, ensure_ascii=False).encode('utf-8')).hexdigest()
+    w.source_widths_key = ''  # Do not persist programmatic column sizing.
+    w.source_widths = load_widths('core/source/' + digest)
+    for column, title in enumerate(headers):
+        width = w.source_widths.get(column, max(144, min(320, w.source_table.fontMetrics().horizontalAdvance(title) + 30)))
+        w.source_table.setColumnWidth(column, width)
+    w.source_widths_key = 'core/source/' + digest
+
+
+def save_source_column(w, section, _old_width, width):
+    if w.source_widths_key:
+        w.source_widths[section] = width
+        save_widths(w.source_widths_key, w.source_widths)
+
 
 def build_create(w):
     page,layout=w.page()
@@ -12,14 +214,22 @@ def build_create(w):
     w.data_path=QLineEdit();w.data_path.setReadOnly(True);w.data_path.setAccessibleName('Выбранная таблица');source.addWidget(w.data_path)
     w.load_btn=w.button('Выбрать другую таблицу',w.select_data,'folder');source.addWidget(w.load_btn)
     w.stats=text('Таблица ещё не выбрана','muted');source.addWidget(w.stats)
+    w.source_issue=text('', 'error');w.source_issue.setAccessibleName('Ошибки выбранной строки');w.source_issue.hide();source.addWidget(w.source_issue)
+    w.source_widths_key='';w.source_widths={}
     w.tabs=QTabWidget();w.tabs.setMinimumHeight(180);source.addWidget(w.tabs)
-    w.source_table=DataView();w.data_model=DataModel(w);w.source_table.setModel(w.data_model);w.source_table.setAlternatingRowColors(True);w.source_table.setSelectionBehavior(DataView.SelectionBehavior.SelectRows);w.source_table.setSelectionMode(DataView.SelectionMode.SingleSelection);w.source_table.setWordWrap(False);w.source_table.horizontalHeader().setDefaultSectionSize(155);w.source_table.horizontalHeader().setMinimumSectionSize(75);w.source_table.horizontalHeader().setStretchLastSection(True);w.source_table.selectionModel().currentRowChanged.connect(w._table_row_changed);w.tabs.addTab(w.source_table,'Строки таблицы')
+    w.source_table=DataView();w.source_table.setAccessibleName('Исходные строки таблицы');w.data_model=DataModel(w);w.source_table.setModel(w.data_model);w.source_table.setAlternatingRowColors(True);w.source_table.setSelectionBehavior(DataView.SelectionBehavior.SelectRows);w.source_table.setSelectionMode(DataView.SelectionMode.SingleSelection);w.source_table.setWordWrap(False);w.source_table.horizontalHeader().setDefaultSectionSize(155);w.source_table.horizontalHeader().setMinimumSectionSize(75);w.source_table.selectionModel().currentRowChanged.connect(w._table_row_changed);w.tabs.addTab(w.source_table,'Строки таблицы')
+    w.source_table.horizontalHeader().sectionResized.connect(lambda *args: save_source_column(w, *args))
     preview=QWidget();pv=QVBoxLayout(preview);w.row_selector=QComboBox();w.record_model=RecordModel(w);w.row_selector.setModel(w.record_model);w.row_selector.setAccessibleName('Запись для предпросмотра');w.template_selector=QComboBox();w.template_selector.setAccessibleName('Шаблон для предпросмотра')
     for selector in (w.row_selector,w.template_selector):selector.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon);selector.setMinimumContentsLength(12);pv.addWidget(selector)
     w.row_selector.currentIndexChanged.connect(w.update_preview);w.template_selector.currentIndexChanged.connect(w.update_preview);pv.addWidget(text('Текст документа. Оформление проверьте в Word или другом редакторе.','muted'));w.preview_text=QTextBrowser();w.preview_text.setOpenExternalLinks(False);w.preview_text.setAccessibleName('Текстовый предпросмотр документа');pv.addWidget(w.preview_text);w.tabs.addTab(preview,'Пример документа');w.report_text=QTextBrowser();w.report_text.setOpenExternalLinks(False);w.tabs.addTab(w.report_text,'Подробности проверки');layout.addStretch()
     w.template_summary=text('Шаблон ещё не выбран','muted')
     w.options_card,options=card('4. Создание документов','Проверьте папку сохранения. Каждый запуск создаёт новый пакет.');w.options_layout=options
-    w.name_selector=QComboBox();w.name_selector.setAccessibleName('Столбец для названий папок');options.addWidget(text('Назвать папки по столбцу (необязательно)','muted'));options.addWidget(w.name_selector)
+    w.name_selector=QComboBox();w.name_selector.setAccessibleName('Столбец для названий папок')
+    options.addWidget(text('Имя папки для каждой строки','section'))
+    options.addWidget(text('Добавьте к номеру строки значение из столбца, например имя заказчика. Каждый пакет сохраняется в отдельную папку.','muted'))
+    options.addWidget(w.name_selector)
+    w.folder_preview=text('','muted');options.addWidget(w.folder_preview)
+    w.name_selector.currentTextChanged.connect(lambda: update_folder_preview(w))
     w.output_path=QLineEdit(str(Path.home()/'Documents'/'DocFlow Lite'));w.output_path.setAccessibleName('Папка результатов');options.addWidget(text('Куда сохранить','section'));options.addWidget(w.output_path);w.output_btn=w.button('Выбрать папку',w.select_output,'folder');options.addWidget(w.output_btn);w.open_after=QCheckBox('Открыть папку после завершения');options.addWidget(w.open_after)
     w.check_btn=w.button('Проверить все строки ещё раз',w.check_all,'check');options.addWidget(w.check_btn)
     w.progress=QProgressBar();w.progress.setRange(0,100);w.progress.setValue(0);w.progress.setTextVisible(False);options.addWidget(w.progress);w.progress_label=text('Документы ещё не созданы','muted');options.addWidget(w.progress_label)
@@ -28,7 +238,44 @@ def build_create(w):
 
 def build_result(w):
     page,layout=w.page();layout.addWidget(w.options_card)
-    w.result_card,body=card('Готовые документы','Результаты предыдущих запусков остаются в своих папках.');layout.addWidget(w.result_card);w.result_summary=text('Документы ещё не созданы','section');body.addWidget(w.result_summary);w.result_path=text('','muted');w.result_path.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse);body.addWidget(w.result_path);w.result_open_btn=w.button('Открыть папку с документами',w.open_result,'folder');w.result_open_btn.setEnabled(False);body.addWidget(w.result_open_btn);w.report_btn=w.button('Открыть технический отчёт',w.open_report);w.report_btn.setEnabled(False);body.addWidget(w.report_btn);w.result_report=QTextBrowser();w.result_report.setMinimumHeight(160);w.result_report.setOpenExternalLinks(False);body.addWidget(w.result_report);layout.addStretch()
+    w.result_card,body=card('Результаты','Каждый запуск создаёт свой комплект. Выберите документ, чтобы открыть его.')
+    layout.addWidget(w.result_card)
+    w.result_summary=text('Документы ещё не созданы','section');body.addWidget(w.result_summary)
+    w.result_path=text('','muted')
+    w.result_path.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+    body.addWidget(w.result_path)
+    w.result_files=QListView()
+    w.result_files.setAccessibleName('Созданные документы Word')
+    w.result_files.setMinimumHeight(100)
+    w.result_files.setUniformItemSizes(True)
+    w.result_files.setEditTriggers(QListView.EditTrigger.NoEditTriggers)
+    w.result_files.setTextElideMode(Qt.TextElideMode.ElideMiddle)
+    w.result_files_model=ResultFilesModel(w.result_files)
+    w.result_files.setModel(w.result_files_model)
+    body.addWidget(w.result_files)
+    actions=ActionBar();body.addWidget(actions)
+    w.result_file_btn=w.button('Открыть документ',w.open_result_file,'document')
+    w.result_file_btn.setEnabled(False);actions.addWidget(w.result_file_btn)
+    w.result_open_btn=w.button('Показать в папке',w.open_result,'folder')
+    w.result_open_btn.setEnabled(False);actions.addWidget(w.result_open_btn)
+    w.report_btn=w.button('Отчёт о строках',w.open_report)
+    w.report_btn.setEnabled(False);actions.addWidget(w.report_btn)
+    w.result_files.selectionModel().currentChanged.connect(
+        lambda current,_:w.result_file_btn.setEnabled(current.isValid() and bool(w.last_result)))
+    w.result_files.activated.connect(lambda _:w.open_result_file())
+    w.result_report=QTextBrowser();w.result_report.setMinimumHeight(100)
+    w.result_report.setAccessibleName('Обработанные и пропущенные строки')
+    w.result_report.setOpenExternalLinks(False);body.addWidget(w.result_report)
+    layout.addStretch()
+
+
+def update_folder_preview(w):
+    if not w.table or not w.table.records:
+        w.folder_preview.clear()
+        return
+    record=w.table.records[0]
+    value=record.values.get(w.name_selector.currentText(),'')
+    w.folder_preview.setText(f'Пример папки: row_{record.row_number:04d}_{safe_name(value)}')
 
 def readiness(w,valid,message):
     loaded=bool(w.table);w.empty_card.setVisible(not loaded);w.source_card.setVisible(loaded);w.result_card.setVisible(bool(w.last_result))
@@ -55,6 +302,7 @@ def readiness(w,valid,message):
     w.core_next.setEnabled(not w._busy and (page!=2 or valid or not loaded or not w.active_templates()));w.generate_btn.setEnabled(valid and not w._busy)
     state=('Таблица не выбрана' if not loaded else f'Таблица: {len(w.table.records)} строк')+' · '+('Шаблон не выбран' if not w.active_templates() else f'Шаблонов: {len(w.active_templates())}')
     w.core_state.setText(state)
+    update_folder_preview(w)
     feedback=(f'Все {w._full_check[2]} строк проверены. С ошибками: {w._full_check[1]}.' if checked else 'Поля связаны. Все строки ещё не проверены.' if valid else message)
     w.mapping_feedback.setText(feedback);w.readiness.setText(feedback)
 

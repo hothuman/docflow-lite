@@ -20,7 +20,7 @@ def exercise(window,app,output,idle):
     from PySide6.QtGui import QImage,QColor
     window.navigate(5);ui=window.service_workspace;idle(ui);checks=[]
     def capture(widget,name):app.processEvents();assert widget.grab().save(str(output/(name+'.png')))
-    def modal_retry(entity,permission=False):
+    def form_retry(entity,permission=False):
         state={'phase':0,'observed':False};errors=[];owned=[];original=None
         if permission:
             original=ui.store.save_client;attempt=[]
@@ -32,6 +32,9 @@ def exercise(window,app,output,idle):
         def step():
             d=QApplication.activeModalWidget()
             if isinstance(d,QMessageBox):d.button(QMessageBox.StandardButton.Ok).click();return
+            if ui.shell_navigation:
+                assert d is None
+                d=ui.current_page
             if not isinstance(d,FieldsDialog) or ui.worker:return
             try:
                 if not state['phase']:
@@ -46,15 +49,35 @@ def exercise(window,app,output,idle):
                     b=d.findChild(QDialogButtonBox).button(QDialogButtonBox.StandardButton.Save);QTest.mouseClick(b,Qt.MouseButton.LeftButton);b.click()
             except Exception:
                 errors.append(traceback.format_exc());d.reject()
+        open_form=getattr(ui,'new_client' if entity=='client' else 'new_equipment')
+        if ui.shell_navigation:
+            def reject_unexpected_modal():
+                modal=app.activeModalWidget()
+                if modal:
+                    errors.append('Unexpected modal: '+modal.windowTitle())
+                    modal.reject()
+            watch=QTimer();watch.timeout.connect(reject_unexpected_modal);watch.start(15)
+            try:
+                open_form()
+                d=ui.current_page
+                assert isinstance(d,FieldsDialog) and d.window() is window and not d.isWindow()
+                step();idle(ui);assert ui.current_page is d
+                step();idle(ui)
+                assert not errors and state['observed'],errors
+                assert ui.current_page is None and QApplication.activeModalWidget() is None
+            finally:
+                watch.stop()
+                if original:ui.store.save_client=original
+            return
         timer=QTimer();timer.timeout.connect(step);timer.start(15);timeout=QTimer();timeout.setSingleShot(True);timeout.timeout.connect(lambda:owned and owned[0].reject());timeout.start(20000)
         try:
-            getattr(ui,'new_client' if entity=='client' else 'new_equipment')();idle(ui);assert not errors and state['observed'],errors
+            open_form();idle(ui);assert not errors and state['observed'],errors
         finally:
             timer.stop();timeout.stop()
             if original:ui.store.save_client=original
-    modal_retry('client');checks.append('client_retry')
+    form_retry('client');checks.append('client_retry')
     owner=ui.store.clients()[0]['id'];ui.store.save_equipment({'number':'QA-EXISTING','model':'QA','owner_id':owner});ui.refresh();idle(ui)
-    modal_retry('equipment');checks.append('equipment_retry');modal_retry('client',True);checks.append('permission_retry')
+    form_retry('equipment');checks.append('equipment_retry');form_retry('client',True);checks.append('permission_retry')
     # Independent SQL verification rather than trusting the success banner.
     with sqlite3.connect((ui.store.root/'service.db').as_uri()+'?mode=ro',uri=True) as c:
         assert c.execute("SELECT COUNT(*) FROM clients WHERE name='QA Client'").fetchone()[0]==1

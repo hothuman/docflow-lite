@@ -1,10 +1,11 @@
-"""Print family7, independent of SQLite schema6. Only newly requested defaults."""
+"""Print families 7 and 8, independent of the SQLite schema."""
+from docx.enum.text import WD_TAB_ALIGNMENT
 from docx.shared import Mm,Pt,RGBColor,Twips
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
 
-def refine(document):
+def refine(document, *, workshop_layout=False):
     section=document.sections[0]
     section.page_width=Mm(210);section.page_height=Mm(297)
     section.left_margin=section.right_margin=Mm(17)
@@ -34,3 +35,20 @@ def refine(document):
                     for run in paragraph.runs:run.font.size=Pt(10)
     # The established signature/context chain and row safety flags remain.
     # A renderer may still split an oversized row; do not force page breaks.
+    if workshop_layout:
+        _format_workshop_details(document)
+
+
+def _format_workshop_details(document):
+    """Set print hierarchy on the new defaults without editing their wording."""
+    for paragraph in document.paragraphs:
+        content=paragraph.text
+        if paragraph.style.name=='Title':
+            document.core_properties.title=content
+        if content.startswith(('Скидка {{discount}}','Предварительный согласованный расчёт:')):
+            for run in paragraph.runs:
+                run.bold=True
+            paragraph.paragraph_format.keep_together=True
+        if content.startswith('Передал '):
+            paragraph.text=content.replace('     Принял ', '\tПринял ')
+            paragraph.paragraph_format.tab_stops.add_tab_stop(Mm(93),WD_TAB_ALIGNMENT.LEFT)

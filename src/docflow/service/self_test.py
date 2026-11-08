@@ -14,7 +14,7 @@ def run(output,require_windows=False):
     from ..gui import MainWindow,configure_app
     from .. import __version__
     from ..ui.service.forms import FieldsDialog
-    from ..ui.service.repair_editor import RepairDialog
+    from ..ui.service.repair_editor import RepairPage
     from .repository import ServiceStore
     from .documents import generate_document,KINDS
     from .attachments import add_attachment,attachment_path
@@ -22,15 +22,11 @@ def run(output,require_windows=False):
     output=Path(output);output.mkdir(parents=True,exist_ok=True)
     app=QApplication.instance() or QApplication([]);configure_app(app);app.setQuitOnLastWindowClosed(False)
     proof={'version':__version__,'platform':platform.platform(),'qt_platform':app.platformName(),'frozen':bool(getattr(sys,'frozen',False)),'checks':[],'manual_windows_10_11_acceptance':False,'native_os_file_dialogs_tested':False,'word_visual_test':False}
-    window=None;errors=[];close_created_repair=False
+    window=None;errors=[]
     def check(name,**details):proof['checks'].append({'name':name,'passed':True,**details})
     def watchdog():
         d=app.activeModalWidget()
         if isinstance(d,QMessageBox):errors.append(d.text());d.accept()
-        # Only the initial creation needs automatic dismissal. Later scenarios
-        # own their dialogs; a second timer must not close one before its
-        # observer has verified the selected repair.
-        elif close_created_repair and isinstance(d,RepairDialog):d.dirty=False;d.accept()
     timer=QTimer();timer.timeout.connect(watchdog);timer.start(25)
     def idle(w):
         until=time.monotonic()+40
@@ -39,10 +35,10 @@ def run(output,require_windows=False):
             if time.monotonic()>until:raise AssertionError('Service operation timed out')
         app.processEvents()
         assert not errors,errors
-    def fill_dialog(action,values):
+    def fill_dialog(action,values,embedded=False):
         failures=[]
-        def fill():
-            d=app.activeModalWidget()
+        def fill(d=None):
+            d=d or app.activeModalWidget()
             try:
                 assert isinstance(d,FieldsDialog),type(d)
                 for key,value in values.items():
@@ -54,20 +50,26 @@ def run(output,require_windows=False):
             except Exception as exc:
                 failures.append(str(exc))
                 if d:d.reject()
-        QTimer.singleShot(80,fill);action();assert not failures,failures
+        if embedded:
+            action()
+            fill(window.service_workspace.current_page)
+        else:
+            QTimer.singleShot(80,fill)
+            action()
+        assert not failures,failures
     try:
         if require_windows:assert os.name=='nt' and app.platformName()=='windows'
         project=output/'Рабочий проект с пробелами'
         window=MainWindow(service_root=project);window.show();window.navigate(5);sui=window.service_workspace;idle(sui)
         assert not sui.cache['repairs'];check('empty_service_project_not_seeded')
-        fill_dialog(sui.new_client,{'name':'Вымышленный сервис','legal_name':'Синтетическая организация'});idle(sui)
+        fill_dialog(sui.new_client,{'name':'Вымышленный сервис','legal_name':'Синтетическая организация'},embedded=True);idle(sui)
         assert len(sui.cache['clients'])==1
-        fill_dialog(sui.new_equipment,{'number':'SYNTH-DEVICE-001','model':'Демонстрационный аппарат','serial':'SYNTH-ONLY'});idle(sui)
+        fill_dialog(sui.new_equipment,{'number':'SYNTH-DEVICE-001','model':'Демонстрационный аппарат','serial':'SYNTH-ONLY'},embedded=True);idle(sui)
         assert len(sui.cache['equipment'])==1
-        close_created_repair=True
-        fill_dialog(sui.new_repair,{'number':'SYNTH-REPAIR-001','complaint':'Вымышленная неисправность'});idle(sui)
-        close_created_repair=False
-        assert len(sui.cache['repairs'])==1;check('gui_create_client_equipment_repair',actual_qt_dialogs=True)
+        fill_dialog(sui.new_repair,{'number':'SYNTH-REPAIR-001','complaint':'Вымышленная неисправность'},embedded=True);idle(sui)
+        assert isinstance(sui.current_page,RepairPage) and sui.current_page.window() is window
+        sui.back_page();idle(sui)
+        assert len(sui.cache['repairs'])==1;check('gui_create_client_equipment_repair',actual_qt_forms=True,embedded=True)
         store=sui.store;r=sui.cache['repairs'][0]['id'];e=sui.cache['equipment'][0]['id']
         store.save_repair(r,{'defects':'Тестовый износ','plan':'Настройка и замена учебной детали','approval':'Согласовано','status':'repair'})
         store.save_item(r,{'kind':'work','name':'Демонстрационная настройка','quantity':'1.5','price':'1000.25'})
@@ -108,6 +110,9 @@ def run(output,require_windows=False):
         from .refinement_check import exercise as refinement_exercise
         proof['refinement']=refinement_exercise(window.service_workspace,app,output,idle,fill_dialog)
         window.close();app.processEvents();check('normal_close_after_service')
+        timer.stop()
+        from .workspace_check import exercise as unified_exercise
+        proof['workspace']=unified_exercise(app,output/'Unified workspace')
         proof['status']='passed'
     except Exception:
         proof['status']='failed';proof['traceback']=traceback.format_exc()

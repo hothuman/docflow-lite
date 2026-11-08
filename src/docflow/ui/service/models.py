@@ -1,11 +1,25 @@
 """Virtual localized tables; raw identities and payloads stay out of search."""
 import html
 import re
-from PySide6.QtCore import QAbstractTableModel,Qt
+from PySide6.QtCore import QAbstractTableModel,QSortFilterProxyModel,Qt
 from PySide6.QtGui import QColor
 from ...service.statuses import STATUSES
 from .presentation import display,sort_value,MONEY
 from ..theme import COLORS
+class MoneyProxy(QSortFilterProxyModel):
+    """Integer cents sort exactly; missing amounts are last in either direction."""
+
+    def lessThan(self, left, right):
+        model = self.sourceModel()
+        if model.columns[left.column()][0] in MONEY:
+            a, b = model.data(left, self.sortRole()), model.data(right, self.sortRole())
+            if (a is None) != (b is None):
+                return a is not None if self.sortOrder() == Qt.SortOrder.AscendingOrder else a is None
+            if type(a) is int and type(b) is int:
+                return a < b
+        return super().lessThan(left, right)
+
+
 class RowsModel(QAbstractTableModel):
  def __init__(self,columns,parent=None):super().__init__(parent);self.columns=columns;self.rows=[];self.search=[]
  def rowCount(self,parent=None):return 0 if parent and parent.isValid() else len(self.rows)

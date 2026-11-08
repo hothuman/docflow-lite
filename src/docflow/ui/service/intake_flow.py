@@ -103,7 +103,7 @@ class IntakeDialog(QDialog):
         invalid=(not new and (not payload['equipment_id'] or self.other_client.isChecked() and not payload.get('client_id'))) or (new and (not self.number.text().strip() or not self.model.text().strip() or (nc and not self.name.text().strip()) or (not nc and not payload.get('client_id'))))
         if invalid:self.note.setText('Заполните обязательные поля и выберите существующие записи именно из списка.');return
         def saved(key):self.created_key=key;self.accept()
-        self.workspace.run(lambda:store.intake(**payload),saved,'Сохраняю приёмку…',on_error=lambda error:self.note.setText('Приёмка не сохранена. '+error))
+        self.workspace.run(lambda:store.intake(**payload),saved,'Сохраняю приёмку…',on_error=lambda error:self.note.setText('Приёмка не сохранена. '+error),inline_error=not self.isWindow())
     def reject(self):
         if self.workspace.worker:return
         from .widgets import confirm

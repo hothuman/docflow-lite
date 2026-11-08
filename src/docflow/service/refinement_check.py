@@ -1,10 +1,10 @@
 """Opt-in a3 workflow verification; runs inside the exact frozen executable."""
 import sys
 from pathlib import Path
-from PySide6.QtCore import Qt,QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QPushButton
-from ..ui.service.repair_editor import RepairDialog
+from ..ui.service.repair_editor import RepairDialog,RepairPage
 from ..ui.service.estimates import DraftDialog
 from .validation import rub
 from .backup import create_backup,restore_backup
@@ -15,11 +15,11 @@ def exercise(workspace,app,output,idle,fill):
  def passed(name,**values):checks.append({'name':name,'passed':True,**values})
  window.resize(1366,768);workspace.tabs.setCurrentIndex(0);workspace.refresh();idle(workspace);app.processEvents();data=store.dashboard();dashboard=workspace.dashboard
  for key,label in dashboard.values.items():assert label.text()==(rub(data[key]) if key=='debt' else str(data[key]))
- assert dashboard.recent.proxy.rowCount()==len(data['recent_repairs']);captured=[];timer=QTimer()
- def observe():
-  dialog=app.activeModalWidget()
-  if isinstance(dialog,RepairDialog):captured.append(dialog.key);dialog.accept()
- timer.timeout.connect(observe);timer.start(1);index=dashboard.recent.proxy.index(0,0);key=dashboard.recent.records.rows[dashboard.recent.proxy.mapToSource(index).row()]['id'];QTest.mouseClick(dashboard.recent.viewport(),Qt.MouseButton.LeftButton,pos=dashboard.recent.visualRect(index).center());idle(workspace);timer.stop();assert captured and captured[0]==key
+ assert dashboard.recent.proxy.rowCount()==len(data['recent_repairs'])
+ index=dashboard.recent.proxy.index(0,0);key=dashboard.recent.records.rows[dashboard.recent.proxy.mapToSource(index).row()]['id']
+ QTest.mouseClick(dashboard.recent.viewport(),Qt.MouseButton.LeftButton,pos=dashboard.recent.visualRect(index).center());idle(workspace)
+ assert isinstance(workspace.current_page,RepairPage) and workspace.current_page.key==key and workspace.current_page.window() is window
+ workspace.back_page();idle(workspace)
  from ..ui.service.search import SearchDialog
  search=SearchDialog(workspace);workspace.dialogs.append(search);search.show();idle(workspace);search.query.setFocus();QTest.keyClicks(search.query,'900');app.processEvents();assert search.equipment.proxy.rowCount()==1;search.accept();workspace.dialogs.remove(search);workspace.tabs.setCurrentIndex(0);app.processEvents();window.grab().save(str(output/'service-refined-dashboard.png'));passed('native_dashboard_actual_counters_row_open_and_keyboard_search')
  eq=next(x for x in store.equipment() if x['number']=='900');repair=store.create_repair(eq['id'],'SYNTH-ACCEPT-7500');editor=RepairDialog(workspace,store.snapshot(repair));workspace.dialogs.append(editor);editor.show();editor.tabs.show_section('Сметы');app.processEvents()
