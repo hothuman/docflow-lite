@@ -97,10 +97,13 @@ def validate_schema(connection, version):
 
 class Database:
     @staticmethod
-    def migration_required(path):
+    def migration_required(path, *, require_existing=False):
         """Read-only preflight for a GUI decision before opening older projects."""
         path=Path(path).absolute()
-        if not path.exists():return None
+        if not path.exists():
+            if require_existing:
+                raise ServiceError('В этой папке нет service.db. Выберите папку существующего проекта.')
+            return None
         wal=path.with_name(path.name+'-wal')
         if wal.exists() and wal.stat().st_size:
             raise ServiceError('Закройте прежнюю программу перед открытием проекта: журнал SQLite ещё содержит изменения')
@@ -111,12 +114,13 @@ class Database:
                 return version if version<SCHEMA_VERSION else None
         except sqlite3.Error as exc:
             raise ServiceError('Не удалось проверить базу; исходный файл не изменён') from exc
-    def __init__(self,path,*,allow_upgrade=True):
-        self.path=Path(path)
+    def __init__(self,path,*,allow_upgrade=True,require_existing=False):
+        self.path=Path(path).absolute()
+        self.require_existing=require_existing
         existed=self.path.exists()
         if existed and self.path.stat().st_size==0:raise ServiceError('База пуста; исходный файл не изменён. Восстановите проверенную копию')
         if self.path.is_symlink(): raise ServiceError('База не должна быть символической ссылкой')
-        self.path.parent.mkdir(parents=True,exist_ok=True)
+        if not require_existing:self.path.parent.mkdir(parents=True,exist_ok=True)
         try:
             with self.connection() as c:
                 if c.execute('PRAGMA quick_check').fetchone()[0]!='ok': raise ServiceError('База повреждена; используйте проверенную копию')
@@ -150,7 +154,10 @@ class Database:
     def connection(self,write=False):
         c=None
         try:
-            c=sqlite3.connect(self.path,timeout=10)
+            if self.require_existing:
+                c=sqlite3.connect(self.path.as_uri()+'?mode=rw',uri=True,timeout=10)
+            else:
+                c=sqlite3.connect(self.path,timeout=10)
             c.row_factory=sqlite3.Row
             c.execute('PRAGMA trusted_schema=OFF')
             c.execute('PRAGMA foreign_keys=ON');c.execute('PRAGMA busy_timeout=10000')

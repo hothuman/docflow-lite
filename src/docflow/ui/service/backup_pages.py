@@ -232,7 +232,7 @@ class RestoreBackupPage(BackupPage):
         def finished(root):
             preferences().setValue('workspace/v2/backup/lastDirectory', str(archive.parent))
             self.workspace._restored_target = root
-            self.workspace.open_project(root)
+            self.workspace.open_project(root,require_existing=True)
 
         def failed(message):
             self.clear_verification()
