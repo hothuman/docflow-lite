@@ -28,6 +28,7 @@ QFrame#coreValidation[severity="success"] {background:@surface@;border:1px solid
 QTableWidget#coreFieldMapping QComboBox[validationIssue="true"] {border-color:@error@;}
 QLabel#fieldError,QLabel#formError {color:@error@;font-weight:600;}
 QLabel#formError {background:@surface@;border:1px solid @error@;border-radius:6px;padding:7px;}
+QLabel#documentWarning {color:@warning@;border-left:3px solid @warning@;padding:6px;}
 QLabel#documentActionError,QLabel#documentReadinessError {color:@error@;border:1px solid @error@;border-left:3px solid @error@;border-radius:6px;padding:8px;}
 QLineEdit[validationIssue="true"],QPlainTextEdit[validationIssue="true"],QComboBox[validationIssue="true"] {border:1px solid @error@;}
 QPushButton {background:@raised@;border:1px solid @border@;border-radius:6px;padding:9px 12px;min-height:18px;font-weight:500;}

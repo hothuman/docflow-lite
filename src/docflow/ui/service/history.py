@@ -150,13 +150,14 @@ class HistoryComparison(QWidget):
     SECTION_NAMES = ('Причина обращения', 'Диагностика', 'Работы', 'Запчасти',
                      'Стоимость', 'Остаток', 'Документы', 'Подробности')
 
-    def __init__(self, snapshots):
+    def __init__(self, snapshots, *, show_heading=True):
         super().__init__()
         self.setObjectName('historyComparison')
         self.setAccessibleName('Сравнение ремонтов одного аппарата')
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        outer.addWidget(text('Сравнение ремонтов', 'title'))
+        if show_heading:
+            outer.addWidget(text('Сравнение ремонтов', 'title'))
         outer.addWidget(text('Найдите, что повторилось, что изменилось и как отличались расходы.', 'muted'))
         actions = ActionBar()
         self.details_button = button(actions, 'Подробности', self.toggle_details)
@@ -324,8 +325,8 @@ class _HistoryContent:
         self.detail.setPlaceholderText('Выберите ремонт, чтобы посмотреть его подробности.')
         detail_layout.addWidget(self.detail)
         self.splitter.addWidget(details)
-        self.splitter.setStretchFactor(0, 2)
-        self.splitter.setStretchFactor(1, 1)
+        self.splitter.setStretchFactor(0, 3)
+        self.splitter.setStretchFactor(1, 2)
         self.compare_hint = text('', 'muted')
         outer.addWidget(self.compare_hint)
 
@@ -370,8 +371,9 @@ class _HistoryContent:
         self.grid.fit_few_rows()
         maximum=self.grid.maximumHeight()
         if self.grid.proxy.rowCount()<=4:
-            details_height=self.splitter.widget(1).minimumSizeHint().height()
-            if self.splitter.orientation()==Qt.Orientation.Vertical:
+            vertical=self.splitter.orientation()==Qt.Orientation.Vertical
+            details_height=max(230,min(420,self.height()-210))
+            if vertical:
                 maximum+=details_height+self.splitter.handleWidth()
             else:
                 maximum=max(maximum,details_height)
@@ -539,7 +541,7 @@ class HistoryPage(_HistoryContent, QWidget):
 
     def show_comparison(self, snapshots):
         if self.workspace.current_page is self:
-            self.workspace.push_page(HistoryComparison(snapshots), 'Сравнение ремонтов',
+            self.workspace.push_page(HistoryComparison(snapshots, show_heading=not self.workspace.shell_navigation), 'Сравнение ремонтов',
                                      back_label='Назад к истории')
 
 

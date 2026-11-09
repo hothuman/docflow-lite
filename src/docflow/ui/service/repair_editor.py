@@ -487,7 +487,10 @@ class RepairEditor:
         # clicked(bool) is not a callback.
         if not callable(after):after=None
         v=self.values();revision=self.revision;s=self.store;key=self.key
-        if v['discount']!=amount(self.snapshot['repair']['discount_cents']) and self.snapshot['estimate_comparison']['approved_estimate_id']:
+        discount_changed=v['discount']!=amount(self.snapshot['repair']['discount_cents'])
+        if discount_changed and not self.confirm_financial_change():
+            return
+        if discount_changed and self.snapshot['estimate_comparison']['approved_estimate_id']:
             reason,ok=QInputDialog.getText(self,'Изменение согласованной стоимости','Причина изменения скидки *')
             if not ok:return
             v['change_reason']=reason
@@ -541,6 +544,17 @@ class RepairEditor:
         r=(self.items_grid if self.embedded and not key else self.grids[key]).selected()
         if not r:QMessageBox.information(self,'Service','Выберите строку')
         return r
+    def financial_change_notice(self):
+        repair=self.snapshot['repair']
+        if repair['status']=='issued' or repair.get('issued_at'):
+            return ('Оборудование уже выдано. Изменение может повлиять на расчёты и задолженность. '
+                    'Ранее созданные документы сохранятся без изменений.')
+        return ''
+
+    def confirm_financial_change(self):
+        notice=self.financial_change_notice()
+        return not notice or confirm(self,notice,'Подтвердить изменение',cancel='Вернуться')
+
     def item(self,kind,edit=False):
         row=self.selected(kind) if edit else None
         if edit and not row:return
@@ -551,6 +565,9 @@ class RepairEditor:
         original=next((item for item in self.snapshot['repair_items'] if row and item['id']==row['id']),None)
         from ...service.finance import ITEM_KINDS
         d=FieldsDialog(ITEM_KINDS[kind],fields,values,self)
+        initial=d.values()
+        d.check_values=lambda values: (edit and all(values[k]==initial[k] for k in ('quantity','price'))
+                                       or self.confirm_financial_change())
         def persist(data):
             v={**data,'kind':kind}
             if original:
@@ -564,7 +581,7 @@ class RepairEditor:
             self.mutate(lambda:persist(values))
     def delete_item(self,kind):
         row=self.selected(kind)
-        if row and confirm(self,'Удалить позицию?'):
+        if row and confirm(self,'Удалить позицию? '+self.financial_change_notice()):
             reason=''
             if self.snapshot['estimate_comparison']['approved_estimate_id']:
                 reason,ok=QInputDialog.getText(self,'Изменение согласованного объёма','Причина удаления *')
@@ -577,6 +594,7 @@ class RepairEditor:
         d=FieldsDialog(title,fields,{'method':'Перевод — запись вручную'},self)
         if self.embedded:
             d.layout().insertWidget(0,text('Запись меняет внутренний расчёт. Банковские операции выполняются отдельно.','muted'))
+        d.check_values=lambda _:self.confirm_financial_change()
         request=uuid4().hex;s=self.store;r=self.key
         def persist(v):return s.add_payment(r,v['amount'],kind or v['kind'],v['method'],v['occurred_at'],v['comment'],request)
         if self.embedded:return self.persist_form(d,persist)
@@ -610,7 +628,7 @@ class RepairEditor:
         row=self.selected('payments')
         if not row or row['voided']:return
         reason,ok=QInputDialog.getText(self,'Исправление','Причина аннулирования (реальная банковская операция не отменяется):')
-        if ok and confirm(self,'Исключить эту запись из внутреннего расчёта? История сохранится.'):
+        if ok and confirm(self,'Исключить эту запись из внутреннего расчёта? История сохранится. '+self.financial_change_notice()):
             s=self.store;self.mutate(lambda:s.void_payment(row['id'],reason))
     def add_file(self):
         path,_=QFileDialog.getOpenFileName(self,'Локальное вложение','','Вложения (*.png *.jpg *.jpeg *.mp4 *.docx)')

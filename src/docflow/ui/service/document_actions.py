@@ -176,6 +176,8 @@ class ServiceDocumentWizard(QWidget):
         self.profile_banner.setAccessibleName('Проверка данных документа')
         layout.addWidget(self.source)
         layout.addWidget(self.profile_banner)
+        self.check_handover_warning=text('','documentWarning')
+        layout.addWidget(self.check_handover_warning)
         organization = self._actions(layout)
         button(organization, 'Настроить организацию', self._configure_organization)
         self.template_path = QLineEdit()
@@ -210,10 +212,25 @@ class ServiceDocumentWizard(QWidget):
         self.preview_text.setMaximumHeight(235)
         layout.addWidget(self.preview_text)
 
+    def _handover_warning(self):
+        if self.doc_kind.currentData()!='handover':
+            return ''
+        repair=self.snapshot['repair']
+        missing=[]
+        if repair['status'] not in ('issued','closed'):missing.append('фактическая выдача')
+        if not repair.get('issued_at'):missing.append('дата выдачи')
+        if not repair.get('handover','').strip():missing.append('сведения о получателе')
+        if not missing:
+            return ''
+        return ('Черновик передачи. Требуют проверки: '+', '.join(missing)+'. '
+                'Создание DOCX не подтверждает выдачу оборудования.')
+
     def _create_page(self):
         layout = self._page()
         self.confirm_text = text('')
         layout.addWidget(self.confirm_text)
+        self.create_handover_warning=text('','documentWarning')
+        layout.addWidget(self.create_handover_warning)
         layout.addWidget(text('Будет создана новая версия. Ранее созданные документы останутся в журнале.', 'muted'))
         actions = self._actions(layout)
         self.generate_button = button(actions, 'Создать DOCX', self.create, primary=True)
@@ -272,6 +289,8 @@ class ServiceDocumentWizard(QWidget):
         self.document_status.hide()
         if index == 1:
             self._refresh_check()
+        if index == 3:
+            self._update_handover_warnings()
 
     def _notice(self, message):
         self._message(message, 'status')
@@ -328,9 +347,17 @@ class ServiceDocumentWizard(QWidget):
             return next((q for q in self.snapshot['estimates']
                          if q['kind'] == kind.removeprefix('estimate_') and (not self.estimate_id or q['id'] == self.estimate_id)), None)
 
+    def _update_handover_warnings(self):
+        warning=self._handover_warning()
+        for label in (self.check_handover_warning,self.create_handover_warning):
+            label.setText(warning)
+            label.setAccessibleName(warning)
+            label.setVisible(bool(warning))
+
     def _refresh_check(self, *_):
         kind = self.doc_kind.currentData()
         self.purpose.setText(_PURPOSE[kind])
+        self._update_handover_warnings()
         quote = self._estimate()
         repair = self.snapshot['repair']
         snapshot = {**self.snapshot, 'estimates':[quote]} if quote else self.snapshot

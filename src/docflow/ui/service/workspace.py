@@ -37,7 +37,7 @@ class Job(QThread):
             self.error=friendly_error(exc)
         finally:self.function=None
 
-SHORT_LISTS = frozenset(('clients','equipment','documents'))
+SHORT_LISTS = frozenset(('clients','equipment','documents','estimates'))
 
 
 class ServiceWorkspace(QWidget):
@@ -103,7 +103,7 @@ class ServiceWorkspace(QWidget):
             if key in ('clients','equipment'):
                 hint=QLabel();hint.setWordWrap(True);hint.setObjectName('muted');hint.hide();layout.addWidget(hint);self.archive_hints[key]=hint
                 show_archive=QPushButton('Показать архив');show_archive.hide();show_archive.clicked.connect(lambda _,k=key:self.show_archived(k));layout.addWidget(show_archive);self.archive_buttons[key]=show_archive
-            view=Grid(cols,settings_key='workspace/'+key);view.setAccessibleName(name)
+            view=Grid(cols,settings_key='workspace/'+key,stretch_column='path' if key=='documents' else None);view.setAccessibleName(name)
             layout.addWidget(view,1)
             if key in SHORT_LISTS:layout.addStretch()
             search.textChanged.connect(view.proxy.setFilterFixedString);search.textChanged.connect(lambda _,k=key:self.update_list_state(k));self.views[key]=view;self.tabs.addTab(page,name)

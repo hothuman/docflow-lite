@@ -6,11 +6,11 @@ from .presentation import MONEY,display
 from ..settings import load_widths,save_widths
 class Grid(QTableView):
  openRequested=Signal()
- def __init__(self,columns,parent=None,settings_key=None,proxy_type=MoneyProxy,model_type=RowsModel):
+ def __init__(self,columns,parent=None,settings_key=None,proxy_type=MoneyProxy,model_type=RowsModel,*,stretch_column=None):
   super().__init__(parent);self.records=model_type(columns,self);self.proxy=proxy_type(self);self.proxy.setSourceModel(self.records);self.proxy.setSortRole(Qt.ItemDataRole.UserRole);self.proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive);self.proxy.setFilterKeyColumn(0);self.proxy.setFilterRole(Qt.ItemDataRole.UserRole+1);self.setModel(self.proxy);self.setSortingEnabled(True);self.sortByColumn(-1,Qt.SortOrder.AscendingOrder)
   self.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows);self.setSelectionMode(QTableView.SelectionMode.SingleSelection);self.setAlternatingRowColors(True);self.setWordWrap(False);self.setTextElideMode(Qt.TextElideMode.ElideRight);self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers);self.setMinimumHeight(100);self.setMinimumWidth(0)
   self.verticalHeader().hide();self.verticalHeader().setDefaultSectionSize(38);header=self.horizontalHeader();header.setMinimumSectionSize(48);header.setStretchLastSection(False);header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-  self._sizing=False;self._preferred={};self._user_widths={};self.settings_key=settings_key
+  self._sizing=False;self._preferred={};self._user_widths={};self.settings_key=settings_key;self.stretch_column=stretch_column
   if settings_key:
    self._user_widths=load_widths(settings_key)
   header.sectionResized.connect(self._remember);self.cache_widths();self.fit_columns()
@@ -28,6 +28,7 @@ class Grid(QTableView):
    elif key in ('status','state','state_label','financial_status'):width=164
    elif key.endswith('_at'):width=134
    elif key in ('number','equipment_number'):width=105
+   elif key=='prepared_by':width=220
    elif key in ('quantity','unit','version','size','voided','archived'):width=76
    else:width=180 if key in ('name','model','equipment_label','kind') else 145
    self._minimum[i]=max(48,fm.horizontalAdvance(title)+34);self._preferred[i]=max(width,self._minimum[i])
@@ -41,6 +42,7 @@ class Grid(QTableView):
    visible=list(range(len(self.records.columns)));widths={i:self._user_widths.get(i,self._preferred.get(i,130)) for i in visible}
    secondary=('description','complaint','notes','void_reason','source','path','logo_path','contact','email','phone','legal_name','serial','prepared_by','client','financial_status','status','state','state_label','received_at','created_at','changed_at','method','unit','kind','defects','item_text')
    for key in secondary:
+    if key==self.stretch_column:continue
     if sum(widths[i] for i in visible)<=available:break
     if len(visible)>3:
      for i in [i for i in visible if self.records.columns[i][0]==key]:visible.remove(i)
@@ -68,7 +70,10 @@ class Grid(QTableView):
       amount=min(extra,max(0,widths[i]-48));widths[i]-=amount;extra-=amount
    remaining=available-sum(widths[i] for i in visible)
    if remaining>0 and visible:
-    stretch=next((i for i in visible if self.records.columns[i][0] in ('name','model','equipment_label','client')),visible[0]);widths[stretch]+=remaining
+    stretch=next((i for i in visible if self.records.columns[i][0]==self.stretch_column),None)
+    if stretch is None:
+     stretch=next((i for i in visible if self.records.columns[i][0] in ('name','model','equipment_label','client')),visible[0])
+    widths[stretch]+=remaining
    for i in range(len(self.records.columns)):
     self.setColumnHidden(i,i not in visible)
     if i in visible:self.horizontalHeader().resizeSection(i,widths[i])

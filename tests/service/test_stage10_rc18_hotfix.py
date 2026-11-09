@@ -155,4 +155,4 @@ def test_short_equipment_history_stays_near_filters(journal):
     assert not any(label.text() == 'История аппарата' for label in history.findChildren(QLabel))
     assert 'минимум два обращения' in history.compare_hint.text()
     assert not history.compare_button.isEnabled()
-    assert history.splitter.height() <= 220
+    assert history.grid.height() <= 130
