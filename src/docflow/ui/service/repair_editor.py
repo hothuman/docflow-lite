@@ -54,16 +54,21 @@ class RepairEditor:
             self.show_checklist.toggled.connect(self.toggle_checklist)
         self.summary=QLabel();self.summary.setWordWrap(True);self.summary.setObjectName('muted');passport_layout.insertWidget(2,self.summary);self.overview_layout.addWidget(passport)
         self.finance_strip=QWidget()
-        finance=FlowLayout()
-        self.finance_strip.setLayout(finance)
+        self.finance_strip.setObjectName('repairFinance')
+        finance=QHBoxLayout(self.finance_strip)
+        finance.setContentsMargins(0,0,0,0)
+        finance.setSpacing(16)
         self.finance_values={}
         self.finance_titles={'total':'Стоимость','paid':'Оплачено','balance':'Остаток'}
         for key,title in self.finance_titles.items():
             value=text(title+' —','section')
             value.setObjectName('repairAmount')
             value.setWordWrap(False)
+            value.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Preferred)
             finance.addWidget(value)
+            value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             self.finance_values[key]=value
+        finance.addStretch(1)
         passport_layout.addWidget(self.finance_strip)
         self.state_frame=QFrame();self.state_frame.setObjectName('repairState');state_layout=QVBoxLayout(self.state_frame);state_layout.setContentsMargins(12,8,12,8)
         self.status_value=text('','section');self.status_value.setObjectName('repairStatus');state_layout.addWidget(self.status_value)
@@ -115,7 +120,9 @@ class RepairEditor:
             button(bar,'Учесть оплату / возврат',lambda:self.with_saved(self.payment))
             button(bar,'Исправить запись',lambda:self.with_saved(self.void_payment))
             button(bar,'Сверить полноту истории',lambda:self.with_saved(self.financial_evidence))
-        self.grids['payments']=Grid([('occurred_at','Дата'),('kind','Вид'),('amount','Сумма'),('method','Способ'),('voided','Состояние'),('void_reason','Причина'),('comment','Комментарий')],settings_key='repair/payments' if self.embedded else None);layout.addWidget(self.grids['payments']);self.tabs.addTab(p,'Финансы')
+        self.grids['payments']=Grid([('occurred_at','Дата'),('kind','Вид'),('amount','Сумма'),('method','Способ'),('voided','Состояние'),('void_reason','Причина'),('comment','Комментарий')],settings_key='repair/payments' if self.embedded else None);layout.addWidget(self.grids['payments'])
+        if self.embedded:layout.addStretch(1)
+        self.tabs.addTab(p,'Финансы')
         from .estimates import EstimatesPanel
         self.estimates=EstimatesPanel(self);self.tabs.addTab(self.estimates,'Сметы')
         if self.embedded:self.tabs.addTab(agreement_page,'Согласование')
@@ -248,6 +255,7 @@ class RepairEditor:
         self.tabs.show_section('Статус и история');self.fields['status'].setFocus();self.body_scroll.ensureWidgetVisible(self.fields['status'])
 
     def update_breadcrumb(self,label):
+        self.body_scroll.verticalScrollBar().setValue(0)
         self.route_detail=label
         if self.workspace.current_page is self:
             self.workspace.pages.update_heading()
@@ -280,6 +288,7 @@ class RepairEditor:
         button(actions,'Изменить позицию',lambda:self.with_saved(lambda:self.item('',True)))
         button(actions,'Удалить позицию',lambda:self.with_saved(lambda:self.delete_item('')),danger=True)
         self.item_filter.currentIndexChanged.connect(self.install_items)
+        layout.addStretch(1)
         self.tabs.addTab(page,'Работы')
 
     def install_items(self,*_):

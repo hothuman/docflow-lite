@@ -159,6 +159,9 @@ def exercise(app, output, *, stage10=True):
         totals = page.snapshot['totals']
         assert tuple(totals[k] for k in ('total','paid','balance'))==(total*100,paid*100,85000)
         assert 'Долг' in page.finance_values['balance'].text()
+        app.processEvents()
+        for label in page.finance_values.values():
+            assert label.isVisible() and label.width()>0 and label.height()>=label.fontMetrics().height()
         shot('04-finance')
         checks.append('immutable_estimate_and_exact_internal_finance')
 
