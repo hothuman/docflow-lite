@@ -7,7 +7,11 @@ from test_stage1_document_actions import idle
 
 def test_history_details_have_room_in_desktop_window(journal):
     app, window, workspace, first = journal
-    repair = workspace.store.snapshot(first)
+    store=workspace.store
+    store.save_item(first,{'kind':'work','name':'Диагностика','quantity':'1','price':'2000'})
+    store.save_item(first,{'kind':'part','name':'Учебный фильтр','quantity':'1','price':'450'})
+    store.add_payment(first,'1600')
+    repair = store.snapshot(first)
     workspace.show_history({**repair['equipment'],'owner':repair['client']['name']})
     idle(app, workspace)
     history = workspace.current_page
@@ -17,6 +21,9 @@ def test_history_details_have_room_in_desktop_window(journal):
     assert history.detail.height() >= 300
     assert history.grid.height() <= 130
     assert history.detail.width() >= 320
+    content=history.detail.toPlainText()
+    for expected in ('2 450,00 ₽','1 600,00 ₽','850,00 ₽','450,00 ₽','Учебный фильтр'):
+        assert expected in content
 
 
 def test_history_comparison_has_one_heading(journal):
