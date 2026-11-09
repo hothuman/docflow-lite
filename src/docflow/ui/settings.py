@@ -5,6 +5,10 @@ from pathlib import Path
 from PySide6.QtCore import QSettings, QStandardPaths
 
 
+LAST_PROJECT_KEY = 'workspace/v2/lastSuccessfulProject'
+RESUME_PROJECT_KEY = 'workspace/v2/resumeProject'
+
+
 def preferences():
     folder = os.environ.get('DOCFLOW_SETTINGS_DIR')
     if not folder:

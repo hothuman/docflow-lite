@@ -11,7 +11,7 @@ from ...service.validation import ServiceError,rub
 from ...service.statuses import APPROVALS
 from ...service.documents import generate_document,KINDS
 from ...service.attachments import add_attachment,attachment_path,remove_attachment,export_file
-from ..settings import preferences
+from ..settings import LAST_PROJECT_KEY, RESUME_PROJECT_KEY, preferences
 from ...service.demo import seed_demo
 from .widgets import Grid,button,confirm
 from .forms import FieldsDialog
@@ -37,17 +37,24 @@ class Job(QThread):
             self.error=friendly_error(exc)
         finally:self.function=None
 
+SHORT_LISTS = frozenset(('clients','equipment','documents','estimates'))
+
+
 class ServiceWorkspace(QWidget):
     page_changed = Signal()
 
     def __init__(self,parent=None,root=None,shell_navigation=False):
         super().__init__(parent);self.shell_navigation=shell_navigation;self.store=None;self.worker=None;self.project_lock=None;self.cache={};self._pending_refresh=False;self.dialogs=[];self._last_repairs={};self.project_state='not_open';self._project_busy=False;self._safe_project_buttons=[]
+        self._project_attempt=None
+        self._upgrade_candidate=None
         out=QVBoxLayout(self);out.setContentsMargins(0,0,0,0)
         self.location=QLabel('Проект не открыт');self.location.setObjectName('projectLocation');self.location.setWordWrap(True);out.addWidget(self.location)
         self.project_actions=ActionBar();out.addWidget(self.project_actions)
-        self.open_project_button=button(self.project_actions,'Открыть проект',self.choose_project,primary=True)
+        self.open_project_button=button(self.project_actions,'Выбрать проект',self.choose_project,primary=True)
         self.new_project_button=button(self.project_actions,'Создать отдельный проект',self.new_project)
         self.restore_project_button=button(self.project_actions,'Восстановить копию',self.restore)
+        self.retry_project_button=button(self.project_actions,'Повторить',self._retry_project)
+        self.copy_project_button=button(self.project_actions,'Создать отдельную копию',self._copy_legacy_project)
         self.section_picker=QComboBox();self.section_picker.setAccessibleName('Раздел мастерской');out.addWidget(self.section_picker)
         self.tabs=QTabWidget();self.tabs.setUsesScrollButtons(False);out.addWidget(self.tabs,1)
         self.pages = WorkspacePages(self)
@@ -96,8 +103,10 @@ class ServiceWorkspace(QWidget):
             if key in ('clients','equipment'):
                 hint=QLabel();hint.setWordWrap(True);hint.setObjectName('muted');hint.hide();layout.addWidget(hint);self.archive_hints[key]=hint
                 show_archive=QPushButton('Показать архив');show_archive.hide();show_archive.clicked.connect(lambda _,k=key:self.show_archived(k));layout.addWidget(show_archive);self.archive_buttons[key]=show_archive
-            view=Grid(cols,settings_key='workspace/'+key);view.setAccessibleName(name)
-            layout.addWidget(view,1);search.textChanged.connect(view.proxy.setFilterFixedString);search.textChanged.connect(lambda _,k=key:self.update_list_state(k));self.views[key]=view;self.tabs.addTab(page,name)
+            view=Grid(cols,settings_key='workspace/'+key,stretch_column='path' if key=='documents' else None);view.setAccessibleName(name)
+            layout.addWidget(view,1)
+            if key in SHORT_LISTS:layout.addStretch()
+            search.textChanged.connect(view.proxy.setFilterFixedString);search.textChanged.connect(lambda _,k=key:self.update_list_state(k));self.views[key]=view;self.tabs.addTab(page,name)
         button(self.toolbars['clients'],'Добавить',self.new_client);button(self.toolbars['clients'],'Изменить',self.edit_client);button(self.toolbars['clients'],'Архив / вернуть',lambda:self.archive('clients'))
         button(self.toolbars['equipment'],'Добавить',self.new_equipment);button(self.toolbars['equipment'],'Карточка / история',self.equipment_card);button(self.toolbars['equipment'],'Изменить',self.edit_equipment);button(self.toolbars['equipment'],'Архив / вернуть',lambda:self.archive('equipment'))
         self.archived=QCheckBox('Архив');self.toolbars['equipment'].addWidget(self.archived);self.archived.toggled.connect(self.refresh)
@@ -138,7 +147,15 @@ class ServiceWorkspace(QWidget):
         self._repair_sections={}
         for label in self.findChildren(QLabel):label.setTextFormat(Qt.TextFormat.PlainText)
         self._sync_project_controls()
-        self.open_project(root or default_root())
+        if root is not None:
+            self.open_project(root)
+        else:
+            settings=preferences()
+            remembered=settings.value(LAST_PROJECT_KEY,'',type=str)
+            if remembered and settings.value(RESUME_PROJECT_KEY,True,type=bool):
+                self.open_project(remembered,require_existing=True,automatic=True)
+            else:
+                self._project_status('not_open','Выберите папку существующего проекта, создайте новый или восстановите копию.')
     def resizeEvent(self,event):
         super().resizeEvent(event)
         if not self.shell_navigation:
@@ -177,6 +194,8 @@ class ServiceWorkspace(QWidget):
         self.pages.clear(open_section)
 
     def embed_form(self,dialog,on_accept=None,**options):
+        if isinstance(dialog,FieldsDialog):
+            dialog.compact_workspace_layout()
         self.push_page(dialog,dialog.windowTitle(),**options)
         if on_accept:
             dialog.accepted.connect(lambda:on_accept(dialog.values()))
@@ -199,7 +218,12 @@ class ServiceWorkspace(QWidget):
         for control in (*self.searches.values(),*self.views.values(),self.status_filter,self.archived,self.clients_archived,self.active_only):control.setEnabled(ready)
         for control in (self.open_project_button,self.new_project_button,self.restore_project_button):control.setEnabled(available)
         self.journal.project_state(self.store is not None,ready)
-        self.project_actions.setVisible(self.store is None or self.project_state in ('cancelled','error','locked'))
+        needs_action=self.project_state in ('cancelled','error','locked','upgrade_available')
+        self.project_actions.setVisible(self.store is None or needs_action)
+        self.retry_project_button.setVisible(needs_action and self._project_attempt is not None)
+        self.retry_project_button.setEnabled(available)
+        self.copy_project_button.setVisible(self._upgrade_candidate is not None and needs_action)
+        self.copy_project_button.setEnabled(available)
         if self.store is None:
             for key in self.views:self.update_list_state(key)
             self.dashboard.empty.setText('Проект не открыт. Откройте локальную папку, создайте отдельный проект или восстановите копию.')
@@ -208,7 +232,7 @@ class ServiceWorkspace(QWidget):
         else:self.dashboard.empty.setText('Обращений пока нет. Добавьте клиента и оборудование, затем оформите первый ремонт.')
     def _project_status(self,state,message):
         self.project_state=state;self._project_busy=state in ('opening','copy_required')
-        labels={'opening':'Открываю проект…','copy_required':'Нужна отдельная обновлённая копия','cancelled':'Открытие отменено','error':'Ошибка открытия','locked':'Проект занят другим процессом','not_open':'Проект не открыт'}
+        labels={'opening':'Открываю проект…','copy_required':'Нужна отдельная обновлённая копия','upgrade_available':'Нужна обновлённая копия','cancelled':'Открытие отменено','error':'Ошибка открытия','locked':'Проект занят другим процессом','not_open':'Проект не открыт'}
         if self.store:
             title='Проект: '+self.store.root.name
             if state!='opened':title+=' · '+labels.get(state,'')
@@ -219,6 +243,7 @@ class ServiceWorkspace(QWidget):
             if state not in ('opening','not_open'):title='Проект не открыт · '+title
             self.location.setToolTip('')
         self.location.setText(title);self.message.setText(message)
+        self.settings_page.show_project(self.store.root if self.store else None)
         record_project_event(state);self._sync_project_controls()
     def require_project(self):
         if self.store is not None and not self._project_busy and not self.worker:return True
@@ -272,43 +297,89 @@ class ServiceWorkspace(QWidget):
                 self.message.setText('Открытие ещё выполняется. Не закрывайте программу; дождитесь результата проверки диска и базы.')
         QTimer.singleShot(15000,self,slow)
         job.finished.connect(done);job.start();return True
-    def open_project(self,root):
+    def _retry_project(self):
+        if self._project_attempt:
+            root,require_existing,automatic=self._project_attempt
+            self.open_project(root,require_existing=require_existing,automatic=automatic)
+
+    def open_project(self,root,*,require_existing=False,automatic=False):
         self.journal.persist_context()
         if self.worker or self._project_busy:return False
         if self.current_page is not None:
-            self.pages.clear(lambda:self.open_project(root))
+            self.pages.clear(lambda:self.open_project(root,require_existing=require_existing,automatic=automatic))
             return
         if self.history_window:self.history_window.close()
         if self.dialogs:return False
         root=Path(root).absolute()
-        if self.store and root.resolve()==self.store.root.resolve():self._project_status('opened','Проект уже открыт.');self.refresh();return
+        self._project_attempt=(root,require_existing,automatic)
+        self._upgrade_candidate=None
         if str(root).startswith('\\\\'):
-            self._project_status('error','SQLite-проект должен находиться на локальном диске. Выберите другую папку.');return False
+            self._project_status('error','SQLite-проект должен находиться на локальном диске. Выберите другую папку.')
+            return False
+        if self.store and root==self.store.root:
+            self._project_status('opened','Проект уже открыт.')
+            self.refresh()
+            return
         from ...service.database import Database
-        self._pending_refresh=False;self._project_status('opening','Проверяю версию проекта без изменений…')
+        self._pending_refresh=False
+        self._project_status('opening','Проверяю версию проекта без изменений…')
+
         def failed(error):self._project_status('error','Не удалось открыть проект: '+error)
         def inspected(version):
-            if version is None:self._open_current_project(root);return
-            self._project_status('copy_required','Для старой схемы нужна отдельная обновлённая копия. Исходный проект не меняется.')
-            if not confirm(self,f'Проект использует схему {version}. Создать обновлённую копию в новой папке? Исходный проект, документы и история останутся без изменений. Без подтверждения проект не обновляется.'):
-                self._project_status('cancelled','Открытие отменено. Исходный проект не изменён.');return
-            parent=QFileDialog.getExistingDirectory(self,'Папка для новой обновлённой копии')
-            if not parent:self._project_status('cancelled','Копия не создана. Исходный проект не изменён.');return
-            target=Path(parent)/('DocFlow-Updated-'+datetime.now().strftime('%Y%m%d-%H%M%S')+'-'+uuid4().hex[:6])
-            from ...service.project_upgrade import copy_project_for_upgrade
-            source_lock=QLockFile(str(root/'.docflow-service.lock'));source_lock.setStaleLockTime(30000)
-            if not source_lock.tryLock(0):self._project_status('locked','Закройте другой экземпляр программы и повторите открытие. Копия не создана.');return
-            def copy():
-                try:return copy_project_for_upgrade(root,target)
-                finally:source_lock.unlock()
-            self._project_status('opening','Создаю отдельную обновлённую копию…')
-            if not self.run(copy,self._open_current_project,'Проверяю и обновляю отдельную копию; исходный проект не меняется…',on_error=failed,project_operation=True):source_lock.unlock();failed('Операция не запущена. Повторите открытие.')
-        return self.run(lambda:Database.migration_required(root/'service.db'),inspected,'Проверяю версию проекта без изменений…',on_error=failed,project_operation=True)
-    def _open_current_project(self,root):
-        root.mkdir(parents=True,exist_ok=True);lock=QLockFile(str(root/'.docflow-service.lock'));lock.setStaleLockTime(30000)
-        if not lock.tryLock(0):self._project_status('locked','Этот проект уже открыт другим экземпляром приложения. Закройте его и повторите открытие.');return
+            if version is None:
+                self._open_current_project(root,require_existing=require_existing,inline_error=automatic)
+                return
+            self._upgrade_candidate=(root,version)
+            self._project_status('upgrade_available','Проект использует старую схему. Выберите другой проект или создайте отдельную обновлённую копию.')
+            if not automatic:
+                self._copy_legacy_project()
+
+        return self.run(lambda:Database.migration_required(root/'service.db',require_existing=require_existing),
+                        inspected,'Проверяю версию проекта без изменений…',on_error=failed,
+                        project_operation=True,inline_error=automatic)
+
+    def _copy_legacy_project(self):
+        if self.worker or self._project_busy or self._upgrade_candidate is None:return
+        root,version=self._upgrade_candidate
+        self._project_status('copy_required','Для старой схемы нужна отдельная обновлённая копия. Исходный проект не меняется.')
+        if not confirm(self,f'Проект использует схему {version}. Создать обновлённую копию в новой папке? Исходный проект, документы и история останутся без изменений. Без подтверждения проект не обновляется.'):
+            self._project_status('cancelled','Открытие отменено. Исходный проект не изменён.')
+            return
+        parent=QFileDialog.getExistingDirectory(self,'Папка для новой обновлённой копии')
+        if not parent:
+            self._project_status('cancelled','Копия не создана. Исходный проект не изменён.')
+            return
+        target=Path(parent)/('DocFlow-Updated-'+datetime.now().strftime('%Y%m%d-%H%M%S')+'-'+uuid4().hex[:6])
+        from ...service.project_upgrade import copy_project_for_upgrade
+        source_lock=QLockFile(str(root/'.docflow-service.lock'));source_lock.setStaleLockTime(30000)
+        if not source_lock.tryLock(0):
+            self._project_status('locked','Закройте другой экземпляр программы и повторите открытие. Копия не создана.')
+            return
+
+        def copy():
+            try:return copy_project_for_upgrade(root,target)
+            finally:source_lock.unlock()
+
+        def failed(error):self._project_status('error','Не удалось открыть проект: '+error)
+        self._project_status('opening','Создаю отдельную обновлённую копию…')
+        if not self.run(copy,lambda path:self._open_current_project(path,require_existing=True,inline_error=True),
+                        'Проверяю и обновляю отдельную копию; исходный проект не меняется…',
+                        on_error=failed,project_operation=True,inline_error=True):
+            source_lock.unlock()
+            failed('Операция не запущена. Повторите открытие.')
+
+    def _open_current_project(self,root,*,require_existing=False,inline_error=False):
+        if not require_existing:root.mkdir(parents=True,exist_ok=True)
+        lock=QLockFile(str(root/'.docflow-service.lock'));lock.setStaleLockTime(30000)
+        if not lock.tryLock(0):
+            if lock.error()==QLockFile.LockError.LockFailedError:
+                self._project_status('locked','Этот проект уже открыт другим экземпляром приложения. Закройте его и повторите открытие.')
+            else:
+                self._project_status('error','Нет доступа к папке проекта. Проверьте диск и права доступа или выберите другой проект.')
+            return
         def failed(error):
-            lock.unlock();self._project_status('error','Не удалось открыть проект: '+error)
+            lock.unlock()
+            self._project_status('error','Не удалось открыть проект: '+error)
         def installed(result):
             store,data=result;previous=self.cache;previous_store=self.store
             controls=(*(value for key,value in self.searches.items() if key!='repairs'),self.archived,self.clients_archived,self.active_only)
@@ -340,12 +411,19 @@ class ServiceWorkspace(QWidget):
                 raise
             if self.project_lock:self.project_lock.unlock()
             self.project_lock=lock
+            self._project_attempt=None
+            self._upgrade_candidate=None
+            settings=preferences()
+            settings.setValue(LAST_PROJECT_KEY,str(store.root))
+            settings.sync()
+            if settings.status()!=settings.Status.NoError:
+                self.message.setText('Проект открыт, но не удалось сохранить его путь для следующего запуска.')
         def open_store():
             try:
-                store=ServiceStore(root,allow_upgrade=False)
+                store=ServiceStore(root,allow_upgrade=False,require_existing=require_existing)
                 return store,self._query_project_data(store)
             except Exception:lock.unlock();raise
-        if not self.run(open_store,installed,'Проверяю SQLite и версию схемы…',on_error=failed,project_operation=True):failed('Операция не запущена. Повторите открытие.')
+        if not self.run(open_store,installed,'Проверяю SQLite и версию схемы…',on_error=failed,project_operation=True,inline_error=inline_error):failed('Операция не запущена. Повторите открытие.')
     def _query_project_data(self,s,archived=False,active=False,clients_archived=False):
         from ...service.estimates import estimate_summaries
         from ...service.link_audit import audit_links
@@ -387,10 +465,15 @@ class ServiceWorkspace(QWidget):
         (self.clients_archived if key=='clients' else self.archived).setChecked(True)
     def update_list_state(self,key):
         if key not in self.views or key=='repairs':return
+        view=self.views[key]
         if self.store is None:
+            if key in SHORT_LISTS:view.hide()
             self.empty_labels[key].setText('Проект не открыт. Выберите локальную папку или создайте отдельный проект.');self.empty_labels[key].show();self.reset_filter_buttons[key].hide();return
         query=bool(self.searches[key].text().strip());filtered=query or (key=='equipment' and self.active_only.isChecked())
-        visible=self.views[key].proxy.rowCount()
+        visible=view.proxy.rowCount()
+        if key in SHORT_LISTS:
+            view.setVisible(bool(visible))
+            view.fit_few_rows()
         self.reset_filter_buttons[key].setVisible(filtered)
         label=self.empty_labels[key]
         label.setVisible(not visible)
@@ -666,7 +749,7 @@ class ServiceWorkspace(QWidget):
     def choose_project(self):
         if self.worker or self._project_busy:return False
         p=QFileDialog.getExistingDirectory(self,'Локальная папка проекта')
-        if p:self.open_project(p)
+        if p:self.open_project(p,require_existing=True)
     def new_project(self):
         if self.worker or self._project_busy:return False
         parent=QFileDialog.getExistingDirectory(self,'Папка для отдельного нового проекта')
@@ -680,7 +763,7 @@ class ServiceWorkspace(QWidget):
         if self.worker or self._project_busy:return False
         p=default_root().with_name('Service-Synthetic-Demo-'+datetime.now().strftime('%Y%m%d-%H%M%S'))
         if not confirm(self,'Создать отдельный вымышленный проект? Рабочая база не меняется.'):return
-        self.run(lambda:seed_demo(p),lambda _:self.open_project(p),'Создаю отдельное синтетическое демо…')
+        self.run(lambda:seed_demo(p),lambda _:self.open_project(p,require_existing=True),'Создаю отдельное синтетическое демо…')
     def backup_directory(self):
         fallback=QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)
         saved=preferences().value('workspace/v2/backup/lastDirectory', fallback)

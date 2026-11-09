@@ -13,7 +13,7 @@ class RepairNavigation(QWidget):
     sectionChanged=Signal(str)
     GROUPS={'Приёмка':0,'Дефектовка':1,'Согласование':2,'Сметы':2,'Работы':3,'Запчасти':3,'Доставка':3,'Прочие расходы':3,'Финансы':3,'Вложения':3,'Документы':4,'Статус и история':4}
     def __init__(self,parent=None,embedded=False):
-        super().__init__(parent);self.editor=parent;self.embedded=embedded;self.sections={};self.cards={};self.layouts=[];self.status_labels=[];self.section_tabs=[];self.section_stacks=[];self.stage_bar=QTabBar();self.stage_bar.setExpanding(True);self.stage_bar.setAccessibleName('Пять этапов ремонта');self.stage_bar.setUsesScrollButtons(embedded);self.stack=ActiveStack() if embedded else QStackedWidget();outer=QVBoxLayout(self);outer.setContentsMargins(0,0,0,0);outer.addWidget(self.stack)
+        super().__init__(parent);self.editor=parent;self.embedded=embedded;self._selecting_section=False;self.sections={};self.cards={};self.layouts=[];self.status_labels=[];self.section_tabs=[];self.section_stacks=[];self.stage_bar=QTabBar();self.stage_bar.setExpanding(True);self.stage_bar.setAccessibleName('Пять этапов ремонта');self.stage_bar.setUsesScrollButtons(embedded);self.stack=ActiveStack() if embedded else QStackedWidget();outer=QVBoxLayout(self);outer.setContentsMargins(0,0,0,0);outer.addWidget(self.stack)
         if embedded:self.stage_bar.setObjectName('repairStageBar')
         for title in ('Приёмка','Диагностика','Смета','Работы','Выдача'):
             body=QWidget();layout=QVBoxLayout(body);layout.setContentsMargins(0,6,0,0);layout.setSpacing(8);hint=QLabel();hint.setWordWrap(True);hint.setObjectName('muted');layout.addWidget(hint);self.status_labels.append(hint)
@@ -40,7 +40,7 @@ class RepairNavigation(QWidget):
         if self.embedded:
             index=self.section_stacks[group].addWidget(content)
             self.sections[title]=(group,index,content)
-            labels={'Дефектовка':'Диагностика','Сметы':'Расчёт и версии','Статус и история':'Передача','Финансы':'Оплаты'}
+            labels={'Дефектовка':'Диагностика','Сметы':'Состав и версии','Согласование':'Ответ заказчика','Статус и история':'Передача','Финансы':'Оплаты'}
             selector=self.section_tabs[group];selector.addTab(labels.get(title,title));selector.setVisible(selector.count()>1)
             return index
         card=Disclosure('Диагностика' if title=='Дефектовка' else title,content);self.layouts[group].insertWidget(self.layouts[group].count()-1,card);index=sum(g==group for g,_,_ in self.sections.values());self.sections[title]=(group,index,content);self.cards[title]=card
@@ -52,11 +52,17 @@ class RepairNavigation(QWidget):
         if owner and hasattr(owner,'body_scroll'):QTimer.singleShot(0,owner,lambda:owner.body_scroll.verticalScrollBar().setValue(0))
         self.update_section()
     def show_section(self,title):
-        group,index,widget=self.sections[title];self.setCurrentIndex(group)
+        group,index,widget=self.sections[title]
         if self.embedded:
-            self.section_tabs[group].setCurrentIndex(index)
+            self._selecting_section=True
+            try:
+                self.setCurrentIndex(group)
+                self.section_tabs[group].setCurrentIndex(index)
+            finally:
+                self._selecting_section=False
             self.update_section()
             return
+        self.setCurrentIndex(group)
         self.cards[title].set_expanded(True)
         owner=self.editor
         if owner and hasattr(owner,'body_scroll'):QTimer.singleShot(0,owner,lambda:owner.body_scroll.ensureWidgetVisible(self.cards[title],12,12))
@@ -66,7 +72,7 @@ class RepairNavigation(QWidget):
         self.stack.setCurrentWidget(widget)
 
     def update_section(self,*_):
-        if not self.embedded:return
+        if not self.embedded or self._selecting_section:return
         stage=self.currentIndex()
         selector=self.section_tabs[stage]
         self.section_stacks[stage].updateGeometry()

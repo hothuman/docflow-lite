@@ -92,7 +92,7 @@ def test_error_settles_and_can_retry(app,tmp_path,monkeypatch,kind):
     original_preflight=Database.migration_required
     if kind=='corrupt':(root/'service.db').write_bytes(b'synthetic invalid database')
     elif kind=='permission':
-        def no_access(path):raise PermissionError('PRIVATE_PATH_SENTINEL')
+        def no_access(path, *, require_existing=False):raise PermissionError('PRIVATE_PATH_SENTINEL')
         monkeypatch.setattr(Database,'migration_required',no_access)
     else:
         original=module.ServiceWorkspace._install_project_data
@@ -172,7 +172,7 @@ def test_every_business_entry_is_safe_without_store(app,tmp_path,monkeypatch):
 
 def test_slow_worker_and_fast_navigation_then_repeat_open(app,tmp_path,monkeypatch):
     release=threading.Event();started=threading.Event();original=Database.migration_required
-    def held(path):started.set();assert release.wait(10);return original(path)
+    def held(path, **options):started.set();assert release.wait(10);return original(path, **options)
     monkeypatch.setattr(Database,'migration_required',held)
     workspace=module.ServiceWorkspace(root=tmp_path/'A')
     try:

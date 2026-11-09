@@ -81,9 +81,15 @@ class WorkspacePages(QWidget):
         self.back_button.setAccessibleName(label)
         source = self.workspace.tabs.tabText(self.workspace.tabs.currentIndex())
         detail = getattr(route.widget, 'route_detail', '')
-        self.caption = ' / '.join(filter(None, ('Мастерская', source, *self.titles, detail)))
-        self.crumbs.setAccessibleName(self.caption)
-        self.crumbs.setToolTip(self.caption)
+        if self.workspace.shell_navigation:
+            # The window already names the current task and the stage selector names its step.
+            self.caption = self.titles[-1] if self.workspace.window().height()<530 else ''
+            context = ' / '.join(filter(None, (source, *self.titles, detail)))
+        else:
+            self.caption = ' / '.join(filter(None, ('Мастерская', source, *self.titles, detail)))
+            context = self.caption
+        self.crumbs.setAccessibleName(context)
+        self.crumbs.setToolTip(context)
         self.fit_crumbs()
 
     def fit_crumbs(self):
@@ -92,7 +98,7 @@ class WorkspacePages(QWidget):
 
     def resizeEvent(self,event):
         super().resizeEvent(event)
-        self.fit_crumbs()
+        self.update_heading()
 
     def finished(self, widget):
         if widget is self.current:

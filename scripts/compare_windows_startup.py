@@ -10,17 +10,20 @@ from verify_windows_bundle import normal_start
 URL='https://github.com/hothuman/docflow-lite/releases/download/v0.1.1/DocFlow-Lite-0.1.1-Windows-x64-Portable.zip'
 EXPECTED='c0cac130ec4b39d7d42f0ea6ea1d5f128ff6402c89cc4cb8518bc60403f2a034'
 
-def run(exe,output):
+def run(exe,output,baseline_zip=None):
     assert os.name=='nt'
     env=os.environ.copy()
     for key in list(env):
         if key.upper().startswith(('PYTHON','QT_','VIRTUAL_ENV')):env.pop(key)
     env['PATH']=str(Path(os.environ['SYSTEMROOT'])/'System32')
     with tempfile.TemporaryDirectory(prefix='DocFlow before after ') as temp:
-        root=Path(temp);archive=root/'baseline.zip'
-        with urlopen(Request(URL,headers={'User-Agent':'DocFlow-Lite-RC-QA'}),timeout=120) as response:
-            with archive.open('wb') as stream:
-                while data:=response.read(1024*1024):stream.write(data)
+        root=Path(temp)
+        archive=baseline_zip
+        if archive is None:
+            archive=root/'baseline.zip'
+            with urlopen(Request(URL,headers={'User-Agent':'DocFlow-Lite-RC-QA'}),timeout=120) as response:
+                with archive.open('wb') as stream:
+                    while data:=response.read(1024*1024):stream.write(data)
         assert hashlib.sha256(archive.read_bytes()).hexdigest()==EXPECTED,'Unexpected baseline archive; will not execute'
         with zipfile.ZipFile(archive) as z:
             assert z.testzip() is None
@@ -44,4 +47,5 @@ def run(exe,output):
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('--exe',type=Path,required=True);parser.add_argument('--output',type=Path,required=True)
-    args=parser.parse_args();run(args.exe.resolve(),args.output.resolve())
+    parser.add_argument('--baseline-zip',type=Path,help='Use a downloaded archive with the pinned SHA256')
+    args=parser.parse_args();run(args.exe.resolve(),args.output.resolve(),args.baseline_zip)

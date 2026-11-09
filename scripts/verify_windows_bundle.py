@@ -218,7 +218,11 @@ def verify(archive,evidence,release):
         assert_completion_checks(service['completion']['checks'])
         assert service['refinement']['status']=='passed'
         assert service['workspace']['status']=='passed' and service['workspace']['operational_top_level_windows']==1
-        assert len(service['workspace']['checks'])==6
+        workspace_checks=service['workspace']['checks']
+        assert len(workspace_checks)==8 and {
+            'estimate_csv_and_localized_csv_match_frozen_quote',
+            'cancelled_issued_cost_change_preserves_data_and_docx',
+        } <= set(workspace_checks)
         assert len(service['refinement']['checks'])==3 and all(c['passed'] for c in service['refinement']['checks'])
         layout=service['refinement']['layout']
         assert layout['status']=='passed' and len(layout['cases'])==90
@@ -265,7 +269,12 @@ def verify(archive,evidence,release):
     result['limits']=['Automated native Windows runner, not manual Windows 10/11 acceptance',
                       'Native folder picker cancellation tested at 100%/200%; other file selections supplied by harness',
                       'DOCX ZIP/XML and content verified; Word/LibreOffice visual rendering not tested']
-    (evidence/'WINDOWS-CI-RESULTS.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
+    # Publish portable evidence without revealing the local machine's directories.
+    report=json.dumps(result,ensure_ascii=False,indent=2)
+    for root,label in ((testroot.parent,'<extracted-test>'),(evidence,'<evidence>')):
+        escaped=json.dumps(str(root),ensure_ascii=False)[1:-1]
+        report=report.replace(escaped,label)
+    (evidence/'WINDOWS-CI-RESULTS.json').write_text(report,encoding='utf-8')
     shutil.copy2(evidence/'WINDOWS-CI-RESULTS.json',release/'WINDOWS-CI-RESULTS.json')
     print(json.dumps({'status':result['status'],'runs':len(result['runs']),'docx_total':sum(x['generated_docx'] for x in result['runs'])}))
 

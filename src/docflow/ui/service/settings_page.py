@@ -1,9 +1,11 @@
 
 """Grouped entry points for the existing workshop project operations."""
-from PySide6.QtWidgets import QComboBox, QScrollArea, QStackedWidget, QTabBar, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QCheckBox, QComboBox, QScrollArea, QStackedWidget, QTabBar, QVBoxLayout, QWidget
 
 from ..flow import ActionBar
-from ..widgets import card
+from ..settings import RESUME_PROJECT_KEY, preferences
+from ..widgets import card, text
 from .widgets import button
 
 
@@ -55,6 +57,15 @@ class SettingsPage(QWidget):
             page=QWidget()
             page_layout=QVBoxLayout(page)
             panel,body=card(title,description)
+            if title=='Проекты':
+                self.project_path=text('','muted')
+                self.project_path.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse |
+                                                          Qt.TextInteractionFlag.TextSelectableByKeyboard)
+                body.addWidget(self.project_path)
+                self.resume_project=QCheckBox('Открывать последний проект при запуске')
+                self.resume_project.setChecked(preferences().value(RESUME_PROJECT_KEY,True,type=bool))
+                self.resume_project.toggled.connect(self._save_resume)
+                body.addWidget(self.resume_project)
             bar=ActionBar()
             body.addWidget(bar)
             for label,callback in actions:
@@ -69,6 +80,15 @@ class SettingsPage(QWidget):
         self.category.currentIndexChanged.connect(self.category_bar.setCurrentIndex)
         self.category_bar.currentChanged.connect(self.category.setCurrentIndex)
         self.category.setCurrentIndex(1)
+
+    def show_project(self, path):
+        self.project_path.setText(f'Текущая папка: {path}' if path else 'Проект не открыт.')
+
+    @staticmethod
+    def _save_resume(enabled):
+        settings=preferences()
+        settings.setValue(RESUME_PROJECT_KEY,enabled)
+        settings.sync()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

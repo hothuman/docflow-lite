@@ -221,13 +221,13 @@ class EstimatesPanel(QWidget):
         overview=QFrame();overview.setObjectName('card');overview_layout=QVBoxLayout(overview)
         overview_layout.setContentsMargins(12,6,12,6);overview_layout.setSpacing(3)
         self.summary=text('','section');overview_layout.addWidget(self.summary)
-        overview_layout.addWidget(text('Предварительная смета описывает план. Долг рассчитывается по фактическим расходам и учтённым оплатам.','muted'))
+        overview_layout.addWidget(text('Предварительно — план. Остаток рассчитан по фактическим расходам и оплатам.','muted'))
         layout.addWidget(overview)
         self.mode=QTabBar();self.mode.setExpanding(False);self.mode.setUsesScrollButtons(True)
         self.mode.setAccessibleName('Какой состав сметы показать')
-        for title in ('Черновик','Фактические позиции','Версии'):self.mode.addTab(title)
+        for title in ('Предварительная смета','Фактические расходы','Сохранённые версии'):self.mode.addTab(title)
+        layout.addWidget(self.mode)
         bar=FlowLayout();layout.addLayout(bar)
-        bar.addWidget(self.mode)
         self.edit_button=button(bar,'Редактировать черновик',lambda:self.editor.with_saved(self.edit_draft),primary=True)
         self.freeze_preliminary=button(bar,'Сохранить предварительную версию',lambda:self.editor.with_saved(lambda:self.freeze('preliminary')))
         self.freeze_actual=button(bar,'Сохранить окончательную версию',lambda:self.editor.with_saved(lambda:self.freeze('final')),primary=True)
@@ -244,6 +244,7 @@ class EstimatesPanel(QWidget):
             button(version_actions,'Записать ответ заказчика',self.manual_event),
             button(version_actions,'Автор и история',self.details),
             button(version_actions,'Выгрузить CSV',self.export),
+            button(version_actions,'CSV на русском',lambda:self.export(localized=True)),
         ]
         self.caption=text('','section');layout.addWidget(self.caption)
         self.lines=Grid(LINE_COLUMNS,settings_key='repair/quote-content')
@@ -265,7 +266,8 @@ class EstimatesPanel(QWidget):
                 f"Фактически: {rub(c['final_total'])}   ·   Разница: {rub(d) if d is not None else 'не установлена'}\n"
                 f"Учтено: {rub(t['paid'])}   ·   Остаток: {rub(t['balance'])}")
             self.grid.install([{**q,'state_label':STATES[q['state']]} for q in s['estimates']])
-            self.grid.setFixedHeight(min(180,max(90,52+38*len(s['estimates']))))
+            self.grid.fit_few_rows()
+            self.grid.setMaximumHeight(min(220,self.grid.maximumHeight()))
             if s['estimates'] and not self.grid.selected():self.grid.selectRow(0)
             if first and not s['preliminary_draft']['lines']:
                 if s['estimates']:self.mode.setCurrentIndex(2)
@@ -320,8 +322,9 @@ class EstimatesPanel(QWidget):
         if row is None:
             self.line_detail.clear();self.line_detail.hide()
             return
-        self.line_detail.setText(' · '.join(filter(None,(ITEM_LABELS[row['kind']],row.get('description'),row.get('notes')))))
-        self.line_detail.show()
+        detail=' · '.join(filter(None,(row.get('description'),row.get('notes'))))
+        self.line_detail.setText(detail)
+        self.line_detail.setVisible(bool(detail))
 
     def modal(self,d):
         w=self.editor.workspace;w.dialogs.append(d)
@@ -414,12 +417,12 @@ class EstimatesPanel(QWidget):
                 return e.with_saved(start)
             from ...service.documents import generate_document
             e.with_saved(lambda:e.mutate(lambda:generate_document(e.store,e.key,'estimate_'+q['kind'],estimate_id=q['id'])))
-    def export(self):
+    def export(self, *, localized=False):
         q=self.selected()
         if not q:return
         path,_=QFileDialog.getSaveFileName(self,'Новый CSV спецификации',f"specification-v{q['version']}.csv",'CSV (*.csv)')
         if path:
             workspace=self.editor.workspace
-            workspace.run(lambda:export_specification(self.editor.store,q['id'],path),
+            workspace.run(lambda:export_specification(self.editor.store,q['id'],path,localized=localized),
                           lambda _:workspace.message.setText('CSV сохранён. Перенос и проверка в учётной системе выполняются вручную.'),
                           'Сохраняю CSV выбранной версии…',inline_error=self.editor.embedded)

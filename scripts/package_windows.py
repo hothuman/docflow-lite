@@ -44,7 +44,7 @@ def package(bundle,out,sources):
     out.mkdir(parents=True,exist_ok=True)
     instruction_lines=INSTRUCTIONS.read_text(encoding='utf-8').splitlines()
     instruction_lines[0]=f'DocFlow Lite {VERSION} — Core + Service · {stage(VERSION)}'
-    instruction_lines[2]=('Кандидат стабильной версии. Это ещё не стабильный выпуск.' if stage(VERSION)=='RC' else 'Предварительный выпуск.' if is_prerelease(VERSION) else 'Стабильный выпуск с ограничениями, указанными в документации.')
+    instruction_lines[2]=('Кандидат стабильной версии. Это ещё не стабильный выпуск.' if stage(VERSION)=='RC' else 'Предварительный выпуск.' if is_prerelease(VERSION) else 'Сборка с номером стабильной ветки. Статус распространения указан в отчёте поставки или на странице выпуска.')
     (bundle/'README-WINDOWS.txt').write_text('\n'.join(instruction_lines)+'\n',encoding='utf-8')
     shutil.copy2(ROOT/'THIRD_PARTY.md',bundle/'THIRD_PARTY.md')
     shutil.copy2(ROOT/'LICENSE.txt',bundle/'LICENSE.txt')

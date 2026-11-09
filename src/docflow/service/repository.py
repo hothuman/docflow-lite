@@ -26,11 +26,11 @@ def search_records(rows,query,fields):
     return [row for row in rows if matches(row)]
 
 class ServiceStore:
-    def __init__(self,root=None,*,allow_upgrade=True):
+    def __init__(self,root=None,*,allow_upgrade=True,require_existing=False):
         self.root=Path(root or default_root()).absolute()
         if self.root.is_symlink():raise ServiceError('Каталог проекта не должен быть ссылкой')
-        self.root.mkdir(parents=True,exist_ok=True)
-        self.lock=threading.RLock(); self.db=Database(self.root/'service.db',allow_upgrade=allow_upgrade)
+        self.lock=threading.RLock()
+        self.db=Database(self.root/'service.db',allow_upgrade=allow_upgrade,require_existing=require_existing)
     @staticmethod
     def audit(c,entity,key,action,detail=''):
         c.execute('INSERT INTO operations(entity,entity_id,action,detail,created_at) VALUES(?,?,?,?,?)',(entity,key,action,detail,now()))

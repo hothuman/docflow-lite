@@ -1,4 +1,5 @@
 """Exercise the single-window routes on an isolated synthetic project."""
+import csv
 import hashlib
 from pathlib import Path
 import time
@@ -6,7 +7,7 @@ import time
 from docx import Document
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 from ..ui.service.forms import FieldsDialog
 from ..ui.service.history import HistoryComparison, HistoryPage
@@ -16,7 +17,7 @@ from .backup import create_backup, inspect_backup, restore_backup
 from .repository import ServiceStore
 
 
-def exercise(app, output):
+def exercise(app, output, *, stage10=True):
     output = Path(output)
     output.mkdir(parents=True)
     window = MainWindow(service_root=output/'Учебная мастерская')
@@ -24,6 +25,8 @@ def exercise(app, output):
     window.show()
     window.navigate(5)
     workspace = window.service_workspace
+    work, part, paid = (2000, 450, 1600) if stage10 else (1500, 350, 1000)
+    total = work+part
     checks = []
     layout_samples = {}
 
@@ -61,7 +64,7 @@ def exercise(app, output):
         active.save_button.click()
         idle()
 
-    def issue(page, approve):
+    def confirm_action(action, approve, *expected):
         observed = []
         timer = QTimer(window)
         def respond():
@@ -73,11 +76,11 @@ def exercise(app, output):
         timer.timeout.connect(respond)
         timer.start(8)
         try:
-            page.issue_button.click()
+            action()
         finally:
             timer.stop()
         idle()
-        assert observed and '850,00 ₽' in observed[0] and 'не подтверждает оплату' in observed[0]
+        assert len(observed)==1 and all(text in observed[0] for text in expected), observed
 
     try:
         idle()
@@ -117,16 +120,26 @@ def exercise(app, output):
         checks.append('embedded_intake_and_diagnosis')
 
         page.tabs.show_section('Работы')
-        page.item('work')
-        form({'name':'Работа мастера','price':'1500'})
+        page.add_item_button.menu().actions()[0].trigger()
+        form({'name':'Работа мастера','price':str(work)})
         assert inside(RepairPage) is page
-        page.item('part')
-        form({'name':'Уплотнение','price':'350'})
+        page.add_item_button.menu().actions()[1].trigger()
+        form({'name':'Уплотнение','price':str(part)})
         page.tabs.show_section('Сметы')
+        if stage10:
+            from .estimates import save_draft
+            save_draft(store, first, [
+                {'name':'Работа мастера','kind':'work','quantity':'1','price':str(work)},
+                {'name':'Уплотнение','kind':'part','quantity':'1','price':str(part)},
+            ])
+            page.install(store.snapshot(first))
+            page.estimates.freeze('preliminary')
+            form({'actor':'Учебный сотрудник','reason':'Проверочный предварительный расчёт'})
         page.estimates.freeze('final')
         form({'actor':'Учебный сотрудник','reason':'Проверочный финальный расчёт'})
         quotes = page.snapshot['estimates']
-        assert len(quotes)==1 and quotes[0]['total']==185000
+        assert len(quotes)==(2 if stage10 else 1) and all(q['total']==total*100 for q in quotes)
+        if stage10:assert any(q['kind']=='preliminary' and q['version']==1 for q in quotes)
         app.processEvents()
         viewport=page.body_scroll.viewport()
         estimate_y=page.estimates.summary.mapTo(viewport,page.estimates.summary.rect().bottomLeft()).y()
@@ -136,6 +149,25 @@ def exercise(app, output):
         row_center=versions.viewport().mapTo(viewport,first_row.center())
         assert viewport.rect().contains(row_center),(row_center,viewport.size())
         shot('03-estimate')
+        if stage10:
+            quote=next(q for q in quotes if q['kind']=='preliminary')
+            page.estimates.select_version(quote['id'])
+            for localized,kind in ((False,'preliminary'),(True,'Предварительная смета')):
+                path=output/('Смета на русском.csv' if localized else 'Смета.csv')
+                choose=QFileDialog.getSaveFileName
+                try:
+                    QFileDialog.getSaveFileName=lambda *_: (str(path),'CSV (*.csv)')
+                    page.estimates.export(localized=localized)
+                finally:
+                    QFileDialog.getSaveFileName=choose
+                idle()
+                assert path.read_bytes().startswith(b'\xef\xbb\xbf')
+                with path.open(encoding='utf-8-sig',newline='') as stream:
+                    rows=list(csv.reader(stream,delimiter=';'))
+                assert [row[2] for row in rows[1:3]]==[kind,kind]
+                assert [row[-1] for row in rows[1:3]]==['2000.00','450.00']
+                assert rows[-1][4]=='Итого' and rows[-1][-1]=='2450.00'
+            checks.append('estimate_csv_and_localized_csv_match_frozen_quote')
         page.tabs.show_section('Финансы')
         page.payment('payment')
         invalid = inside(FieldsDialog)
@@ -143,10 +175,13 @@ def exercise(app, output):
         invalid.save_button.click()
         idle()
         assert inside(FieldsDialog) is invalid and invalid.error.isVisible()
-        form({'amount':'1000','comment':'Учебный частичный расчёт'})
+        form({'amount':str(paid),'comment':'Учебный частичный расчёт'})
         totals = page.snapshot['totals']
-        assert tuple(totals[k] for k in ('total','paid','balance'))==(185000,100000,85000)
+        assert tuple(totals[k] for k in ('total','paid','balance'))==(total*100,paid*100,85000)
         assert 'Долг' in page.finance_values['balance'].text()
+        app.processEvents()
+        for label in page.finance_values.values():
+            assert label.isVisible() and label.width()>0 and label.height()>=label.fontMetrics().height()
         shot('04-finance')
         checks.append('immutable_estimate_and_exact_internal_finance')
 
@@ -167,9 +202,9 @@ def exercise(app, output):
         wizard.generate_button.click()
         idle()
         [document] = store.documents()
-        path = store.root/document['path']
-        assert path.read_bytes()==preview
-        doc = Document(path)
+        path_doc = store.root/document['path']
+        assert path_doc.read_bytes()==preview
+        doc = Document(path_doc)
         payload = '\n'.join([p.text for p in doc.paragraphs]+[cell.text for table in doc.tables
                             for row in table.rows for cell in row.cells])
         assert 'Уплотнение' in payload and '850,00' in payload
@@ -183,9 +218,27 @@ def exercise(app, output):
         page.save_button.click()
         idle()
         assert page.snapshot['repair']['status']==original
-        issue(page,False)
+        handover_proof = None
+        if stage10:
+            page.next_button.click()
+            assert wizard.doc_kind.currentData()=='handover' and wizard.doc_kind.count()==8
+            assert len(store.documents())==1
+            wizard.check_document()
+            wizard.preview()
+            idle()
+            assert wizard.prepared and 'Принято' in wizard.preview_text.toPlainText()
+            assert 'полностью оплачено' not in wizard.preview_text.toPlainText().lower()
+            bytes_at_preview = wizard.prepared.rendered
+            wizard.preview_continue.click()
+            wizard.generate_button.click()
+            idle()
+            handover_doc = next(doc for doc in store.documents() if doc['kind']=='handover')
+            handover_proof = handover_doc['path'], bytes_at_preview
+            assert (store.root/handover_doc['path']).read_bytes()==bytes_at_preview
+            page.tabs.show_section('Статус и история')
+        confirm_action(page.issue_button.click,False,'850,00 ₽','не подтверждает оплату')
         assert store.snapshot(first)['repair']['status']==original
-        issue(page,True)
+        confirm_action(page.issue_button.click,True,'850,00 ₽','не подтверждает оплату')
         issued = store.snapshot(first)
         assert issued['repair']['status']=='issued' and issued['totals']['balance']==85000
         assert issued['repair_status_history'][-1]['new_status']=='issued'
@@ -201,6 +254,23 @@ def exercise(app, output):
         workspace.back_page()
         assert inside(RepairPage) is page
         shot('07-issued')
+        if stage10:
+            page.tabs.show_section('Работы')
+            page.items_grid.selectRow(0)
+            change=page.item('',edit=True)
+            assert inside(FieldsDialog) is change
+            original_price=change.fields['price'].text()
+            change.fields['price'].setText('9999')
+            confirm_action(change.save_button.click,False,'уже выдано','задолженность')
+            assert inside(FieldsDialog) is change
+            assert store.snapshot(first)==issued
+            assert path_doc.read_bytes()==preview
+            if handover_proof:
+                assert (store.root/handover_proof[0]).read_bytes()==handover_proof[1]
+            change.fields['price'].setText(original_price)
+            workspace.back_page()
+            assert inside(RepairPage) is page
+            checks.append('cancelled_issued_cost_change_preserves_data_and_docx')
         checks.append('status_changes_only_on_explicit_confirmed_action')
 
         workspace.back_page()
@@ -211,6 +281,8 @@ def exercise(app, output):
         workspace.open_journal_history()
         idle()
         history = inside(HistoryPage)
+        assert 'минимум два обращения' in history.compare_hint.text()
+        assert not history.compare_button.isEnabled()
         history.new()
         repeated = inside(IntakeDialog)
         repeated.complaint.setPlainText('Повторная проверка')
@@ -249,6 +321,10 @@ def exercise(app, output):
         assert restored.snapshot(second)['totals']['balance']==0
         assert restored.snapshot(first)['repair_status_history']==issued['repair_status_history']
         assert (restored.root/document['path']).read_bytes()==preview
+        if handover_proof:
+            handover_path, handover_bytes = handover_proof
+            assert (store.root/handover_path).read_bytes()==handover_bytes
+            assert (restored.root/handover_path).read_bytes()==handover_bytes
         assert hashlib.sha256(archive.read_bytes()).hexdigest()==info['sha256']
         checks.append('backup_restores_two_repairs_statuses_and_exact_document')
         return {'status':'passed','checks':checks,'qt_platform':app.platformName(),

@@ -150,13 +150,14 @@ class HistoryComparison(QWidget):
     SECTION_NAMES = ('Причина обращения', 'Диагностика', 'Работы', 'Запчасти',
                      'Стоимость', 'Остаток', 'Документы', 'Подробности')
 
-    def __init__(self, snapshots):
+    def __init__(self, snapshots, *, show_heading=True):
         super().__init__()
         self.setObjectName('historyComparison')
         self.setAccessibleName('Сравнение ремонтов одного аппарата')
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        outer.addWidget(text('Сравнение ремонтов', 'title'))
+        if show_heading:
+            outer.addWidget(text('Сравнение ремонтов', 'title'))
         outer.addWidget(text('Найдите, что повторилось, что изменилось и как отличались расходы.', 'muted'))
         actions = ActionBar()
         self.details_button = button(actions, 'Подробности', self.toggle_details)
@@ -260,7 +261,8 @@ class _HistoryContent:
         outer.addWidget(scroll, 1)
         layout = QVBoxLayout(body)
         layout.setContentsMargins(0, 0, 3, 0)
-        layout.addWidget(text('История аппарата', 'title'))
+        if not embedded or not workspace.shell_navigation:
+            layout.addWidget(text('История аппарата', 'title'))
         serial = ' · Серийный № ' + equipment['serial'] if equipment.get('serial') else ''
         owner = equipment.get('owner') or 'Не заполнено'
         identity = f"Аппарат № {equipment['number']} · {equipment['model']}{serial}\nВладелец: {owner}"
@@ -309,6 +311,7 @@ class _HistoryContent:
         self.splitter.setChildrenCollapsible(False)
         self.splitter.addWidget(self.grid)
         layout.addWidget(self.splitter, 1)
+        if embedded:layout.addStretch()
 
         details = QWidget()
         detail_layout = QVBoxLayout(details)
@@ -322,8 +325,8 @@ class _HistoryContent:
         self.detail.setPlaceholderText('Выберите ремонт, чтобы посмотреть его подробности.')
         detail_layout.addWidget(self.detail)
         self.splitter.addWidget(details)
-        self.splitter.setStretchFactor(0, 2)
-        self.splitter.setStretchFactor(1, 1)
+        self.splitter.setStretchFactor(0, 3)
+        self.splitter.setStretchFactor(1, 2)
         self.compare_hint = text('', 'muted')
         outer.addWidget(self.compare_hint)
 
@@ -362,6 +365,19 @@ class _HistoryContent:
             self.splitter.setOrientation(orientation)
             if self._embedded:
                 self._adjust_dates()
+                self._fit_history_splitter()
+
+    def _fit_history_splitter(self):
+        self.grid.fit_few_rows()
+        maximum=self.grid.maximumHeight()
+        if self.grid.proxy.rowCount()<=4:
+            vertical=self.splitter.orientation()==Qt.Orientation.Vertical
+            details_height=max(230,min(420,self.height()-210))
+            if vertical:
+                maximum+=details_height+self.splitter.handleWidth()
+            else:
+                maximum=max(maximum,details_height)
+        self.splitter.setMaximumHeight(maximum)
 
     def _adjust_dates(self, *_):
         compact = self.width() < 700
@@ -397,16 +413,21 @@ class _HistoryContent:
             visible = sum(proxy.mapFromSource(records.index(records.positions[key], 0)).isValid()
                           for key in records.checked if key in records.positions)
             hidden = count - visible
-            hint = f'Отмечено {count} из {LIMIT}. Поставьте галочки рядом с номерами 2–6 ремонтов.'
+            maximum = min(len(records.rows), LIMIT)
+            if maximum < 2:
+                hint = 'Для сравнения нужны минимум два обращения.'
+            else:
+                hint = f'Отмечено {count} из {maximum}. Отметьте от двух обращений для сравнения.'
             if hidden:
                 hint += f' Скрыто фильтрами: {hidden}.'
-            if count == LIMIT:
-                hint = f'Выбрано {LIMIT} ремонтов. Снимите отметку, чтобы выбрать другой.' + (
+            if count == maximum and maximum >= 2:
+                hint = f'Отмечено обращений: {count}. Снимите отметку, чтобы изменить выбор.' + (
                     f' Скрыто фильтрами: {hidden}.' if hidden else '')
             self.clear_checks.setEnabled(bool(count))
         else:
             hint = 'Выделите от двух до шести ремонтов для сравнения.'
         self.compare_hint.setText(hint)
+        if self._embedded:self._fit_history_splitter()
         has_rows = self.grid.proxy.rowCount() > 0
         self.empty_hint.setText('Обращений по текущим фильтрам нет. '
                                 'Сбросьте фильтры или создайте новое обращение.' if not has_rows else '')
@@ -426,6 +447,9 @@ class _HistoryContent:
         self.detail.setPlainText(f"Приёмка: {date_text(row['received_at'])}\n\n"
                                  f"Жалоба: {_show_or_empty(shown['complaint'])}\n\n"
                                  f"Диагностика: {_show_or_empty(shown['defects'])}\n\n"
+                                 f"Стоимость: {rub(row.get('total'))} · Оплачено: {rub(row.get('paid'))} · "
+                                 f"Остаток: {rub(row.get('balance'))}\n"
+                                 f"Работы: {rub(row.get('work'))} · Запчасти: {rub(row.get('parts'))}\n\n"
                                  f"Работы и материалы: {_show_or_empty(items)}{source_works}\n\n"
                                  'Откройте ремонт для DOCX, фото и подробностей.')
 
@@ -520,7 +544,7 @@ class HistoryPage(_HistoryContent, QWidget):
 
     def show_comparison(self, snapshots):
         if self.workspace.current_page is self:
-            self.workspace.push_page(HistoryComparison(snapshots), 'Сравнение ремонтов',
+            self.workspace.push_page(HistoryComparison(snapshots, show_heading=not self.workspace.shell_navigation), 'Сравнение ремонтов',
                                      back_label='Назад к истории')
 
 

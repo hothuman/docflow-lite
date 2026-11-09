@@ -6,7 +6,7 @@ from threading import Event
 
 from docx import Document
 from docx.text.paragraph import Paragraph
-from PySide6.QtCore import Qt, QTimer, QUrl
+from PySide6.QtCore import QSignalBlocker, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QLineEdit, QMessageBox, QPlainTextEdit,
                                QSizePolicy, QStackedWidget, QVBoxLayout, QWidget)
@@ -108,6 +108,7 @@ class ServiceDocumentWizard(QWidget):
         self.store = editor.store
         self.snapshot = editor.snapshot
         self.estimate_id = None
+        self._kind_chosen = False
         self.prepared = None
         self._preview_copy = None
         self._last_document = None
@@ -135,6 +136,7 @@ class ServiceDocumentWizard(QWidget):
         self._history_page()
         layout.addStretch(1)
         self.doc_kind.currentIndexChanged.connect(self._type_changed)
+        self.doc_kind.activated.connect(self._mark_kind_chosen)
         self.template_path.textChanged.connect(self._refresh_check)
         self.install(self.snapshot)
         self.start()
@@ -143,6 +145,7 @@ class ServiceDocumentWizard(QWidget):
         panel = QWidget()
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(0, 4, 0, 0)
+        layout.setSpacing(8)
         self.pages.addWidget(panel)
         return layout
 
@@ -157,12 +160,14 @@ class ServiceDocumentWizard(QWidget):
         self.doc_kind.setAccessibleName('Тип документа')
         for kind, name in KINDS.items():
             self.doc_kind.addItem(name, kind)
+        self.doc_kind.setMaximumWidth(520)
         layout.addWidget(self.doc_kind)
         self.purpose = text('', 'muted')
         layout.addWidget(self.purpose)
         actions = self._actions(layout)
         button(actions, 'Проверить данные', self.check_document, primary=True)
         button(actions, 'Созданные документы', lambda: self._show(5))
+        layout.addStretch()
 
     def _check_page(self):
         layout = self._page()
@@ -171,6 +176,8 @@ class ServiceDocumentWizard(QWidget):
         self.profile_banner.setAccessibleName('Проверка данных документа')
         layout.addWidget(self.source)
         layout.addWidget(self.profile_banner)
+        self.check_handover_warning=text('','documentWarning')
+        layout.addWidget(self.check_handover_warning)
         organization = self._actions(layout)
         button(organization, 'Настроить организацию', self._configure_organization)
         self.template_path = QLineEdit()
@@ -189,10 +196,11 @@ class ServiceDocumentWizard(QWidget):
         actions = self._actions(layout)
         self.preview_button = button(actions, 'Посмотреть документ', lambda: self.editor.with_saved(self.preview), primary=True)
         button(actions, 'Назад к типу документа', lambda: self._show(0))
+        layout.addStretch()
 
     def _preview_page(self):
         layout = self._page()
-        layout.addWidget(text('Проверьте содержание. Разметку страниц можно посмотреть в системном редакторе DOCX.', 'muted'))
+        layout.addWidget(text('Это текстовый предпросмотр содержания. Для проверки страниц и печати откройте DOCX в редакторе.', 'muted'))
         actions = self._actions(layout)
         self.preview_continue = button(actions, 'Продолжить к созданию', lambda: self._show(3), primary=True)
         button(actions, 'Посмотреть разметку DOCX', self.open_preview)
@@ -204,10 +212,25 @@ class ServiceDocumentWizard(QWidget):
         self.preview_text.setMaximumHeight(235)
         layout.addWidget(self.preview_text)
 
+    def _handover_warning(self):
+        if self.doc_kind.currentData()!='handover':
+            return ''
+        repair=self.snapshot['repair']
+        missing=[]
+        if repair['status'] not in ('issued','closed'):missing.append('фактическая выдача')
+        if not repair.get('issued_at'):missing.append('дата выдачи')
+        if not repair.get('handover','').strip():missing.append('сведения о получателе')
+        if not missing:
+            return ''
+        return ('Черновик передачи. Требуют проверки: '+', '.join(missing)+'. '
+                'Создание DOCX не подтверждает выдачу оборудования.')
+
     def _create_page(self):
         layout = self._page()
         self.confirm_text = text('')
         layout.addWidget(self.confirm_text)
+        self.create_handover_warning=text('','documentWarning')
+        layout.addWidget(self.create_handover_warning)
         layout.addWidget(text('Будет создана новая версия. Ранее созданные документы останутся в журнале.', 'muted'))
         actions = self._actions(layout)
         self.generate_button = button(actions, 'Создать DOCX', self.create, primary=True)
@@ -266,6 +289,8 @@ class ServiceDocumentWizard(QWidget):
         self.document_status.hide()
         if index == 1:
             self._refresh_check()
+        if index == 3:
+            self._update_handover_warnings()
 
     def _notice(self, message):
         self._message(message, 'status')
@@ -286,6 +311,7 @@ class ServiceDocumentWizard(QWidget):
         self.estimate_id = None
         if kind in KINDS:
             self.doc_kind.setCurrentIndex(self.doc_kind.findData(kind))
+            self._kind_chosen = True
         self.estimate_id = estimate_id
         self.prepared = None
         self._preview_copy = None
@@ -293,7 +319,24 @@ class ServiceDocumentWizard(QWidget):
         self._show(0)
         self.doc_kind.setFocus()
 
+    def suggest_kind(self, kind):
+        if self.pages.currentIndex()==4 and self.doc_kind.currentData()!=kind:
+            # A completed document has no pending selection or preview to preserve.
+            self.start()
+            self._kind_chosen = False
+        if self._kind_chosen or self.pages.currentIndex()!=0 or self.doc_kind.currentData()==kind:
+            return
+        with QSignalBlocker(self.doc_kind):
+            self.doc_kind.setCurrentIndex(self.doc_kind.findData(kind))
+        self.prepared = None
+        self._preview_copy = None
+        self._refresh_check()
+
+    def _mark_kind_chosen(self):
+        self._kind_chosen = True
+
     def _type_changed(self):
+        self._mark_kind_chosen()
         self.estimate_id = None
         self.prepared = None
         self._refresh_check()
@@ -304,9 +347,17 @@ class ServiceDocumentWizard(QWidget):
             return next((q for q in self.snapshot['estimates']
                          if q['kind'] == kind.removeprefix('estimate_') and (not self.estimate_id or q['id'] == self.estimate_id)), None)
 
+    def _update_handover_warnings(self):
+        warning=self._handover_warning()
+        for label in (self.check_handover_warning,self.create_handover_warning):
+            label.setText(warning)
+            label.setAccessibleName(warning)
+            label.setVisible(bool(warning))
+
     def _refresh_check(self, *_):
         kind = self.doc_kind.currentData()
         self.purpose.setText(_PURPOSE[kind])
+        self._update_handover_warnings()
         quote = self._estimate()
         repair = self.snapshot['repair']
         snapshot = {**self.snapshot, 'estimates':[quote]} if quote else self.snapshot
