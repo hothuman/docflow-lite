@@ -69,7 +69,13 @@ jobs:
         shell: pwsh
         run: ./scripts/build_windows.ps1
       - name: Compare native startup with unchanged public v0.1.1
-        run: python scripts/compare_windows_startup.py --exe dist/DocFlow-Lite/DocFlow-Lite.exe --output artifacts/windows-startup-comparison.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $baseline = Join-Path $env:RUNNER_TEMP 'docflow-v0.1.1-baseline.zip'
+          gh release download v0.1.1 --repo hothuman/docflow-lite --pattern 'DocFlow-Lite-0.1.1-Windows-x64-Portable.zip' --output $baseline
+          if ($LASTEXITCODE -ne 0) { throw 'Baseline download via GitHub Releases API failed' }
+          python scripts/compare_windows_startup.py --baseline-zip $baseline --exe dist/DocFlow-Lite/DocFlow-Lite.exe --output artifacts/windows-startup-comparison.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
