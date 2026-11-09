@@ -225,7 +225,7 @@ class EstimatesPanel(QWidget):
         layout.addWidget(overview)
         self.mode=QTabBar();self.mode.setExpanding(False);self.mode.setUsesScrollButtons(True)
         self.mode.setAccessibleName('Какой состав сметы показать')
-        for title in ('Черновик','Фактические позиции','Версии'):self.mode.addTab(title)
+        for title in ('Предварительная смета','Фактические расходы','Сохранённые версии'):self.mode.addTab(title)
         bar=FlowLayout();layout.addLayout(bar)
         bar.addWidget(self.mode)
         self.edit_button=button(bar,'Редактировать черновик',lambda:self.editor.with_saved(self.edit_draft),primary=True)

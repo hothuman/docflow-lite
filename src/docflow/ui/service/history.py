@@ -260,7 +260,8 @@ class _HistoryContent:
         outer.addWidget(scroll, 1)
         layout = QVBoxLayout(body)
         layout.setContentsMargins(0, 0, 3, 0)
-        layout.addWidget(text('История аппарата', 'title'))
+        if not embedded or not workspace.shell_navigation:
+            layout.addWidget(text('История аппарата', 'title'))
         serial = ' · Серийный № ' + equipment['serial'] if equipment.get('serial') else ''
         owner = equipment.get('owner') or 'Не заполнено'
         identity = f"Аппарат № {equipment['number']} · {equipment['model']}{serial}\nВладелец: {owner}"
@@ -309,6 +310,7 @@ class _HistoryContent:
         self.splitter.setChildrenCollapsible(False)
         self.splitter.addWidget(self.grid)
         layout.addWidget(self.splitter, 1)
+        if embedded:layout.addStretch()
 
         details = QWidget()
         detail_layout = QVBoxLayout(details)
@@ -362,6 +364,18 @@ class _HistoryContent:
             self.splitter.setOrientation(orientation)
             if self._embedded:
                 self._adjust_dates()
+                self._fit_history_splitter()
+
+    def _fit_history_splitter(self):
+        self.grid.fit_few_rows()
+        maximum=self.grid.maximumHeight()
+        if self.grid.proxy.rowCount()<=4:
+            details_height=self.splitter.widget(1).minimumSizeHint().height()
+            if self.splitter.orientation()==Qt.Orientation.Vertical:
+                maximum+=details_height+self.splitter.handleWidth()
+            else:
+                maximum=max(maximum,details_height)
+        self.splitter.setMaximumHeight(maximum)
 
     def _adjust_dates(self, *_):
         compact = self.width() < 700
@@ -411,7 +425,7 @@ class _HistoryContent:
         else:
             hint = 'Выделите от двух до шести ремонтов для сравнения.'
         self.compare_hint.setText(hint)
-        if self._embedded:self.grid.fit_few_rows()
+        if self._embedded:self._fit_history_splitter()
         has_rows = self.grid.proxy.rowCount() > 0
         self.empty_hint.setText('Обращений по текущим фильтрам нет. '
                                 'Сбросьте фильтры или создайте новое обращение.' if not has_rows else '')

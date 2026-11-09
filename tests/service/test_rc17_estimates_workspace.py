@@ -34,6 +34,9 @@ def test_estimate_workspace_shows_itemized_draft_and_preserves_frozen_quote(tmp_
         editor = workspace.current_page
         assert isinstance(editor, RepairPage)
         panel = editor.estimates
+        assert tuple(panel.mode.tabText(i) for i in range(panel.mode.count())) == (
+            'Предварительная смета','Фактические расходы','Сохранённые версии')
+        assert '№2 · Черновик' in panel.caption.text()
         assert panel.lines.isVisible()
         assert [item['name'] for item in panel.lines.records.rows] == ['Диагностика']
         assert '1 500,00 ₽' in panel.summary.text()
@@ -44,6 +47,15 @@ def test_estimate_workspace_shows_itemized_draft_and_preserves_frozen_quote(tmp_
         assert [item['kind'] for item in panel.lines.records.rows] == ['work', 'part']
         assert 'Запчасти 350,00 ₽' in panel.costs.text()
         panel.mode.setCurrentIndex(0)
+        assert workspace.store.snapshot(repair)['estimates'] == [initial]
+        workspace.back_page()
+        wait_idle(window)
+        workspace.open_repair(repair, 'Сметы')
+        wait_idle(window)
+        editor = workspace.current_page
+        panel = editor.estimates
+        assert '№2 · Черновик' in panel.caption.text()
+        assert workspace.store.snapshot(repair)['estimates'] == [initial]
         draft = panel.edit_draft()
         assert workspace.current_page is draft and not draft.isWindow()
         form = draft.add()

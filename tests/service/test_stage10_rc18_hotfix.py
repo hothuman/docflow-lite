@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 from PySide6.QtCore import QPoint
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QLabel
 import pytest
 
 from docflow.gui import configure_app
@@ -121,3 +121,38 @@ def test_first_wizard_step_keeps_explanation_and_action_near_the_type(journal):
     capture(window, 'wizard-check')
     assert wizard.template_name.height() <= wizard.template_name.sizeHint().height()+10
     assert wizard.preview_button.isVisible()
+
+@pytest.mark.parametrize('key,section', [('equipment',1),('clients',3),('documents',5)])
+def test_short_workshop_lists_keep_only_the_space_needed(journal, key, section):
+    app, window, workspace, first = journal
+    if key == 'documents':
+        generate_document(workspace.store, first, 'handover')
+        workspace.refresh()
+        idle(app, workspace)
+    workspace.go_to_section(section)
+    app.processEvents()
+    grid = workspace.views[key]
+    source = dict(grid.records.rows[0])
+    capture(window, key+'-one')
+    for size in (0,1,3,50):
+        grid.install([{**source,'id':str(index)} for index in range(size)])
+        workspace.update_list_state(key)
+        app.processEvents()
+        assert grid.isVisible() == bool(size)
+        if 0 < size <= 3:
+            assert grid.height() <= grid.horizontalHeader().height() + size*grid.rowHeight(0) + 24
+        elif size == 50:
+            assert grid.verticalScrollBar().maximum() > 0
+
+
+def test_short_equipment_history_stays_near_filters(journal):
+    app, window, workspace, first = journal
+    repair = workspace.store.snapshot(first)
+    workspace.show_history({**repair['equipment'], 'owner': repair['client']['name']})
+    idle(app, workspace)
+    history = workspace.current_page
+    capture(window, 'history-one')
+    assert not any(label.text() == 'История аппарата' for label in history.findChildren(QLabel))
+    assert 'минимум два обращения' in history.compare_hint.text()
+    assert not history.compare_button.isEnabled()
+    assert history.splitter.height() <= 220

@@ -95,7 +95,7 @@ class RepairEditor:
             else:self.tabs.addTab(scroll,title)
             for key,label,kind in fields:self.add_field(form,key,label,kind)
             if title=='Дефектовка':
-                self.source_works=QPlainTextEdit();self.source_works.setReadOnly(True);self.source_works.setMaximumHeight(110);self.source_works.setMaximumWidth(620);self.source_works.setAccessibleName('Работы из источника')
+                self.source_works=QPlainTextEdit();self.source_works.setReadOnly(True);self.source_works.setMaximumHeight(110);self.source_works.setMaximumWidth(760);self.source_works.setAccessibleName('Работы из источника')
                 form.addRow('Работы из источника',self.source_works);self._source_works_form=form
         if self.embedded:self.build_items_page()
         else:
@@ -362,7 +362,7 @@ class RepairEditor:
         elif kind=='date':w=DateField();w.textChanged.connect(self.changed)
         else:w=QLineEdit();w.textChanged.connect(self.changed)
         w.setAccessibleName(label);w.setMinimumWidth(0)
-        if self.embedded:w.setMaximumWidth({'date':180,'text':300}.get(kind,620) if isinstance(kind,str) else 480)
+        if self.embedded:w.setMaximumWidth({'date':180,'text':300}.get(kind,760) if isinstance(kind,str) else 480)
         form.addRow(label,w);self.fields[key]=w
     def changed(self,*args):
         self.dirty=True

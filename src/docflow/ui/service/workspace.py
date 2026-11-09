@@ -37,6 +37,9 @@ class Job(QThread):
             self.error=friendly_error(exc)
         finally:self.function=None
 
+SHORT_LISTS = frozenset(('clients','equipment','documents'))
+
+
 class ServiceWorkspace(QWidget):
     page_changed = Signal()
 
@@ -101,7 +104,9 @@ class ServiceWorkspace(QWidget):
                 hint=QLabel();hint.setWordWrap(True);hint.setObjectName('muted');hint.hide();layout.addWidget(hint);self.archive_hints[key]=hint
                 show_archive=QPushButton('Показать архив');show_archive.hide();show_archive.clicked.connect(lambda _,k=key:self.show_archived(k));layout.addWidget(show_archive);self.archive_buttons[key]=show_archive
             view=Grid(cols,settings_key='workspace/'+key);view.setAccessibleName(name)
-            layout.addWidget(view,1);search.textChanged.connect(view.proxy.setFilterFixedString);search.textChanged.connect(lambda _,k=key:self.update_list_state(k));self.views[key]=view;self.tabs.addTab(page,name)
+            layout.addWidget(view,1)
+            if key in SHORT_LISTS:layout.addStretch()
+            search.textChanged.connect(view.proxy.setFilterFixedString);search.textChanged.connect(lambda _,k=key:self.update_list_state(k));self.views[key]=view;self.tabs.addTab(page,name)
         button(self.toolbars['clients'],'Добавить',self.new_client);button(self.toolbars['clients'],'Изменить',self.edit_client);button(self.toolbars['clients'],'Архив / вернуть',lambda:self.archive('clients'))
         button(self.toolbars['equipment'],'Добавить',self.new_equipment);button(self.toolbars['equipment'],'Карточка / история',self.equipment_card);button(self.toolbars['equipment'],'Изменить',self.edit_equipment);button(self.toolbars['equipment'],'Архив / вернуть',lambda:self.archive('equipment'))
         self.archived=QCheckBox('Архив');self.toolbars['equipment'].addWidget(self.archived);self.archived.toggled.connect(self.refresh)
@@ -460,10 +465,15 @@ class ServiceWorkspace(QWidget):
         (self.clients_archived if key=='clients' else self.archived).setChecked(True)
     def update_list_state(self,key):
         if key not in self.views or key=='repairs':return
+        view=self.views[key]
         if self.store is None:
+            if key in SHORT_LISTS:view.hide()
             self.empty_labels[key].setText('Проект не открыт. Выберите локальную папку или создайте отдельный проект.');self.empty_labels[key].show();self.reset_filter_buttons[key].hide();return
         query=bool(self.searches[key].text().strip());filtered=query or (key=='equipment' and self.active_only.isChecked())
-        visible=self.views[key].proxy.rowCount()
+        visible=view.proxy.rowCount()
+        if key in SHORT_LISTS:
+            view.setVisible(bool(visible))
+            view.fit_few_rows()
         self.reset_filter_buttons[key].setVisible(filtered)
         label=self.empty_labels[key]
         label.setVisible(not visible)

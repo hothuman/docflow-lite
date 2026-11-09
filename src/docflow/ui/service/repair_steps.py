@@ -40,7 +40,7 @@ class RepairNavigation(QWidget):
         if self.embedded:
             index=self.section_stacks[group].addWidget(content)
             self.sections[title]=(group,index,content)
-            labels={'Дефектовка':'Диагностика','Сметы':'Расчёт и версии','Статус и история':'Передача','Финансы':'Оплаты'}
+            labels={'Дефектовка':'Диагностика','Сметы':'Состав и версии','Согласование':'Ответ заказчика','Статус и история':'Передача','Финансы':'Оплаты'}
             selector=self.section_tabs[group];selector.addTab(labels.get(title,title));selector.setVisible(selector.count()>1)
             return index
         card=Disclosure('Диагностика' if title=='Дефектовка' else title,content);self.layouts[group].insertWidget(self.layouts[group].count()-1,card);index=sum(g==group for g,_,_ in self.sections.values());self.sections[title]=(group,index,content);self.cards[title]=card

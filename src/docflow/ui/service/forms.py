@@ -43,7 +43,7 @@ class FieldsDialog(QDialog):
         self.form_scroll=scroll
 
     def compact_workspace_layout(self):
-        self.setMaximumWidth(720)
+        self.setMaximumWidth(820)
         self.layout().setAlignment(Qt.AlignmentFlag.AlignTop)
         self.form_scroll.setSizeAdjustPolicy(QScrollArea.SizeAdjustPolicy.AdjustToContents)
         self.form_scroll.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Maximum)
