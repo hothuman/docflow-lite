@@ -102,3 +102,22 @@ def test_context_selects_document_without_changing_saved_versions(journal, route
     assert wizard.doc_kind.currentData() == 'completion'
     assert len(workspace.store.documents()) == 1
     assert existing.read_bytes() == original
+
+
+def test_first_wizard_step_keeps_explanation_and_action_near_the_type(journal):
+    app, window, workspace, first = journal
+    workspace.open_repair(first, 'Документы')
+    idle(app, workspace)
+    wizard = workspace.current_page.document_wizard
+    layout = wizard.pages.currentWidget().layout()
+    action = layout.itemAt(2).widget()
+    app.processEvents()
+    capture(window, 'wizard-spacing')
+    assert wizard.purpose.height() <= wizard.purpose.sizeHint().height() + 10
+    assert wizard.purpose.y() - wizard.doc_kind.geometry().bottom() <= 16
+    assert action.y() - wizard.purpose.geometry().bottom() <= 16
+    wizard.check_document()
+    app.processEvents()
+    capture(window, 'wizard-check')
+    assert wizard.template_name.height() <= wizard.template_name.sizeHint().height()+10
+    assert wizard.preview_button.isVisible()

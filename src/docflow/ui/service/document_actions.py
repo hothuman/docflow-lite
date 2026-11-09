@@ -145,6 +145,7 @@ class ServiceDocumentWizard(QWidget):
         panel = QWidget()
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(0, 4, 0, 0)
+        layout.setSpacing(8)
         self.pages.addWidget(panel)
         return layout
 
@@ -166,6 +167,7 @@ class ServiceDocumentWizard(QWidget):
         actions = self._actions(layout)
         button(actions, 'Проверить данные', self.check_document, primary=True)
         button(actions, 'Созданные документы', lambda: self._show(5))
+        layout.addStretch()
 
     def _check_page(self):
         layout = self._page()
@@ -192,6 +194,7 @@ class ServiceDocumentWizard(QWidget):
         actions = self._actions(layout)
         self.preview_button = button(actions, 'Посмотреть документ', lambda: self.editor.with_saved(self.preview), primary=True)
         button(actions, 'Назад к типу документа', lambda: self._show(0))
+        layout.addStretch()
 
     def _preview_page(self):
         layout = self._page()
