@@ -192,7 +192,6 @@ class RepairEditor:
             if stage==4:
                 target='Документы' if self.tabs.is_section('Статус и история') else 'Статус и история'
                 self.tabs.show_section(target)
-                if target=='Документы':self.document_wizard.start('handover')
             else:self.tabs.show_section(('Дефектовка','Сметы','Работы','Статус и история')[stage])
             return
         if stage==4:
@@ -256,6 +255,12 @@ class RepairEditor:
 
     def update_breadcrumb(self,label):
         self.body_scroll.verticalScrollBar().setValue(0)
+        previous_stage=getattr(self,'_last_document_context_stage',0)
+        self._last_document_context_stage=self.tabs.currentIndex()
+        in_wizard=hasattr(self,'document_wizard') and self.tabs.is_section('Документы')
+        if in_wizard and not getattr(self,'_was_in_document_wizard',False):
+            self.document_wizard.suggest_kind('handover' if previous_stage==4 else 'intake')
+        self._was_in_document_wizard=in_wizard
         self.route_detail=label
         if self.workspace.current_page is self:
             self.workspace.pages.update_heading()

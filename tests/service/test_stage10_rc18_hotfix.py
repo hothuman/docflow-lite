@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QApplication
 import pytest
 
 from docflow.gui import configure_app
+from docflow.service.documents import generate_document
 from docflow.service.repository import ServiceStore
 from docflow.ui.window import MainWindow
 from test_stage1_document_actions import idle
@@ -59,3 +60,45 @@ def test_short_journal_starts_just_below_filters(journal, size):
         assert page.grid.verticalScrollBar().maximum() > 0
         assert page.grid.proxy.rowCount() == 100
     assert 0 <= grid_top - filter_bottom <= 16
+
+
+@pytest.mark.parametrize('route,expected', [('tab','handover'), ('continue','handover'), ('intake','intake')])
+def test_context_selects_document_without_changing_saved_versions(journal, route, expected):
+    app, window, workspace, first = journal
+    existing = generate_document(workspace.store, first, 'handover')
+    original = existing.read_bytes()
+    workspace.open_repair(first, 'Приёмка')
+    idle(app, workspace)
+    editor = workspace.current_page
+    wizard = editor.document_wizard
+    if route == 'intake':
+        editor.tabs.show_section('Документы')
+    else:
+        editor.tabs.stage_bar.setCurrentIndex(4)
+        assert editor.tabs.is_section('Статус и история')
+        if route == 'tab':
+            editor.tabs.section_tabs[4].setCurrentIndex(1)
+        else:
+            editor.next_button.click()
+    app.processEvents()
+    capture(window, 'wizard-'+route)
+    assert wizard.pages.currentIndex() == 0
+    assert wizard.doc_kind.currentData() == expected
+    assert wizard.doc_kind.count() == 8
+    assert len(workspace.store.documents()) == 1
+    assert existing.read_bytes() == original
+
+    wizard.doc_kind.setCurrentIndex(wizard.doc_kind.findData('completion'))
+    wizard.check_document()
+    wizard.preview()
+    idle(app, workspace)
+    assert wizard.pages.currentIndex() == 2
+    wizard._show(1)
+    wizard._show(0)
+    wizard._show(5)
+    wizard._show(0)
+    editor.tabs.section_tabs[4].setCurrentIndex(0)
+    editor.tabs.section_tabs[4].setCurrentIndex(1)
+    assert wizard.doc_kind.currentData() == 'completion'
+    assert len(workspace.store.documents()) == 1
+    assert existing.read_bytes() == original

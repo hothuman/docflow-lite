@@ -6,7 +6,7 @@ from threading import Event
 
 from docx import Document
 from docx.text.paragraph import Paragraph
-from PySide6.QtCore import Qt, QTimer, QUrl
+from PySide6.QtCore import QSignalBlocker, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QLineEdit, QMessageBox, QPlainTextEdit,
                                QSizePolicy, QStackedWidget, QVBoxLayout, QWidget)
@@ -108,6 +108,7 @@ class ServiceDocumentWizard(QWidget):
         self.store = editor.store
         self.snapshot = editor.snapshot
         self.estimate_id = None
+        self._kind_chosen = False
         self.prepared = None
         self._preview_copy = None
         self._last_document = None
@@ -135,6 +136,7 @@ class ServiceDocumentWizard(QWidget):
         self._history_page()
         layout.addStretch(1)
         self.doc_kind.currentIndexChanged.connect(self._type_changed)
+        self.doc_kind.activated.connect(self._mark_kind_chosen)
         self.template_path.textChanged.connect(self._refresh_check)
         self.install(self.snapshot)
         self.start()
@@ -287,6 +289,7 @@ class ServiceDocumentWizard(QWidget):
         self.estimate_id = None
         if kind in KINDS:
             self.doc_kind.setCurrentIndex(self.doc_kind.findData(kind))
+            self._kind_chosen = True
         self.estimate_id = estimate_id
         self.prepared = None
         self._preview_copy = None
@@ -294,7 +297,20 @@ class ServiceDocumentWizard(QWidget):
         self._show(0)
         self.doc_kind.setFocus()
 
+    def suggest_kind(self, kind):
+        if self._kind_chosen or self.pages.currentIndex()!=0 or self.doc_kind.currentData()==kind:
+            return
+        with QSignalBlocker(self.doc_kind):
+            self.doc_kind.setCurrentIndex(self.doc_kind.findData(kind))
+        self.prepared = None
+        self._preview_copy = None
+        self._refresh_check()
+
+    def _mark_kind_chosen(self):
+        self._kind_chosen = True
+
     def _type_changed(self):
+        self._mark_kind_chosen()
         self.estimate_id = None
         self.prepared = None
         self._refresh_check()
