@@ -377,7 +377,7 @@ class RepairEditor:
         for key,label in self.finance_values.items():
             value=rub(t[key]) if t[key] is not None or not self.embedded else 'Не установлено'
             if self.embedded and key=='balance' and (t[key] or 0)>0:value+=' · Долг'
-            label.setText(f'{self.finance_titles[key]}: {value}')
+            label.setText(f'{self.finance_titles[key]}: {value}' if self.embedded else value)
             label.setProperty('debt',self.embedded and key=='balance' and (t[key] or 0)>0)
             label.style().unpolish(label);label.style().polish(label)
         self.finance_strip.setVisible(self.embedded)

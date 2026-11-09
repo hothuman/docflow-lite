@@ -351,7 +351,7 @@
   "src/docflow/ui/service/pages.py": "90117f933e7152e68402535d829ff0bf37a8745fe650c07c3b61d56796c86171",
   "src/docflow/ui/service/presentation.py": "609b7b1e4cbda0f8e23b84f2028c707a6ea51e477dc9d39905f9e1b7383c397b",
   "src/docflow/ui/service/profiles.py": "a80860e4d414003db562404a5c7702a351b1f65920a7ae6f4a9e638c4f33b7a2",
-  "src/docflow/ui/service/repair_editor.py": "e65bc83d8433cea75309a822a88f9c981fcdbeaaffb0fae78846778c06a02db4",
+  "src/docflow/ui/service/repair_editor.py": "b7bc5fb01735cd3d708a95deb30b846e93cf2b540dc3bd3623fa0c3157f4de26",
   "src/docflow/ui/service/repair_inspector.py": "0d3d35d6a60c5ed77a8ae1d7f09b507c4215faf459b5bc7229735239e72944e5",
   "src/docflow/ui/service/repair_steps.py": "fbb94aaf5ecc2516a44dfe23b4c1f8931efe95ab0013764e54311d2d5014c710",
   "src/docflow/ui/service/search.py": "e9c242a67bb8b71363fe2e8261b6818d8476d6e83f47a2d945626f03e2941224",
