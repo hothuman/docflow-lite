@@ -157,6 +157,7 @@ class ServiceDocumentWizard(QWidget):
         self.doc_kind.setAccessibleName('Тип документа')
         for kind, name in KINDS.items():
             self.doc_kind.addItem(name, kind)
+        self.doc_kind.setMaximumWidth(520)
         layout.addWidget(self.doc_kind)
         self.purpose = text('', 'muted')
         layout.addWidget(self.purpose)
@@ -192,7 +193,7 @@ class ServiceDocumentWizard(QWidget):
 
     def _preview_page(self):
         layout = self._page()
-        layout.addWidget(text('Проверьте содержание. Разметку страниц можно посмотреть в системном редакторе DOCX.', 'muted'))
+        layout.addWidget(text('Это текстовый предпросмотр содержания. Для проверки страниц и печати откройте DOCX в редакторе.', 'muted'))
         actions = self._actions(layout)
         self.preview_continue = button(actions, 'Продолжить к созданию', lambda: self._show(3), primary=True)
         button(actions, 'Посмотреть разметку DOCX', self.open_preview)

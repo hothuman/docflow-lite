@@ -18,8 +18,9 @@ QFrame#metricCard {background:@surface@;border:1px solid @border@;border-top:2px
 QFrame#queueRow {background:@raised@;border:0;border-left:2px solid @warning@;border-radius:4px;}
 QFrame#routeBar {background:@rail@;border:1px solid @border@;border-radius:7px;}
 QFrame#repairState {background:@rail@;border:1px solid @border@;border-left:3px solid @warning@;border-radius:6px;}
+QLabel#repairAmount {font-weight:650;color:@text@;}
 QLabel#repairStatus {font-size:18px;font-weight:650;color:@warning@;}
-QLabel#metricValue[debt="true"] {color:@error@;}
+QLabel#metricValue[debt="true"],QLabel#repairAmount[debt="true"] {color:@error@;}
 QLabel#workspaceBreadcrumb {color:@muted@;font-weight:600;}
 QFrame#coreValidation[severity="error"] {background:@surface@;border:1px solid @error@;border-left:3px solid @error@;border-radius:8px;}
 QFrame#coreValidation[severity="success"] {background:@surface@;border:1px solid @success@;border-radius:8px;}

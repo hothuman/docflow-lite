@@ -82,6 +82,13 @@ class Grid(QTableView):
      proxy=self.proxy.mapFromSource(self.records.index(i,0))
      if proxy.isValid():self.selectRow(proxy.row())
      break
+ def fit_few_rows(self):
+  count=self.proxy.rowCount()
+  if count>4:
+   self.setMaximumHeight(16777215)
+   return
+  height=self.horizontalHeader().sizeHint().height()+sum(self.rowHeight(row) for row in range(count))
+  self.setMaximumHeight(max(self.minimumHeight(),height+2*self.frameWidth()+self.horizontalScrollBar().sizeHint().height()))
  def selected(self):
   index=self.currentIndex()
   if not index.isValid():return None

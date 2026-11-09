@@ -221,7 +221,7 @@ class EstimatesPanel(QWidget):
         overview=QFrame();overview.setObjectName('card');overview_layout=QVBoxLayout(overview)
         overview_layout.setContentsMargins(12,6,12,6);overview_layout.setSpacing(3)
         self.summary=text('','section');overview_layout.addWidget(self.summary)
-        overview_layout.addWidget(text('Предварительная смета описывает план. Долг рассчитывается по фактическим расходам и учтённым оплатам.','muted'))
+        overview_layout.addWidget(text('Предварительно — план. Остаток рассчитан по фактическим расходам и оплатам.','muted'))
         layout.addWidget(overview)
         self.mode=QTabBar();self.mode.setExpanding(False);self.mode.setUsesScrollButtons(True)
         self.mode.setAccessibleName('Какой состав сметы показать')

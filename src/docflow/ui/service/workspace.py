@@ -189,6 +189,8 @@ class ServiceWorkspace(QWidget):
         self.pages.clear(open_section)
 
     def embed_form(self,dialog,on_accept=None,**options):
+        if isinstance(dialog,FieldsDialog):
+            dialog.compact_workspace_layout()
         self.push_page(dialog,dialog.windowTitle(),**options)
         if on_accept:
             dialog.accepted.connect(lambda:on_accept(dialog.values()))

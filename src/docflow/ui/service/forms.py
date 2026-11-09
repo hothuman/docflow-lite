@@ -1,7 +1,7 @@
 """Small validated input dialogs; persistence is handled by the parent worker."""
 from datetime import datetime
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog,QVBoxLayout,QFormLayout,QLineEdit,QPlainTextEdit,QComboBox,QDialogButtonBox,QScrollArea,QWidget,QLabel
+from PySide6.QtWidgets import QDialog,QVBoxLayout,QFormLayout,QLineEdit,QPlainTextEdit,QComboBox,QDialogButtonBox,QScrollArea,QWidget,QLabel,QSizePolicy
 
 def fit_dialog(dialog,width,height):
     dialog.setMinimumSize(420,300)
@@ -40,6 +40,13 @@ class FieldsDialog(QDialog):
         buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Save|QDialogButtonBox.StandardButton.Cancel);self.save_button=buttons.button(QDialogButtonBox.StandardButton.Save);self.save_button.setText('Сохранить');buttons.button(QDialogButtonBox.StandardButton.Cancel).setText('Отмена');buttons.accepted.connect(self.accept);buttons.rejected.connect(self.reject);outer.addWidget(buttons)
         for label in self.findChildren(QLabel):label.setTextFormat(Qt.TextFormat.PlainText)
         self._initial_values=self.values()
+        self.form_scroll=scroll
+
+    def compact_workspace_layout(self):
+        self.setMaximumWidth(720)
+        self.layout().setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.form_scroll.setSizeAdjustPolicy(QScrollArea.SizeAdjustPolicy.AdjustToContents)
+        self.form_scroll.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Maximum)
     @property
     def dirty(self):
         return self.values()!=self._initial_values

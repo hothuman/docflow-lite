@@ -411,6 +411,8 @@ class RepairJournal(QWidget):
 
     def _sync(self,*_):
         count = self.grid.proxy.rowCount()
+        self.grid.setVisible(bool(count))
+        self.grid.fit_few_rows()
         filtered = bool(self.search.text().strip() or any(control.currentIndex() for control in (
             self.status_filter, self.archive_filter, self.finance_filter)))
         self.reset_button.setEnabled(self._ready and filtered)

@@ -397,16 +397,21 @@ class _HistoryContent:
             visible = sum(proxy.mapFromSource(records.index(records.positions[key], 0)).isValid()
                           for key in records.checked if key in records.positions)
             hidden = count - visible
-            hint = f'Отмечено {count} из {LIMIT}. Поставьте галочки рядом с номерами 2–6 ремонтов.'
+            maximum = min(len(records.rows), LIMIT)
+            if maximum < 2:
+                hint = 'Для сравнения нужны минимум два обращения.'
+            else:
+                hint = f'Отмечено {count} из {maximum}. Отметьте от двух обращений для сравнения.'
             if hidden:
                 hint += f' Скрыто фильтрами: {hidden}.'
-            if count == LIMIT:
-                hint = f'Выбрано {LIMIT} ремонтов. Снимите отметку, чтобы выбрать другой.' + (
+            if count == maximum and maximum >= 2:
+                hint = f'Отмечено обращений: {count}. Снимите отметку, чтобы изменить выбор.' + (
                     f' Скрыто фильтрами: {hidden}.' if hidden else '')
             self.clear_checks.setEnabled(bool(count))
         else:
             hint = 'Выделите от двух до шести ремонтов для сравнения.'
         self.compare_hint.setText(hint)
+        if self._embedded:self.grid.fit_few_rows()
         has_rows = self.grid.proxy.rowCount() > 0
         self.empty_hint.setText('Обращений по текущим фильтрам нет. '
                                 'Сбросьте фильтры или создайте новое обращение.' if not has_rows else '')

@@ -3,7 +3,7 @@ from pathlib import Path
 from uuid import uuid4
 from PySide6.QtCore import QUrl,Qt
 from PySide6.QtGui import QImageReader,QPixmap,QDesktopServices
-from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QFormLayout,QLabel,QTabWidget,QLineEdit,QPlainTextEdit,QComboBox,QScrollArea,QWidget,QFileDialog,QInputDialog,QMessageBox,QCheckBox,QFrame,QSizePolicy)
+from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QFormLayout,QLabel,QTabWidget,QLineEdit,QPlainTextEdit,QComboBox,QScrollArea,QWidget,QFileDialog,QInputDialog,QMessageBox,QCheckBox,QFrame,QSizePolicy,QMenu,QPushButton)
 from ...service.validation import rub
 from ...service.statuses import STATUSES,APPROVALS
 from ...service.documents import KINDS,generate_document
@@ -42,25 +42,36 @@ class RepairEditor:
         button(number_bar,'Документы',lambda:self.tabs.show_section('Документы'))
         if not self.embedded:
             button(number_bar,'Фото / файлы',lambda:self.tabs.show_section('Вложения'))
-        button(number_bar,'Оплаты',lambda:self.tabs.show_section('Финансы'))
+        if not self.embedded:button(number_bar,'Оплаты',lambda:self.tabs.show_section('Финансы'))
         button(number_bar,'История аппарата',self.equipment_history)
-        from PySide6.QtWidgets import QMenu,QPushButton
         more=QPushButton('Дополнительно');menu=QMenu(more);menu.addAction('Изменить № ремонта',lambda:self.with_saved(self.change_number));menu.addAction('Первоисточник',self.show_source);more.setMenu(menu);number_bar.addWidget(more)
         if self.embedded:
+            menu.addAction('Финансы и оплаты',lambda:self.tabs.show_section('Финансы'))
             menu.addAction('Изменить статус',self.open_status)
             menu.addAction('История статусов',self.show_status_history)
-            menu.addAction('Что уже заполнено',lambda:self.tabs.show_section('Приёмка'))
+            self.show_checklist=menu.addAction('Что уже заполнено')
+            self.show_checklist.setCheckable(True)
+            self.show_checklist.toggled.connect(self.toggle_checklist)
         self.summary=QLabel();self.summary.setWordWrap(True);self.summary.setObjectName('muted');passport_layout.insertWidget(2,self.summary);self.overview_layout.addWidget(passport)
-        self.finance_strip=QWidget();finance=QHBoxLayout(self.finance_strip);finance.setContentsMargins(0,0,0,0);finance.setSpacing(12);self.finance_values={}
-        for key,title in [('total','Стоимость ремонта'),('paid','Учтено оплат'),('balance','Остаток')]:
-            panel=QFrame();panel.setObjectName('metricCard');box=QVBoxLayout(panel);box.setContentsMargins(14,8,14,8);box.addWidget(text(title,'muted'));value=text('—','metricValue');box.addWidget(value);finance.addWidget(panel,1);self.finance_values[key]=value
-        self.overview_layout.addWidget(self.finance_strip)
+        self.finance_strip=QWidget()
+        finance=FlowLayout()
+        self.finance_strip.setLayout(finance)
+        self.finance_values={}
+        self.finance_titles={'total':'Стоимость','paid':'Оплачено','balance':'Остаток'}
+        for key,title in self.finance_titles.items():
+            value=text(title+' —','section')
+            value.setObjectName('repairAmount')
+            value.setWordWrap(False)
+            finance.addWidget(value)
+            self.finance_values[key]=value
+        passport_layout.addWidget(self.finance_strip)
         self.state_frame=QFrame();self.state_frame.setObjectName('repairState');state_layout=QVBoxLayout(self.state_frame);state_layout.setContentsMargins(12,8,12,8)
         self.status_value=text('','section');self.status_value.setObjectName('repairStatus');state_layout.addWidget(self.status_value)
+        if self.embedded:self.status_value.hide()
         self.state_hint=text('','muted');self.state_hint.setAccessibleName('Что сделать дальше');state_layout.addWidget(self.state_hint)
         status_actions=FlowLayout();state_layout.addLayout(status_actions)
         self.status_action=button(status_actions,'Изменить статус',self.open_status)
-        if self.embedded:button(status_actions,'История статусов',self.show_status_history)
+        if self.embedded:self.status_action.hide()
         self.overview_layout.addWidget(self.state_frame)
         self.tabs=RepairNavigation(self,embedded=self.embedded);self.tabs.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Preferred);self.tabs.setMinimumHeight(0);root_layout.insertWidget(0,self.tabs.stage_bar)
         if self.embedded:
@@ -79,7 +90,7 @@ class RepairEditor:
             else:self.tabs.addTab(scroll,title)
             for key,label,kind in fields:self.add_field(form,key,label,kind)
             if title=='Дефектовка':
-                self.source_works=QPlainTextEdit();self.source_works.setReadOnly(True);self.source_works.setMaximumHeight(110);self.source_works.setAccessibleName('Работы из источника')
+                self.source_works=QPlainTextEdit();self.source_works.setReadOnly(True);self.source_works.setMaximumHeight(110);self.source_works.setMaximumWidth(620);self.source_works.setAccessibleName('Работы из источника')
                 form.addRow('Работы из источника',self.source_works);self._source_works_form=form
         if self.embedded:self.build_items_page()
         else:
@@ -93,9 +104,17 @@ class RepairEditor:
         bar=FlowLayout();layout.addLayout(bar)
         if self.embedded:
             button(bar,'Учесть оплату',lambda:self.with_saved(lambda:self.payment('payment')),primary=True)
-            button(bar,'Учесть возврат',lambda:self.with_saved(lambda:self.payment('refund')))
-        else:button(bar,'Учесть оплату / возврат',lambda:self.with_saved(self.payment))
-        button(bar,'Исправить запись',lambda:self.with_saved(self.void_payment));button(bar,'Сверить полноту истории',lambda:self.with_saved(self.financial_evidence))
+            payment_more=QPushButton('Другие действия с оплатами')
+            payment_menu=QMenu(payment_more)
+            payment_menu.addAction('Учесть возврат',lambda:self.with_saved(lambda:self.payment('refund')))
+            payment_menu.addAction('Исправить запись',lambda:self.with_saved(self.void_payment))
+            payment_menu.addAction('Сверить полноту истории',lambda:self.with_saved(self.financial_evidence))
+            payment_more.setMenu(payment_menu)
+            bar.addWidget(payment_more)
+        else:
+            button(bar,'Учесть оплату / возврат',lambda:self.with_saved(self.payment))
+            button(bar,'Исправить запись',lambda:self.with_saved(self.void_payment))
+            button(bar,'Сверить полноту истории',lambda:self.with_saved(self.financial_evidence))
         self.grids['payments']=Grid([('occurred_at','Дата'),('kind','Вид'),('amount','Сумма'),('method','Способ'),('voided','Состояние'),('void_reason','Причина'),('comment','Комментарий')],settings_key='repair/payments' if self.embedded else None);layout.addWidget(self.grids['payments']);self.tabs.addTab(p,'Финансы')
         from .estimates import EstimatesPanel
         self.estimates=EstimatesPanel(self);self.tabs.addTab(self.estimates,'Сметы')
@@ -107,7 +126,7 @@ class RepairEditor:
         scroll=QScrollArea();scroll.setWidgetResizable(True);p=QWidget();form=QFormLayout(p);form.setFormAlignment(Qt.AlignmentFlag.AlignTop);form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows);scroll.setWidget(p)
         if self.embedded:
             self.handover_readiness=text('','section');form.addRow(self.handover_readiness)
-            form.addRow(text('Запишите дату и получателя. Проверка формы и создание акта доступны в разделе «Документы».','muted'))
+            form.addRow(text('Укажите дату и получателя. Для акта передачи нажмите «Документы» внизу.','muted'))
             status_form=QFormLayout(QWidget(self))
         else:status_form=form
         self.add_field(status_form,'status','Фактический статус ремонта',[(k,v[0]) for k,v in STATUSES.items()])
@@ -166,6 +185,7 @@ class RepairEditor:
             if stage==4:
                 target='Документы' if self.tabs.is_section('Статус и история') else 'Статус и история'
                 self.tabs.show_section(target)
+                if target=='Документы':self.document_wizard.start('handover')
             else:self.tabs.show_section(('Дефектовка','Сметы','Работы','Статус и история')[stage])
             return
         if stage==4:
@@ -181,15 +201,20 @@ class RepairEditor:
             documents=self.tabs.is_section('Документы')
             self.overview.setVisible(not documents)
             self.next_button.setVisible(not documents)
-            self.compact_status.setVisible(not overview)
+            self.compact_status.show()
             self.state_frame.setVisible(overview)
-            self.checklist.setVisible(overview)
+            self.checklist.setVisible(overview and self.show_checklist.isChecked())
             label=('Продолжить · Диагностика','Продолжить · Смета','Продолжить · Работы','Продолжить · Выдача',
                    'Документы' if self.tabs.is_section('Статус и история') else 'Подготовка к выдаче')[stage]
         self.next_button.setText(label);self.next_button.setAccessibleName(label)
         self.next_button.setProperty('stage',stage);self.next_button.setEnabled(True)
         help_text='Открывает следующий этап карточки.' if stage<4 else 'Открывает документы или подтверждение фактической выдачи.'
         self.next_button.setToolTip(help_text);self.next_button.setAccessibleDescription(help_text)
+    def toggle_checklist(self, visible):
+        if visible:
+            self.tabs.show_section('Приёмка')
+        self.update_step_actions()
+
     def equipment_history(self):
         if self.embedded:
             equipment=self.snapshot['equipment'];owner=self.snapshot.get('owner',self.snapshot['client'])
@@ -233,10 +258,14 @@ class RepairEditor:
         page=QWidget();layout=QVBoxLayout(page)
         self.items_totals=text('','section');layout.addWidget(self.items_totals)
         bar=FlowLayout();layout.addLayout(bar)
-        button(bar,'Добавить работу',lambda:self.with_saved(lambda:self.item('work')),primary=True)
-        button(bar,'Добавить запчасть',lambda:self.with_saved(lambda:self.item('part')))
-        button(bar,'Добавить доставку',lambda:self.with_saved(lambda:self.item('delivery')))
-        button(bar,'Добавить прочие расходы',lambda:self.with_saved(lambda:self.item('other')))
+        self.add_item_button=QPushButton('Добавить')
+        self.add_item_button.setObjectName('primary')
+        self.add_item_button.setAccessibleName('Добавить фактическую позицию')
+        categories=QMenu(self.add_item_button)
+        for kind,title in ITEM_KINDS.items():
+            categories.addAction(title,lambda checked=False,kind=kind:self.with_saved(lambda:self.item(kind)))
+        self.add_item_button.setMenu(categories)
+        bar.addWidget(self.add_item_button)
         self.item_filter=QComboBox();self.item_filter.setAccessibleName('Тип фактических расходов')
         self.item_filter.addItem('Все позиции','')
         for key,label in ITEM_KINDS.items():self.item_filter.addItem(label,key)
@@ -261,6 +290,7 @@ class RepairEditor:
                'total':item['total_cents'] if item.get('price_known',True) else None}
               for item in self.snapshot['repair_items'] if not selected or selected==item['kind']]
         self.items_grid.install(rows)
+        self.items_grid.fit_few_rows()
         self.items_grid.setVisible(bool(rows))
         self.items_grid.setFixedHeight(min(310,max(90,52+38*len(rows))))
         self.items_empty.setVisible(not rows)
@@ -317,7 +347,9 @@ class RepairEditor:
         elif kind=='long':w=QPlainTextEdit();w.setMinimumHeight(64);w.setMaximumHeight(110);w.textChanged.connect(self.changed)
         elif kind=='date':w=DateField();w.textChanged.connect(self.changed)
         else:w=QLineEdit();w.textChanged.connect(self.changed)
-        w.setAccessibleName(label);w.setMinimumWidth(0);form.addRow(label,w);self.fields[key]=w
+        w.setAccessibleName(label);w.setMinimumWidth(0)
+        if self.embedded:w.setMaximumWidth({'date':180,'text':300}.get(kind,620) if isinstance(kind,str) else 480)
+        form.addRow(label,w);self.fields[key]=w
     def changed(self,*args):
         self.dirty=True
         if hasattr(self,'dirty_label'):self.dirty_label.setText('Есть несохранённые изменения')
@@ -345,7 +377,7 @@ class RepairEditor:
         for key,label in self.finance_values.items():
             value=rub(t[key]) if t[key] is not None or not self.embedded else 'Не установлено'
             if self.embedded and key=='balance' and (t[key] or 0)>0:value+=' · Долг'
-            label.setText(value)
+            label.setText(f'{self.finance_titles[key]}: {value}')
             label.setProperty('debt',self.embedded and key=='balance' and (t[key] or 0)>0)
             label.style().unpolish(label);label.style().polish(label)
         self.finance_strip.setVisible(self.embedded)
@@ -387,7 +419,9 @@ class RepairEditor:
             for group in ('work','part','delivery','other'):
                 rows=[{**x,**{field:readable_field(x.get(field,''),field).text for field in ('name','description','notes')},'price':rub(x['price_cents'] if x.get('price_known',True) else None),'total':x['total_cents'] if x.get('price_known',True) else None} for x in s['repair_items'] if x['kind']==group];self.grids[group].install(rows);self.grids[group].setFixedHeight(min(230,max(100,self.grids[group].horizontalHeader().height()+len(rows)*self.grids[group].verticalHeader().defaultSectionSize()+8)))
             self.grids['documents'].install(s['generated_documents']);self.refresh_document_profile()
-        self.grids['payments'].install([{**x,'amount':x['amount_cents']} for x in s['payments']]);self.grids['attachments'].install(s['attachments']);self.grids['history'].install(s['repair_status_history']);self.dirty=False;self.dirty_label.setText('Сохранено');self.save_button.setEnabled(False)
+        self.grids['payments'].install([{**x,'amount':x['amount_cents']} for x in s['payments']]);
+        if self.embedded:self.grids['payments'].fit_few_rows()
+        self.grids['attachments'].install(s['attachments']);self.grids['history'].install(s['repair_status_history']);self.dirty=False;self.dirty_label.setText('Сохранено');self.save_button.setEnabled(False)
     def refresh_document_profile(self,*args):
         from ...service.document_readiness import assess
         check=assess(self.snapshot,self.doc_kind.currentData(),self.template_path.text());profile=check['profile']

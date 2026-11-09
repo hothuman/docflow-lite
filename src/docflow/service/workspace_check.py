@@ -16,7 +16,7 @@ from .backup import create_backup, inspect_backup, restore_backup
 from .repository import ServiceStore
 
 
-def exercise(app, output):
+def exercise(app, output, *, stage10=True):
     output = Path(output)
     output.mkdir(parents=True)
     window = MainWindow(service_root=output/'Учебная мастерская')
@@ -24,6 +24,8 @@ def exercise(app, output):
     window.show()
     window.navigate(5)
     workspace = window.service_workspace
+    work, part, paid = (2000, 450, 1600) if stage10 else (1500, 350, 1000)
+    total = work+part
     checks = []
     layout_samples = {}
 
@@ -117,16 +119,26 @@ def exercise(app, output):
         checks.append('embedded_intake_and_diagnosis')
 
         page.tabs.show_section('Работы')
-        page.item('work')
-        form({'name':'Работа мастера','price':'1500'})
+        page.add_item_button.menu().actions()[0].trigger()
+        form({'name':'Работа мастера','price':str(work)})
         assert inside(RepairPage) is page
-        page.item('part')
-        form({'name':'Уплотнение','price':'350'})
+        page.add_item_button.menu().actions()[1].trigger()
+        form({'name':'Уплотнение','price':str(part)})
         page.tabs.show_section('Сметы')
+        if stage10:
+            from .estimates import save_draft
+            save_draft(store, first, [
+                {'name':'Работа мастера','kind':'work','quantity':'1','price':str(work)},
+                {'name':'Уплотнение','kind':'part','quantity':'1','price':str(part)},
+            ])
+            page.install(store.snapshot(first))
+            page.estimates.freeze('preliminary')
+            form({'actor':'Учебный сотрудник','reason':'Проверочный предварительный расчёт'})
         page.estimates.freeze('final')
         form({'actor':'Учебный сотрудник','reason':'Проверочный финальный расчёт'})
         quotes = page.snapshot['estimates']
-        assert len(quotes)==1 and quotes[0]['total']==185000
+        assert len(quotes)==(2 if stage10 else 1) and all(q['total']==total*100 for q in quotes)
+        if stage10:assert any(q['kind']=='preliminary' and q['version']==1 for q in quotes)
         app.processEvents()
         viewport=page.body_scroll.viewport()
         estimate_y=page.estimates.summary.mapTo(viewport,page.estimates.summary.rect().bottomLeft()).y()
@@ -143,9 +155,9 @@ def exercise(app, output):
         invalid.save_button.click()
         idle()
         assert inside(FieldsDialog) is invalid and invalid.error.isVisible()
-        form({'amount':'1000','comment':'Учебный частичный расчёт'})
+        form({'amount':str(paid),'comment':'Учебный частичный расчёт'})
         totals = page.snapshot['totals']
-        assert tuple(totals[k] for k in ('total','paid','balance'))==(185000,100000,85000)
+        assert tuple(totals[k] for k in ('total','paid','balance'))==(total*100,paid*100,85000)
         assert 'Долг' in page.finance_values['balance'].text()
         shot('04-finance')
         checks.append('immutable_estimate_and_exact_internal_finance')
@@ -183,6 +195,24 @@ def exercise(app, output):
         page.save_button.click()
         idle()
         assert page.snapshot['repair']['status']==original
+        handover_proof = None
+        if stage10:
+            page.next_button.click()
+            assert wizard.doc_kind.currentData()=='handover' and wizard.doc_kind.count()==8
+            assert len(store.documents())==1
+            wizard.check_document()
+            wizard.preview()
+            idle()
+            assert wizard.prepared and 'Принято' in wizard.preview_text.toPlainText()
+            assert 'полностью оплачено' not in wizard.preview_text.toPlainText().lower()
+            bytes_at_preview = wizard.prepared.rendered
+            wizard.preview_continue.click()
+            wizard.generate_button.click()
+            idle()
+            handover_doc = next(doc for doc in store.documents() if doc['kind']=='handover')
+            handover_proof = handover_doc['path'], bytes_at_preview
+            assert (store.root/handover_doc['path']).read_bytes()==bytes_at_preview
+            page.tabs.show_section('Статус и история')
         issue(page,False)
         assert store.snapshot(first)['repair']['status']==original
         issue(page,True)
@@ -211,6 +241,8 @@ def exercise(app, output):
         workspace.open_journal_history()
         idle()
         history = inside(HistoryPage)
+        assert 'минимум два обращения' in history.compare_hint.text()
+        assert not history.compare_button.isEnabled()
         history.new()
         repeated = inside(IntakeDialog)
         repeated.complaint.setPlainText('Повторная проверка')
@@ -249,6 +281,10 @@ def exercise(app, output):
         assert restored.snapshot(second)['totals']['balance']==0
         assert restored.snapshot(first)['repair_status_history']==issued['repair_status_history']
         assert (restored.root/document['path']).read_bytes()==preview
+        if handover_proof:
+            handover_path, handover_bytes = handover_proof
+            assert (store.root/handover_path).read_bytes()==handover_bytes
+            assert (restored.root/handover_path).read_bytes()==handover_bytes
         assert hashlib.sha256(archive.read_bytes()).hexdigest()==info['sha256']
         checks.append('backup_restores_two_repairs_statuses_and_exact_document')
         return {'status':'passed','checks':checks,'qt_platform':app.platformName(),
