@@ -301,6 +301,10 @@ class ServiceDocumentWizard(QWidget):
         self.doc_kind.setFocus()
 
     def suggest_kind(self, kind):
+        if self.pages.currentIndex()==4 and self.doc_kind.currentData()!=kind:
+            # A completed document has no pending selection or preview to preserve.
+            self.start()
+            self._kind_chosen = False
         if self._kind_chosen or self.pages.currentIndex()!=0 or self.doc_kind.currentData()==kind:
             return
         with QSignalBlocker(self.doc_kind):
