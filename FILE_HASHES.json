@@ -341,7 +341,7 @@
   "src/docflow/ui/service/document_actions.py": "1d0c901f61f09241a6dcfe1ceb4a5773de6e556c45d01f3009d3f4662111cbe3",
   "src/docflow/ui/service/estimates.py": "aab1c3e87a072705bd4841bd692b67eb0e92820e7502350837445d826dda7a8d",
   "src/docflow/ui/service/forms.py": "9e0f7d6a3641c535ef5fbf8911e130f11a23843721b313002d634b965c1de2fc",
-  "src/docflow/ui/service/history.py": "20a5f2f49f22b6cf67c63be174c2ec620de19f41cb1b74a8535019c4203f6799",
+  "src/docflow/ui/service/history.py": "3d94db22f8d3c417a90e56d44e7ca354081297f287727fcb6488ba4c788d55f4",
   "src/docflow/ui/service/images.py": "3ec028e32a9675c321435c81341b429e42a84cc3946b1cd8301e2f407009cd6c",
   "src/docflow/ui/service/import_wizard.py": "54caa9a16005bd1c7722ee971a1f5a90c0d93010710bde313ba905a8a1455aa3",
   "src/docflow/ui/service/intake.py": "a9ad7d5e5ecfeafd2dd0e04d40ab75f3fb1647660651a9fb59c8c7002fa88db4",

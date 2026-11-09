@@ -447,9 +447,9 @@ class _HistoryContent:
         self.detail.setPlainText(f"Приёмка: {date_text(row['received_at'])}\n\n"
                                  f"Жалоба: {_show_or_empty(shown['complaint'])}\n\n"
                                  f"Диагностика: {_show_or_empty(shown['defects'])}\n\n"
-                                 f"Стоимость: {rub(row['total'])} · Оплачено: {rub(row['paid'])} · "
-                                 f"Остаток: {rub(row['balance'])}\n"
-                                 f"Работы: {rub(row['work'])} · Запчасти: {rub(row['parts'])}\n\n"
+                                 f"Стоимость: {rub(row.get('total'))} · Оплачено: {rub(row.get('paid'))} · "
+                                 f"Остаток: {rub(row.get('balance'))}\n"
+                                 f"Работы: {rub(row.get('work'))} · Запчасти: {rub(row.get('parts'))}\n\n"
                                  f"Работы и материалы: {_show_or_empty(items)}{source_works}\n\n"
                                  'Откройте ремонт для DOCX, фото и подробностей.')
 
