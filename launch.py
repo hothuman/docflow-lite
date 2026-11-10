@@ -7,6 +7,27 @@ if not getattr(sys, "frozen", False):
 
 
 def main():
+    if len(sys.argv)>1 and sys.argv[1]=='--hotfix-self-test':
+        from docflow.service.hotfix_check import main as hotfix_check
+        return hotfix_check(sys.argv[2:])
+    if len(sys.argv)>1 and sys.argv[1]=='--stage4-screenshots':
+        from docflow.service.stage4_screenshots import main as stage4_screenshots
+        return stage4_screenshots(sys.argv[2:])
+    if len(sys.argv)>1 and sys.argv[1]=='--stage4-self-test':
+        from docflow.service.stage4_check import main as stage4_check
+        return stage4_check(sys.argv[2:])
+    if len(sys.argv)>1 and sys.argv[1]=='--stage3-self-test':
+        from docflow.service.stage3_check import main as stage3_check
+        return stage3_check(sys.argv[2:])
+    if len(sys.argv)>1 and sys.argv[1]=='--stage2-self-test':
+        from docflow.service.stage2_check import main as stage2_check
+        return stage2_check(sys.argv[2:])
+    if len(sys.argv)>1 and sys.argv[1]=='--project-loading-self-test':
+        from docflow.service.project_loading_check import main as project_check
+        return project_check(sys.argv[2:])
+    if len(sys.argv)>1 and sys.argv[1]=='--stage1-self-test':
+        from docflow.service.stage1_check import main as stage1_check
+        return stage1_check(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "--release-self-test":
         from docflow.release_check import main as check
         return check(sys.argv[2:])
@@ -21,5 +42,7 @@ def main():
 
 
 if __name__ == "__main__":
+    from multiprocessing import freeze_support
+    freeze_support()
     raise SystemExit(main())
 

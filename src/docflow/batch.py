@@ -33,6 +33,7 @@ class BatchResult:
     rejected: int
     documents: int
     issues: tuple[Issue, ...]
+    files: tuple[str, ...] = ()
 
 
 def prepare(profile: Profile) -> Prepared:
@@ -113,7 +114,8 @@ def generate(prepared: Prepared, output: Path | str, progress: Callable[[int, in
         check_cancelled()
         os.rename(staging, final)
         staging = None
-        return BatchResult(final, total, accepted, total - accepted, documents, tuple(issues))
+        files = tuple(file for item in records_report for file in item['files'])
+        return BatchResult(final, total, accepted, total - accepted, documents, tuple(issues), files)
     except OSError as exc:
         raise DocFlowError(f"Не удалось безопасно сохранить пакет: {exc}") from exc
     finally:

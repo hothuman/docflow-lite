@@ -1,5 +1,5 @@
 /* DocFlow Night Instrument a6. Every native workspace and dialog shares these tokens. */
-QWidget {font-family:"Segoe UI","DejaVu Sans";font-size:13px;color:@text@;background-color:@background@;}
+QWidget {font-family:"Segoe UI","DejaVu Sans";font-size:14px;color:@text@;background-color:@background@;}
 QMainWindow,QWidget#root,QWidget#work,QWidget#page,QDialog,QWizard,QWidget#servicePage {background:@background@;}
 QLabel {background:transparent;}
 QFrame#rail {background:@rail@;border-right:1px solid @border@;}
@@ -7,9 +7,9 @@ QLabel#brand {font-size:25px;font-weight:700;color:@accent@;}
 QLabel#title {font-size:27px;font-weight:650;}
 QLabel#section {font-size:15px;font-weight:600;}
 QLabel#muted,QLabel#version {color:@muted@;}
-QLabel#eyebrow {color:@muted@;font-family:"Consolas","DejaVu Sans Mono";font-size:11px;}
+QLabel#eyebrow {color:@muted@;font-family:"Consolas","DejaVu Sans Mono";font-size:12px;}
 QLabel#status {color:@muted@;padding:5px 0;}
-QLabel#projectLocation {color:@muted@;font-size:11px;padding-bottom:4px;}
+QLabel#projectLocation {color:@muted@;font-size:13px;padding-bottom:4px;}
 QLabel#metric,QLabel#metricValue {font-size:25px;font-weight:650;color:@text@;}
 QLabel#ready {color:@success@;font-weight:600;}
 QLabel#error {color:@error@;}
@@ -18,6 +18,19 @@ QFrame#metricCard {background:@surface@;border:1px solid @border@;border-top:2px
 QFrame#queueRow {background:@raised@;border:0;border-left:2px solid @warning@;border-radius:4px;}
 QFrame#routeBar {background:@rail@;border:1px solid @border@;border-radius:7px;}
 QFrame#repairState {background:@rail@;border:1px solid @border@;border-left:3px solid @warning@;border-radius:6px;}
+QWidget#repairFinance {background:transparent;}
+QLabel#repairAmount {font-weight:650;color:@text@;}
+QLabel#repairStatus {font-size:18px;font-weight:650;color:@warning@;}
+QLabel#metricValue[debt="true"],QLabel#repairAmount[debt="true"] {color:@error@;}
+QLabel#workspaceBreadcrumb {color:@muted@;font-weight:600;}
+QFrame#coreValidation[severity="error"] {background:@surface@;border:1px solid @error@;border-left:3px solid @error@;border-radius:8px;}
+QFrame#coreValidation[severity="success"] {background:@surface@;border:1px solid @success@;border-radius:8px;}
+QTableWidget#coreFieldMapping QComboBox[validationIssue="true"] {border-color:@error@;}
+QLabel#fieldError,QLabel#formError {color:@error@;font-weight:600;}
+QLabel#formError {background:@surface@;border:1px solid @error@;border-radius:6px;padding:7px;}
+QLabel#documentWarning {color:@warning@;border-left:3px solid @warning@;padding:6px;}
+QLabel#documentActionError,QLabel#documentReadinessError {color:@error@;border:1px solid @error@;border-left:3px solid @error@;border-radius:6px;padding:8px;}
+QLineEdit[validationIssue="true"],QPlainTextEdit[validationIssue="true"],QComboBox[validationIssue="true"] {border:1px solid @error@;}
 QPushButton {background:@raised@;border:1px solid @border@;border-radius:6px;padding:9px 12px;min-height:18px;font-weight:500;}
 QPushButton:hover {background:#214348;border-color:@muted@;}
 QPushButton:pressed {background:@selection@;}
@@ -54,6 +67,7 @@ QTabWidget::pane {border:0;background:transparent;}
 QTabBar::tab {background:transparent;color:@muted@;padding:10px 13px;margin-right:4px;border-bottom:2px solid transparent;}
 QTabBar::tab:selected {background:@surface@;color:@accent@;border-bottom:2px solid @accent@;font-weight:600;}
 QTabBar::tab:focus {border:1px solid @focus@;}
+QTabBar#repairStageBar::tab {padding:7px 9px;}
 QScrollArea {background:transparent;border:0;}
 QScrollBar:vertical {background:@rail@;width:9px;margin:0;}
 QScrollBar::handle:vertical {background:#63827A;border-radius:4px;min-height:26px;}
@@ -69,6 +83,7 @@ QCheckBox::indicator:checked,QAbstractItemView::indicator:checked {background:@a
 QToolTip {background:@raised@;color:@text@;border:1px solid @border@;padding:6px;}
 QMessageBox {background:@surface@;}
 QDialogButtonBox,QToolBar {background:transparent;border:0;}
+QTableView[compactMoney="true"]::item {padding-left:2px;padding-right:2px;}
 QGroupBox {margin-top:12px;padding:12px;}
 QMenu {background:@raised@;color:@text@;border:1px solid @border@;}
 QMenu::item {padding:8px 12px;}
@@ -78,3 +93,31 @@ QFrame#rail[compact="true"] QPushButton#nav {padding:6px 5px;font-size:12px;min-
 QFrame#rail[compact="true"] QLabel#brand {font-size:19px;}
 QFrame#rail[compact="true"] QComboBox {padding:5px 3px;font-size:12px;}
 QFrame#rail[short="true"] QPushButton#nav {padding:3px 5px;min-height:12px;font-size:11px;}
+QPushButton#modeSegment {font-size:15px;font-weight:600;padding:10px 8px;min-height:22px;}
+QPushButton#modeSegment:checked {background:@raised@;color:@accent@;border:2px solid @accent@;}
+QPushButton#modeSegment:focus {border:2px solid @focus@;}
+QPushButton#journey:checked {background:@raised@;color:@text@;border-bottom:2px solid @accent@;}
+QToolButton#detailToggle {background:@surface@;border:1px solid @border@;border-radius:5px;padding:9px;text-align:left;font-weight:600;}
+QToolButton#detailToggle:checked {border-bottom:2px solid @accent@;}
+QToolButton#detailToggle:focus,QRadioButton:focus {border:1px solid @focus@;}
+QRadioButton {spacing:8px;padding:7px;border:1px solid transparent;}
+QRadioButton::indicator {width:16px;height:16px;border:1px solid @muted@;border-radius:9px;background:@input@;}
+QRadioButton::indicator:checked {background:@accent@;border:1px solid @raised@;}
+QLabel#intakeSummary {background:@surface@;padding:10px;border-left:2px solid @accent@;}
+
+/* Scoped Stage 9 shell controls. Existing editors keep the shared widget theme. */
+QLabel#projectLocation {font-size:14px;padding:3px 6px;border-left:2px solid @border@;}
+QPushButton#compactSettings {padding:4px 10px;min-height:20px;color:@muted@;}
+QPushButton#compactSettings:focus {color:@text@;border-color:@focus@;}
+
+QFrame#journalInspectorCard {background:@surface@;border:1px solid @border@;border-top:2px solid @accent@;border-radius:8px;}
+QLabel#journalSelectionTitle {font-size:19px;font-weight:650;}
+QLabel#journalCount {color:@muted@;}
+QLabel#journalDetail[debt="true"] {color:@error@;font-weight:600;}
+QTableView#repairJournal QHeaderView::section {color:@text@;padding:5px 8px;}
+
+QTableView#repairJournal::item:hover:!selected {background:@raised@;}
+QTableView#repairJournal::item:selected {background:@journalSelection@;color:@text@;}
+QTableView#repairJournal::item:selected:focus {border:1px solid @focus@;}
+QLabel#journalSelectedSummary {background:@raised@;color:@text@;padding:4px 8px;border-left:2px solid @accent@;}
+QFrame#journalMoney {background:@raised@;border:1px solid @border@;border-radius:6px;}

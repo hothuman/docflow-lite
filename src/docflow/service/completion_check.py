@@ -78,4 +78,23 @@ def exercise(workspace,app,output,idle,fill):
     assert len(again.repairs())==len(s.repairs())
     snap=again.snapshot(r);assert snap['estimate_comparison']['approved_estimate_id'] and len(snap['generated_documents'])==3
     passed('completion_backup_restore_profiles_history_quotes_and_selected_images')
+    historical=next(x for x in s.repairs(equipment_id=eq['id']) if x['id']!=r)
+    historical_editor=RepairDialog(workspace,s.snapshot(historical['id']));workspace.dialogs.append(historical_editor);historical_editor.show();app.processEvents()
+    assert historical_editor.finance_values['paid'].text()=='Неизвестно'
+    assert historical_editor.finance_values['balance'].text()=='Неизвестно'
+    historical_editor.grab().save(str(output/'service-historical-finance-unknown.png'))
+    fill(historical_editor.financial_evidence,{'cost':'known','paid':'known','reason':'Синтетическая полная сверка; ноль оплат подтверждён'})
+    idle(workspace);assert historical_editor.snapshot['totals']['paid']==0
+    assert historical_editor.snapshot['totals']['balance']==historical_editor.snapshot['totals']['total']
+    historical_editor.accept();workspace.dialogs.remove(historical_editor)
+    passed('native_historical_unknown_finance_and_explicit_reconciliation')
+    localized=Document();localized.add_paragraph('{{repair_number}}')
+    for name in ('Heading 1','Heading 2'):
+        element=localized.styles[name]._element;element.getparent().remove(element)
+    source_template=output/'synthetic-localized-styles.docx';localized.save(source_template)
+    from .documents import render_service
+    local_doc=output/'synthetic-localized-styles-with-photo.docx'
+    local_doc.write_bytes(render_service(source_template,{'repair_number':'SYNTHETIC-STYLE'},[],[(output/'synthetic-selection-0.png','Учебная подпись','До ремонта')]))
+    assert len(Document(local_doc).inline_shapes)==1
+    passed('native_photo_append_without_english_heading_styles')
     return {'status':'passed','checks':checks,'native_os_file_dialogs_tested':False,'customer_or_word_acceptance':False}

@@ -2,7 +2,7 @@ name: DocFlow application review
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, feature/clintek-stage-1-fixes, feature/clintek-stage-2-ux, feature/clintek-stage-3-extensions, feature/clintek-stage-4-usability, feature/stage-5-self-service, feature/stage-6-document-quality, feature/stage-7-full-system-qa, feature/stage-8-clintek-adaptation, feature/stage-9-shell-journal]
     paths: ['src/**', 'tests/**', 'tools/**', 'scripts/**', 'packaging/**', 'requirements/**', 'pyproject.toml', 'FILE_HASHES.json', 'docs/**', '.github/workflows/app-modernization.yml']
   workflow_dispatch:
 
@@ -39,6 +39,7 @@ jobs:
           for scale in 1 1.25 1.5 1.75 2; do
             QT_SCALE_FACTOR=$scale python tools/qa_layout.py --output artifacts/layout-$scale
             QT_SCALE_FACTOR=$scale python tools/qa_refinement_ui.py --output artifacts/service-layout-$scale
+            QT_SCALE_FACTOR=$scale python tools/qa_stage2_layout.py --output artifacts/stage2-layout-$scale
           done
       - name: Synthetic Service scale probes
         run: python tools/qa_service_performance.py --output artifacts/service-performance
@@ -68,7 +69,13 @@ jobs:
         shell: pwsh
         run: ./scripts/build_windows.ps1
       - name: Compare native startup with unchanged public v0.1.1
-        run: python scripts/compare_windows_startup.py --exe dist/DocFlow-Lite/DocFlow-Lite.exe --output artifacts/windows-startup-comparison.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $baseline = Join-Path $env:RUNNER_TEMP 'docflow-v0.1.1-baseline.zip'
+          gh release download v0.1.1 --repo hothuman/docflow-lite --pattern 'DocFlow-Lite-0.1.1-Windows-x64-Portable.zip' --output $baseline
+          if ($LASTEXITCODE -ne 0) { throw 'Baseline download via GitHub Releases API failed' }
+          python scripts/compare_windows_startup.py --baseline-zip $baseline --exe dist/DocFlow-Lite/DocFlow-Lite.exe --output artifacts/windows-startup-comparison.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:

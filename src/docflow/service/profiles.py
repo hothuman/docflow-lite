@@ -11,8 +11,9 @@ from .statuses import STATUSES
 from .validation import ServiceError, money, now, text
 
 NEUTRAL = {'id':None, 'name':'Нейтральный профиль', 'organization_name':'', 'contact':'',
-           'details':'', 'number_prefix':'R-', 'number_start':1, 'status_labels':{},
-           'default_discount':'0', 'warranty_terms':'', 'template_paths':{}, 'logo_path':''}
+           'details':'', 'number_prefix':'', 'number_start':1, 'status_labels':{},
+           'default_discount':'0', 'warranty_terms':'', 'template_paths':{}, 'logo_path':'',
+           'template_field_mapping':{},'template_required_fields':{}}
 
 
 def profile(connection, key=None, *, active=False):
@@ -35,8 +36,8 @@ def profiles(store):
 def validate_profile(data):
     result = {key:text(data.get(key, NEUTRAL[key]), key, key=='name', 20000 if key in ('details','warranty_terms') else 500)
               for key in ('name','organization_name','contact','details','number_prefix','default_discount','warranty_terms')}
-    if not re.fullmatch(r'[\w .-]{1,20}', result['number_prefix']):
-        raise ServiceError('Префикс номера: от 1 до 20 букв, цифр, пробелов, точек, дефисов')
+    if not re.fullmatch(r'[\w .-]{0,20}', result['number_prefix']):
+        raise ServiceError('Префикс: до 20 букв, цифр, пробелов, точек, дефисов; пусто — простой номер')
     try:
         number = int(data.get('number_start', 1))
         if str(number) != str(data.get('number_start', 1)) or not 1 <= number <= 10**12:
@@ -57,10 +58,12 @@ def validate_profile(data):
         raise ServiceError('Неизвестный вид шаблона')
     result['template_paths'] = {k:text(v, 'Путь шаблона', True, 500) for k,v in paths.items()}
     result['logo_path'] = text(data.get('logo_path', ''), 'Путь логотипа', limit=500)
+    from .document_fields import validate_options
+    result['template_field_mapping'],result['template_required_fields']=validate_options(data)
     return result
 
 
-def save_profile(store, data, key=None, *, assets=None, logo_rights_confirmed=False, activate=False):
+def save_profile(store, data, key=None, *, assets=None, logo_rights_confirmed=False, activate=False,repair_id=None,expected_revision=None):
     """Copy explicitly selected files and commit their registry with the profile.
 
     Old assets remain referenced by historical estimate snapshots and backups.
@@ -72,6 +75,9 @@ def save_profile(store, data, key=None, *, assets=None, logo_rights_confirmed=Fa
     key = key or uuid4().hex
     try:
         with store.lock, store.db.connection(True) as c:
+            if repair_id:
+                repair=store.require(c,'repair_orders',repair_id)
+                if expected_revision is not None and repair['revision']!=expected_revision:raise ServiceError('Карточка изменилась. Откройте свежую версию перед выбором организации.')
             existing = c.execute('SELECT 1 FROM organization_profiles WHERE id=?', (key,)).fetchone()
             selected = []
             if assets.get('logo'):
@@ -109,6 +115,12 @@ def save_profile(store, data, key=None, *, assets=None, logo_rights_confirmed=Fa
                 record = c.execute('SELECT * FROM managed_files WHERE path=?', (relative,)).fetchone()
                 if record is None or not path.is_file() or digest(path) != record['sha256']:
                     raise ServiceError('Файл профиля отсутствует или изменён; выберите его заново')
+            for kind in set(values['template_field_mapping'])|set(values['template_required_fields']):
+                if not values['template_paths'].get(kind):raise ServiceError('Сначала выберите DOCX для настройки его полей')
+                from ..templates import Template
+                fields=Template.load(safe_path(store.root,values['template_paths'][kind])).fields
+                configured=set(values['template_field_mapping'].get(kind,{}))|set(values['template_required_fields'].get(kind,[]))
+                if configured-fields:raise ServiceError('Настройка содержит поля, которых нет в выбранном DOCX: '+', '.join(sorted(configured-fields)))
             stamp = now(); content = json.dumps(values, ensure_ascii=False, sort_keys=True)
             if existing:
                 c.execute('UPDATE organization_profiles SET name=?,data_json=?,updated_at=? WHERE id=?',
@@ -118,6 +130,9 @@ def save_profile(store, data, key=None, *, assets=None, logo_rights_confirmed=Fa
                           (key, values['name'], content, stamp, stamp))
             if activate:
                 c.execute("INSERT INTO service_settings(key,value) VALUES('active_profile',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key,))
+            if repair_id:
+                c.execute('UPDATE repair_orders SET profile_id=?,revision=revision+1,updated_at=? WHERE id=?',(key,stamp,repair_id))
+                store.audit(c,'repair',repair_id,'organization_profile',json.dumps({'before':repair['profile_id'],'after':key},ensure_ascii=False))
             store.audit(c, 'profile', key, 'save')
     except Exception:
         for path in created: path.unlink(missing_ok=True)
@@ -136,9 +151,5 @@ def activate_profile(store, key=None):
 
 
 def next_number(connection):
-    p = profile(connection, active=True)
-    n = p['number_start']
-    used = {r[0].casefold() for r in connection.execute('SELECT number FROM repair_orders')}
-    while (number := f"{p['number_prefix']}{n:06d}").casefold() in used:
-        n += 1
-    return number, p['id']
+    from .numbering import suggest_number
+    return suggest_number(connection)

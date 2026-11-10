@@ -15,10 +15,18 @@ def idle(app,workspace):
   assert time.monotonic()<deadline
  app.processEvents()
 
-def test_actual_qt_service_and_core_workflow(app,tmp_path):
+def test_actual_qt_service_and_core_workflow(app,tmp_path,monkeypatch):
+ from PySide6.QtCore import QThread
  from docflow.service.self_test import run
- assert run(tmp_path/'native-qt-workflow')==0
+ from docflow.ui.service.forms import FieldsDialog
+ original=FieldsDialog.values
+ def values_on_gui_thread(dialog):
+  assert QThread.currentThread()==app.thread()
+  return original(dialog)
+ monkeypatch.setattr(FieldsDialog,'values',values_on_gui_thread)
+ result=run(tmp_path/'native-qt-workflow')
  proof=json.loads((tmp_path/'native-qt-workflow/SERVICE-SELF-TEST.json').read_text())
+ assert result==0,proof.get('traceback',proof)
  assert proof['status']=='passed' and len(proof['checks'])==9
 
 def test_editor_saves_real_changes_with_revision(app,tmp_path):

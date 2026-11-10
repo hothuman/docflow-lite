@@ -4,6 +4,7 @@ from pathlib import Path
 from PySide6.QtCore import QPoint
 from PySide6.QtWidgets import QPushButton,QScrollArea
 from ..ui.service.widgets import Grid
+from ..ui.service.journal import JournalGrid
 from ..ui.theme import COLORS
 from PySide6.QtGui import QColor
 from ..ui.service.presentation import MONEY
@@ -37,9 +38,20 @@ def assess(window,workspace,app,output,idle):
    if scroll.isVisible() and scroll.horizontalScrollBar().maximum():failures.append('horizontal page scrolling')
   for grid in widget.findChildren(Grid):
    if not grid.isVisible():continue
-   grid.horizontalScrollBar().setValue(0);grid.fit_columns();pump()
+   scroll=grid.horizontalScrollBar()
+   original=scroll.value()
+   scroll.setValue(0);grid.fit_columns();pump()
    for col,(key,title) in enumerate(grid.records.columns):
-    if key in MONEY and (grid.isColumnHidden(col) or grid.columnViewportPosition(col)<0 or grid.columnViewportPosition(col)+grid.columnWidth(col)>grid.viewport().width()):failures.append('monetary column outside viewport: '+title)
+    if key not in MONEY:continue
+    # CP3 keeps every journal column. Check that each amount can be shown
+    # whole by scrolling the table, while other tables still fit all amounts.
+    if isinstance(grid,JournalGrid):
+     scroll.setValue(0)
+     scroll.setValue(grid.columnViewportPosition(col))
+    x=grid.columnViewportPosition(col)
+    if grid.isColumnHidden(col) or x<0 or x+grid.columnWidth(col)>grid.viewport().width():
+     failures.append('monetary column outside viewport: '+title)
+   scroll.setValue(original)
   cases.append({'view':name,'physical_client':list(physical),'logical_limit':list(logical),'actual_logical':[widget.width(),widget.height()],'failures':failures,**paint})
   if physical in ((1280,720),(1920,1080)):assert widget.grab().save(str(output/(name+'-'+str(physical[0])+'.png')))
  for physical in SIZES:
@@ -47,7 +59,7 @@ def assess(window,workspace,app,output,idle):
   for index,name in enumerate(('dashboard','equipment','repairs','clients','finance','documents','estimates','settings')):workspace.tabs.setCurrentIndex(index);pump();inspect(window,name,physical,logical,[b for b in window.nav_buttons if b.isVisible()])
   workspace.tabs.setCurrentIndex(0);editor=RepairDialog(workspace,snapshot);editor.resize(min(1060,logical[0]),min(740,logical[1]));editor.show();pump()
   for section,name in [('Приёмка','repair-basic'),('Сметы','repair-estimates'),('Документы','repair-documents'),('Вложения','repair-attachments')]:
-   editor.tabs.show_section(section);pump();inspect(editor,name,physical,logical,[b for b in editor.findChildren(QPushButton) if b.isVisible() and b.text() in ('Сохранить ремонт','Закрыть')])
+   editor.tabs.show_section(section);pump();inspect(editor,name,physical,logical,[editor.save_button,editor.next_button,*[b for b in editor.findChildren(QPushButton) if b.isVisible() and b.text()=='Закрыть']])
   draft=DraftDialog(editor);draft.resize(min(960,logical[0]),min(640,logical[1]));draft.show();pump();inspect(draft,'draft',physical,logical,[b for b in draft.findChildren(QPushButton) if b.text() in ('Сохранить расчёт','Отмена')]);draft.reject()
   factories=[('import',lambda:HistoryWizard(workspace)),('profiles',lambda:ProfileDialog(workspace)),('images',lambda:ImagesDialog(snapshot['attachments'],workspace)),('equipment-history',lambda:HistoryDialog(workspace,equipment)),('input',lambda:FieldsDialog('Проверка размеров',[('name','Название *','text'),('notes','Примечания','long')],parent=workspace))]
   for name,factory in factories:

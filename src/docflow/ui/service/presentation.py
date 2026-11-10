@@ -17,7 +17,8 @@ def date_text(value):
 def display(key,row):
  value=row.get(key,'')
  if key in MONEY:
-  cents=row.get(key+'_cents',value);return rub(cents) if type(cents) is int else str(value or '—')
+  if value is None:return rub(None)
+  cents=row.get(key+'_cents',value);return rub(cents) if type(cents) is int or cents is None else str(value or '—')
  if key in ('status','old_status','new_status'):return row.get('status_display',STATUSES.get(value,(IMPORT_STATES.get(value,value),''))[0]) if key=='status' else STATUSES.get(value,(value,''))[0] or '—'
  if key=='kind':return KINDS_DISPLAY.get(value,value)
  if key in ('state','state_label'):return STATES.get(value,value)
@@ -38,7 +39,7 @@ def sort_value(key,row):
  return value
 def audit_text(row,numbers):
  entity,action=row['entity'],row['action'];number=numbers.get(row['entity_id'],'');suffix=(' №'+number) if number else ''
- known={('clients','save'):'Сохранён клиент',('clients','archive'):'Изменён архивный статус клиента',('equipment','save'):'Сохранено оборудование',('equipment','archive'):'Изменён архивный статус оборудования',('repair','create'):'Создан ремонт'+suffix,('repair','save'):'Сохранён ремонт'+suffix,('repair','discount_change'):'Изменена скидка ремонта'+suffix,('item','save'):'Сохранена позиция расходов',('item','remove'):'Удалена позиция расходов',('payment','record'):'Добавлена внутренняя запись расчётов',('payment','void'):'Исправлена внутренняя запись расчётов',('estimate_draft','save'):'Сохранён предварительный черновик'+suffix,('attachment','add'):'Добавлено вложение',('attachment','remove'):'Удалено вложение',('profile','save'):'Сохранён профиль организации',('profile','activate'):'Изменён активный профиль'}
+ known={('intake','create'):'Принято оборудование в ремонт',('clients','save'):'Сохранён клиент',('clients','archive'):'Изменён архивный статус клиента',('equipment','save'):'Сохранено оборудование',('equipment','archive'):'Изменён архивный статус оборудования',('repair','create'):'Создан ремонт'+suffix,('repair','save'):'Сохранён ремонт'+suffix,('repair','discount_change'):'Изменена скидка ремонта'+suffix,('item','save'):'Сохранена позиция расходов',('item','remove'):'Удалена позиция расходов',('payment','record'):'Добавлена внутренняя запись расчётов',('payment','void'):'Исправлена внутренняя запись расчётов',('estimate_draft','save'):'Сохранён предварительный черновик'+suffix,('attachment','add'):'Добавлено вложение',('attachment','remove'):'Удалено вложение',('profile','save'):'Сохранён профиль организации',('profile','activate'):'Изменён активный профиль'}
  if entity=='estimate' and action=='freeze':
   parts=row['detail'].split(':');return 'Сохранена '+KINDS_DISPLAY.get(parts[0],'смета').lower()+' смета'+(' №'+parts[1] if len(parts)>1 else '')
  if entity=='estimate' and action.startswith('manual_'):return 'Ручная отметка сметы: '+STATES.get(action[7:],'изменение состояния')

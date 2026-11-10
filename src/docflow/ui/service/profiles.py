@@ -12,16 +12,28 @@ class ProfileDialog(QDialog):
     def __init__(self,workspace):
         super().__init__(workspace);self.workspace=workspace;self.setWindowTitle('Локальные профили организаций');fit_dialog(self,900,600)
         layout=QVBoxLayout(self);label=QLabel('Активный профиль применяется к новым ремонтам. Старые ремонты сохраняют связь со своим профилем, сохранённые сметы — снимок реквизитов. Пустые реквизиты не заполняются автоматически.');label.setWordWrap(True);layout.addWidget(label)
+        self.empty=QLabel('Организация ещё не настроена. Встроенные документы будут явно обозначены как нейтральные. Начните с «Настроить организацию».');self.empty.setWordWrap(True);layout.addWidget(self.empty)
         self.grid=Grid([('name','Профиль'),('active_label','Состояние'),('organization_name','Исполнитель'),('number_prefix','Префикс'),('contact','Контакт'),('logo_path','Логотип')]);layout.addWidget(self.grid)
         bar=FlowLayout();layout.addLayout(bar)
-        for title,fn in [('Добавить',lambda:self.edit(False)),('Изменить',lambda:self.edit(True)),('Сделать активным',self.activate),('Нейтральный профиль',lambda:self.activate(True)),('Выбрать шаблон',self.template),('Логотип',self.logo)]:button(bar,title,fn)
+        button(bar,'Настроить организацию',self.setup,primary=True)
+        self.selection_tools=[]
+        for title,fn in [('Дополнительные поля',lambda:self.edit(True)),('Сделать активным',self.activate),('Выбрать шаблон',self.template),('Поля шаблона',lambda:self.template(True)),('Логотип',self.logo)]:self.selection_tools.append(button(bar,title,fn))
+        button(bar,'Нейтральный профиль',lambda:self.activate(True));self.grid.selectionModel().currentRowChanged.connect(self.update_tools)
         button(layout,'Закрыть',self.accept);self.refresh()
     def refresh(self):
         store=self.workspace.store
         def query():
             with store.db.connection() as c:active=profile(c,active=True)['id']
             return [{**p,'active_label':'Активный' if p['id']==active else 'Сохранённый'} for p in profiles(store)]
-        self.workspace.run(query,self.grid.install)
+        def installed(rows):self.grid.install(rows);self.empty.setVisible(not rows);self.grid.setVisible(bool(rows));self.update_tools()
+        self.workspace.run(query,installed)
+    def update_tools(self,*args):
+        for control in self.selection_tools:control.setEnabled(self.grid.selected() is not None)
+    def setup(self):
+        from .organization_setup import OrganizationWizard
+        wizard=OrganizationWizard(self.workspace)
+        if not self.isWindow():return self.workspace.embed_form(wizard,on_close=self.refresh)
+        self.workspace.modal(wizard);self.refresh()
     def edit(self,existing=False):
         row=self.grid.selected() if existing else None
         if existing and not row:return
@@ -29,19 +41,38 @@ class ProfileDialog(QDialog):
         fields += [('status_'+k,'Название статуса «'+v[0]+'»','text') for k,v in STATUSES.items()]
         data=dict(row or NEUTRAL);data.update({'status_'+k:data.get('status_labels',{}).get(k,v[0]) for k,v in STATUSES.items()})
         d=FieldsDialog('Профиль организации',fields,data,self)
+        store=self.workspace.store
+        def save(values):
+            values['status_labels']={k:values.pop('status_'+k) for k in STATUSES}
+            return save_profile(store,{**data,**values},row['id'] if row else None)
+        if not self.isWindow():
+            d.persist_with(self.workspace,save)
+            return self.workspace.embed_form(d,on_close=self.refresh)
         if d.exec()==QDialog.DialogCode.Accepted:
-            values=d.values();values['status_labels']={k:values.pop('status_'+k) for k in STATUSES};values={**data,**values};s=self.workspace.store
-            self.workspace.run(lambda:save_profile(s,values,row['id'] if row else None),lambda _:self.refresh())
+            values=d.values()
+            self.workspace.run(lambda:save(values),lambda _:self.refresh())
     def activate(self,neutral=False):
         row=self.grid.selected()
         if neutral or row:self.workspace.run(lambda:activate_profile(self.workspace.store,None if neutral else row['id']),lambda _:self.refresh())
-    def template(self):
+    def template(self,existing=False):
         row=self.grid.selected()
         if not row:return
         d=FieldsDialog('Назначение шаблона',[('kind','Вид документа',list(KINDS.items()))],parent=self)
-        if d.exec()!=QDialog.DialogCode.Accepted:return
-        kind=d.values()['kind'];path,_=QFileDialog.getOpenFileName(self,'Проверяемый шаблон','','Word (*.docx)')
-        if path:self.workspace.run(lambda:save_profile(self.workspace.store,row,row['id'],assets={'templates':{kind:path}}),lambda _:self.refresh())
+        if not self.isWindow():return self.workspace.embed_form(d,lambda values:self._assign_template(row,existing,values['kind']))
+        if d.exec()==QDialog.DialogCode.Accepted:self._assign_template(row,existing,d.values()['kind'])
+
+    def _assign_template(self,row,existing,kind):
+        if existing:
+            from ...service.attachments import safe_path
+            relative=row.get('template_paths',{}).get(kind)
+            if not relative:return
+            path=str(safe_path(self.workspace.store.root,relative));assets=None
+        else:
+            path,_=QFileDialog.getOpenFileName(self,'Проверяемый шаблон','','Word (*.docx)');assets={'templates':{kind:path}}
+        if path:
+            from .template_fields import configure_template
+            def save(updated):self.workspace.run(lambda:save_profile(self.workspace.store,updated,row['id'],assets=assets),lambda _:self.refresh())
+            configure_template(self.workspace,self,path,kind,row,save)
     def logo(self):
         row=self.grid.selected()
         if not row:return

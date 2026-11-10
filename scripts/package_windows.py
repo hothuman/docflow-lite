@@ -44,11 +44,13 @@ def package(bundle,out,sources):
     out.mkdir(parents=True,exist_ok=True)
     instruction_lines=INSTRUCTIONS.read_text(encoding='utf-8').splitlines()
     instruction_lines[0]=f'DocFlow Lite {VERSION} — Core + Service · {stage(VERSION)}'
-    instruction_lines[2]=('Кандидат стабильной версии. Это ещё не стабильный выпуск.' if stage(VERSION)=='RC' else 'Предварительный выпуск.' if is_prerelease(VERSION) else 'Стабильный выпуск с ограничениями, указанными в документации.')
+    instruction_lines[2]=('Кандидат стабильной версии. Это ещё не стабильный выпуск.' if stage(VERSION)=='RC' else 'Предварительный выпуск.' if is_prerelease(VERSION) else 'Сборка с номером стабильной ветки. Статус распространения указан в отчёте поставки или на странице выпуска.')
     (bundle/'README-WINDOWS.txt').write_text('\n'.join(instruction_lines)+'\n',encoding='utf-8')
     shutil.copy2(ROOT/'THIRD_PARTY.md',bundle/'THIRD_PARTY.md')
     shutil.copy2(ROOT/'LICENSE.txt',bundle/'LICENSE.txt')
     shutil.copytree(ROOT/'src/docflow/examples',bundle/'examples',dirs_exist_ok=True)
+    if (ROOT/'examples/catalog').is_dir():shutil.copytree(ROOT/'examples/catalog',bundle/'examples/catalog',dirs_exist_ok=True)
+    if (ROOT/'examples/stage8').is_dir():shutil.copytree(ROOT/'examples/stage8',bundle/'examples/stage8',dirs_exist_ok=True)
     commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
     sbom=generate_sbom(bundle,VERSION,commit)
     (bundle/'SBOM.cdx.json').write_bytes((json.dumps(sbom,ensure_ascii=False,indent=2)+'\n').encode())
@@ -75,7 +77,8 @@ def package(bundle,out,sources):
           'commit':commit,
           'runner_os':os.environ.get('RUNNER_OS'),'runner_image':os.environ.get('ImageOS'),
           'runner_image_version':os.environ.get('ImageVersion'),
-          'dependencies':{d.metadata['Name']:d.version for d in importlib.metadata.distributions()},
+          'dependencies':{d.metadata['Name']:d.version for d in importlib.metadata.distributions()
+                          if d.metadata['Name'].lower().replace('_','-')!='docflow-lite'},
           'exe_sha256':sha256(bundle/'DocFlow-Lite.exe'),
           'procedure':'Pinned Windows wheels with SHA256, PyInstaller onedir; byte-for-byte reproducibility is not claimed'}
     (out/'BUILD-INFO.json').write_text(json.dumps(info,indent=2),encoding='utf-8')

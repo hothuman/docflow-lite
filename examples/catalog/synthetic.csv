@@ -1,0 +1,3 @@
+external_id;sku;name;group;subgroup;category;unit;kind;description;manufacturer;price;currency;availability;shelf_raw;exported_at
+001;S-001;Учебная деталь;Учебная группа;Учебная подгруппа;Пример;шт.;part;Только для проверки;Вымышленный изготовитель;123.45;RUB;Сырой учебный текст;01;2026-10-30
+002;W-002;Учебная работа;Услуги;Проверка;Пример;усл.;work;Только для проверки;;500;RUB;;;

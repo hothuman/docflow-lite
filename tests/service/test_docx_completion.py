@@ -78,3 +78,30 @@ def test_expense_tables_present_only_for_real_categories(tmp_path):
  s.save_item(r,{'kind':'other','name':'Согласованный расход','price':'5'})
  d=Document(generate_document(s,r,'completion'));assert len(d.tables)==4
  assert d.tables[2].cell(1,1).text.startswith('Доставка') and '25,00 ₽' in contents(generate_document(s,r,'completion'))
+
+def test_images_work_without_english_heading_styles_in_customer_template(tmp_path):
+ from PySide6.QtGui import QImage,QColor
+ from docx.enum.style import WD_STYLE_TYPE
+ p=tmp_path/'template.docx';d=Document();d.add_paragraph('{{repair_number}}')
+ for name in ('Heading 1','Heading 2'):
+  element=d.styles[name]._element;element.getparent().remove(element)
+ d.styles.add_style('Исходный стиль',WD_STYLE_TYPE.PARAGRAPH)
+ d.add_paragraph('Неизменённый текст','Исходный стиль');d.save(p)
+ image=tmp_path/'photo.png';im=QImage(200,100,QImage.Format.Format_RGB32);im.fill(QColor('green'));assert im.save(str(image))
+ raw=render_service(p,{'repair_number':'SYNTHETIC-1'},[],[(image,'Учебная подпись','До ремонта')])
+ result=Document(io.BytesIO(raw))
+ assert len(result.inline_shapes)==1
+ assert 'Исходный стиль' in [style.name for style in result.styles]
+ assert 'Учебная подпись' in '\\n'.join(p.text for p in result.paragraphs)
+ assert result.paragraphs[1].text=='Неизменённый текст'
+
+def test_optional_global_item_index_keeps_per_group_numbering_compatible(tmp_path):
+ d=Document();t=d.add_table(rows=1,cols=2);t.cell(0,0).text='[[items:work]]{{item_no}} / {{item_index}}';t.cell(0,1).text='{{item_name}}'
+ t=d.add_table(rows=1,cols=2);t.cell(0,0).text='[[items:part]]{{item_no}} / {{item_index}}';t.cell(0,1).text='{{item_name}}'
+ p=tmp_path/'template.docx';d.save(p)
+ from docflow.service.estimates import normalize_lines
+ lines=normalize_lines([{'kind':'work','name':'Work','price':'1'},{'kind':'part','name':'Part','price':'2'},{'kind':'work','name':'Second work','price':'3'}])
+ result=Document(io.BytesIO(render_service(p,{},lines,[])))
+ assert result.tables[0].cell(0,0).text=='1 / 1'
+ assert result.tables[0].cell(1,0).text=='2 / 2'
+ assert result.tables[1].cell(0,0).text=='1 / 3'

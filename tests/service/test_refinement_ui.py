@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QApplication,QMessageBox,QPlainTextEdit
 from docflow.gui import MainWindow,configure_app
 from docflow.service.demo import seed_demo
 from docflow.service.estimates import normalize_lines
-from docflow.ui.service.repair_editor import RepairDialog
+from docflow.ui.service.repair_editor import RepairDialog,RepairPage
 from docflow.ui.service.estimates import DraftDialog
 from docflow.ui.service.widgets import Grid
 
@@ -23,19 +23,17 @@ def ui(tmp_path,monkeypatch):
 
 def test_dashboard_values_and_actual_row_open(ui):
  app,w,sui,ids,messages=ui;d=sui.dashboard;data=sui.store.dashboard();assert d.values['equipment'].text()==str(data['equipment']);assert d.values['active'].text()==str(data['active']);assert d.recent.proxy.rowCount()==len(data['recent_repairs']);assert not d.findChildren(QPlainTextEdit)
- captured=[];timer=QTimer()
- def capture():
-  dialog=app.activeModalWidget()
-  if isinstance(dialog,RepairDialog):captured.append(dialog.key);dialog.accept()
- timer.timeout.connect(capture);timer.start(2);index=d.recent.proxy.index(0,0);target=d.recent.records.rows[d.recent.proxy.mapToSource(index).row()]['id']
- QTest.mouseClick(d.recent.viewport(),Qt.MouseButton.LeftButton,pos=d.recent.visualRect(index).center());idle(app,sui);timer.stop();assert captured and captured[0]==target
+ index=d.recent.proxy.index(0,0);target=d.recent.records.rows[d.recent.proxy.mapToSource(index).row()]['id']
+ QTest.mouseClick(d.recent.viewport(),Qt.MouseButton.LeftButton,pos=d.recent.visualRect(index).center());idle(app,sui)
+ assert isinstance(sui.current_page,RepairPage) and sui.current_page.key==target and sui.current_page.window() is w
+ sui.back_page();idle(app,sui)
  sui.find_equipment();app.processEvents();assert sui.searches['equipment'].hasFocus();QTest.keyClicks(sui.searches['equipment'],'DEMO-001');assert sui.views['equipment'].proxy.rowCount()==1;assert not messages
 
 def test_real_dialog_shared_light_paint_and_three_groups(ui):
  import json,os
  from pathlib import Path
  app,w,sui,ids,_=ui;d=RepairDialog(sui,sui.store.snapshot(ids['repair']));d.show();app.processEvents();image=d.grab().toImage();probes=[]
- for widget in (d.fields['complaint'],d.tabs.sections['Приёмка'][2].widget()):
+ for widget in (d.fields['complaint'],d.tabs.sections['Приёмка'][2]):
   point=QPoint(8,8);legacy=image.pixelColor(widget.mapTo(d,point));child=widget.childAt(point)
   target=widget.viewport() if isinstance(widget,QPlainTextEdit) else widget
   painted=target.grab().toImage()
@@ -52,7 +50,7 @@ def test_real_dialog_shared_light_paint_and_three_groups(ui):
   expected=QColor(COLORS['table'] if isinstance(widget,QPlainTextEdit) else COLORS['background'])
   assert all(max(abs(c.red()-expected.red()),abs(c.green()-expected.green()),abs(c.blue()-expected.blue()))<=3 for c in colors),probes[-1]
  proof=Path(os.environ.get('DOCFLOW_QA_ARTIFACTS','artifacts'))/'dialog-paint';proof.mkdir(parents=True,exist_ok=True);d.grab().save(str(proof/'repair-dialog.png'));(proof/'samples.json').write_text(json.dumps(probes,ensure_ascii=False,indent=2),encoding='utf-8')
- assert d.tabs.count()==3 and not d.tabs.usesScrollButtons();assert set(d.tabs.sections)==set(d.tabs.GROUPS);d.accept()
+ assert d.tabs.count()==5 and not d.tabs.usesScrollButtons();assert set(d.tabs.sections)==set(d.tabs.GROUPS);d.accept()
 
 def test_localized_exact_price_sort_and_visible_money(ui):
  app,w,sui,ids,_=ui;g=Grid([('name','Наименование'),('price','Цена'),('total','Сумма'),('created_at','Создано')]);g.resize(640,300);g.show();g.install([{'id':'a','name':'Б','price_cents':10000,'total':10000,'created_at':'2026-10-24T12:34:56+03:00'},{'id':'b','name':'А','price_cents':900,'total':900,'created_at':'2026-10-23'}]);app.processEvents();assert g.records.index(0,1).data()=='100,00 ₽';assert g.records.index(0,3).data()=='24.10.2026';g.sortByColumn(1,Qt.SortOrder.AscendingOrder);assert g.proxy.index(0,0).data()=='А'
@@ -159,14 +157,15 @@ def test_narrow_finance_keeps_all_money_columns_visible(ui):
  grid.close()
 
 
-def test_a5_repair_sections_keep_selection_when_navigation_collapses(ui):
+def test_repair_details_stay_expanded_on_resize_without_second_navigation(ui):
+ from PySide6.QtWidgets import QComboBox
  app,w,sui,ids,_=ui;editor=RepairDialog(sui,sui.store.snapshot(ids['repair']))
  editor.resize(1080,760);editor.show();app.processEvents()
- picker,stack=editor.tabs.groups[0];sidebar=editor.tabs.lists[0]
- assert sidebar.isVisible() and not picker.isVisible()
- sidebar.setCurrentRow(1);app.processEvents();assert picker.currentIndex()==1 and stack.currentIndex()==1
+ editor.tabs.show_section('Запчасти');app.processEvents()
+ assert editor.tabs.currentIndex()==3 and editor.tabs.cards['Запчасти'].content.isVisible()
  editor.resize(640,480);app.processEvents()
- assert picker.isVisible() and not sidebar.isVisible() and picker.currentIndex()==1
+ assert editor.tabs.cards['Запчасти'].content.isVisible()
+ assert not any(x.isVisible() and x.accessibleName().startswith('Раздел:') for x in editor.findChildren(QComboBox))
  assert not editor.finance_strip.isVisible()
  editor.accept()
 
@@ -180,3 +179,27 @@ def test_a5_application_palette_contrast():
  for foreground,background in [('text','surface'),('muted','background'),('success','surface'),('error','surface')]:
   a,b=sorted((lum(COLORS[foreground]),lum(COLORS[background])));assert (b+.05)/(a+.05)>=4.5
  a,b=sorted((lum(COLORS['accentText']),lum(COLORS['accent'])));assert (b+.05)/(a+.05)>=4.5
+
+
+def test_compact_finance_keeps_amounts_visible_when_headers_are_wider(ui):
+ app,*_=ui
+ from PySide6.QtGui import QFont
+ columns=[('number','Ремонт №'),('client','Клиент'),('status','Статус'),('total','Стоимость'),('paid','Учтено оплат'),('balance','Остаток к оплате'),('financial_status','Расчёты')]
+ grid=Grid(columns);grid.setFont(QFont('Sans Serif',12))
+ rows=[{'number':'1000','client':'Учебный клиент','status':'repair','total':170050,'paid':100000,'balance':70050}, {'number':'1001','total':None,'paid':None,'balance':None}]
+ grid.install(rows)
+ fm=grid.fontMetrics()
+ from docflow.ui.service.presentation import display
+ amount_widths=[max(fm.horizontalAdvance(display(key,row)) for row in rows)+26 for key in ('total','paid','balance')]
+ # Enough room for all values, but not for three full-length headers.
+ width=sum(amount_widths)+max(48,fm.horizontalAdvance('1001')+26)+12
+ grid.resize(width,250);grid.show();app.processEvents();grid.fit_columns();app.processEvents()
+ for col,minimum in zip((3,4,5),amount_widths):
+  assert not grid.isColumnHidden(col)
+  # Compact cells use 2px side padding; the whole value still fits with 10px
+  # allowance. Wider tables retain the previous 26px allowance.
+  assert grid.columnWidth(col)>=minimum-(16 if grid.property('compactMoney') else 0)
+  assert grid.columnViewportPosition(col)+grid.columnWidth(col)<=grid.viewport().width()
+ assert grid.records.headerData(5,Qt.Orientation.Horizontal,Qt.ItemDataRole.ToolTipRole)=='Остаток к оплате'
+ assert grid._user_widths=={}
+ grid.close()

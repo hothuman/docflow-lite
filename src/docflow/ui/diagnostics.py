@@ -6,6 +6,15 @@ from ..errors import DocFlowError
 def diagnostic_path():
  base=Path(os.environ.get('LOCALAPPDATA',Path.home()/'AppData/Local')) if os.name=='nt' else Path(os.environ.get('XDG_STATE_HOME',Path.home()/'.local/state'))
  return base/'DocFlowLite'/'logs'/'diagnostic.log'
+def record_project_event(result,exc=None):
+ # No exception messages, paths or tracebacks: these may identify a customer.
+ logger=logging.getLogger('docflow.project')
+ try:
+  if not logger.handlers:
+   path=diagnostic_path();path.parent.mkdir(parents=True,exist_ok=True);handler=RotatingFileHandler(path,maxBytes=2*1024**2,backupCount=2,encoding='utf-8');handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'));logger.addHandler(handler);logger.setLevel(logging.INFO);logger.propagate=False
+  logger.info('project result=%s error_type=%s',result,type(exc).__name__ if exc else 'none')
+ except OSError:pass
+
 def record_exception(context,exc):
  logger=logging.getLogger('docflow.local')
  try:

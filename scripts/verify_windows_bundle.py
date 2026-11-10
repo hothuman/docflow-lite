@@ -15,6 +15,83 @@ from docx import Document
 
 ROOT=Path(__file__).resolve().parents[1]
 
+REQUIRED_STAGE4_CHECKS=frozenset({'visible_modes_keyboard_memory','empty_core_demo_full_check','core_error_retry_generation','exclusive_intake_hidden_fields','repeat_requester_preserves_owner','single_stages_preserve_draft_status','dirty_mode_guard_ctrl_s','organization_wizard_and_act','history_selection_filter','frozen_quote_profile_and_catalog','backup_restore_immutable_documents','compact_footer_and_accessible_controls'})
+
+def assert_stage4_checks(report):
+    assert report['status']=='passed' and report['frozen'] and report['qt_platform']=='windows'
+    assert len(report['checks'])==len(REQUIRED_STAGE4_CHECKS) and {c['name'] for c in report['checks']}==REQUIRED_STAGE4_CHECKS
+    assert all(c['passed'] is True for c in report['checks']) and report['backup_restore'] is True
+    assert len(report['layout'])==3 and all(c['footer_visible'] and c['stages']==5 for c in report['layout'])
+
+REQUIRED_STAGE3_CHECKS=frozenset({'file_preview_apply_replay','catalog_to_quote_snapshot_docx','catalog_update_preserves_history','catalog_profiles_backup_restore','dashboard_presets_reset_restart','compact_catalog_layouts'})
+
+def assert_stage3_checks(report):
+    assert report['status']=='passed' and report['frozen'] and report['qt_platform']=='windows'
+    assert len(report['checks'])==6 and {c['name'] for c in report['checks']}==REQUIRED_STAGE3_CHECKS
+    assert all(c['passed'] is True for c in report['checks']) and report['backup_restore'] is True
+    assert len(report['layout'])==3 and all(c['footer_visible'] and c['actual_logical']==c['size'] for c in report['layout'])
+
+REQUIRED_STAGE2_CHECKS=frozenset({'first_intake','repeat_intake','estimate_approval','act_without_excel','issue_payment_history'})
+
+def assert_stage2_checks(report):
+    assert report['status']=='passed' and report['frozen'] and report['qt_platform']=='windows'
+    assert len(report['checks'])==5 and {c['name'] for c in report['checks']}==REQUIRED_STAGE2_CHECKS
+    assert all(c['passed'] is True for c in report['checks']) and report['backup_restore'] is True
+
+REQUIRED_PROJECT_CHECKS=frozenset({
+    'native_folder_cancel_settles_without_touching_original',
+    'no_store_navigation_and_recovery_actions_at_three_sizes',
+    'business_entrypoints_guarded_without_store',
+    'retry_opens_fresh_project_and_can_create_client',
+    'cancel_switch_retains_current_project_name_and_data',
+    'failed_switch_is_terminal_and_can_retry',
+})
+
+
+def assert_project_loading_checks(report):
+    assert report['status']=='passed' and report['frozen'] and report['qt_platform']=='windows'
+    assert report.get('native_folder_dialog_seen') is True and report.get('native_folder_dialog_close_sent') is True
+    checks=report['checks']
+    assert len(checks)==len(REQUIRED_PROJECT_CHECKS) and {c['name'] for c in checks}==REQUIRED_PROJECT_CHECKS
+    assert all(c.get('passed') is True for c in checks)
+
+REQUIRED_COMPLETION_CHECKS = frozenset({
+    'native_profile_form_numbering_status_labels',
+    'native_five_page_history_wizard_900_101_305_900_fourth_two_owners_and_replay',
+    'native_draft_versions_manual_approval_actual_expenses_and_both_quote_docx',
+    'native_individual_image_choice_order_captions_and_docx',
+    'completion_backup_restore_profiles_history_quotes_and_selected_images',
+    'native_historical_unknown_finance_and_explicit_reconciliation',
+    'native_photo_append_without_english_heading_styles',
+})
+
+
+def assert_completion_checks(checks):
+    assert isinstance(checks,list), 'Missing native completion results'
+    assert len(checks)==len(REQUIRED_COMPLETION_CHECKS), 'Native completion suite count differs'
+    assert {c.get('name') for c in checks}==REQUIRED_COMPLETION_CHECKS, 'Missing, duplicate or unexpected native completion scenario'
+    assert all(c.get('passed') is True for c in checks), 'Native completion scenario failed'
+
+
+
+def stable_main_window(observe,alive,clock,sleep,*,timeout=25,stable_for=.5):
+    """Wait for one owned, visible main HWND to settle before sending a close.
+
+    Qt may recreate its native window during initial Windows theme setup. An
+    HWND from the first EnumWindows callback is not a durable widget identity.
+    This never sends/retries WM_CLOSE and never accepts an exited process.
+    """
+    deadline=clock()+timeout;last=None;since=None;observations=[]
+    while clock()<deadline:
+        assert alive(), 'Normal EXE startup exited early'
+        current=tuple(observe())
+        if current!=last:
+            observations.append({'elapsed_before_deadline':timeout-(deadline-clock()),'windows':current})
+            last=current;since=clock()
+        if len(current)==1 and clock()-since>=stable_for:return current[0],observations
+        sleep(.05)
+    raise AssertionError('Ordinary EXE did not expose one stable main window')
+
 
 def normal_start(exe,cwd,env):
     """Exercise the ordinary entrypoint/event loop, with no diagnostic flag."""
@@ -25,6 +102,7 @@ def normal_start(exe,cwd,env):
     user32.EnumWindows.argtypes=[callback_type,wintypes.LPARAM]
     user32.GetWindowThreadProcessId.argtypes=[wintypes.HWND,ctypes.POINTER(wintypes.DWORD)]
     user32.IsWindowVisible.argtypes=[wintypes.HWND]
+    user32.IsWindow.argtypes=[wintypes.HWND]
     user32.GetWindowTextW.argtypes=[wintypes.HWND,wintypes.LPWSTR,ctypes.c_int]
     user32.PostMessageW.argtypes=[wintypes.HWND,wintypes.UINT,wintypes.WPARAM,wintypes.LPARAM]
     started=time.monotonic()
@@ -41,14 +119,10 @@ def normal_start(exe,cwd,env):
                 found.append((hwnd,title.value))
         return True
     try:
-        deadline=time.monotonic()+25
-        while not found and time.monotonic()<deadline:
-            assert process.poll() is None, 'Normal EXE startup exited early'
-            user32.EnumWindows(visit,0)
-            time.sleep(0.1)
-        assert found, 'Ordinary EXE did not expose its main window'
+        def observe():
+            found.clear();user32.EnumWindows(visit,0);return tuple(found)
+        target,observations=stable_main_window(observe,lambda:process.poll() is None,time.monotonic,time.sleep)
         startup=time.monotonic()-started
-        time.sleep(.2)
         class Counters(ctypes.Structure):
             _fields_=[('cb',wintypes.DWORD),('faults',wintypes.DWORD)]+[(name,ctypes.c_size_t) for name in
                 ('peakWorkingSet','workingSet','peakPaged','paged','peakNonPaged','nonPaged','pagefile','peakPagefile')]
@@ -63,10 +137,19 @@ def normal_start(exe,cwd,env):
             assert handle and psapi.GetProcessMemoryInfo(handle,ctypes.byref(memory),memory.cb)
         finally:
             if handle:kernel.CloseHandle(handle)
-        assert user32.PostMessageW(found[0][0],0x0010,0,0), 'WM_CLOSE failed'
+        # Validate again after the memory query. Never silently post to a stale
+        # or foreign HWND, and never retry a failed close as a successful test.
+        assert observe()==(target,) and user32.IsWindow(target[0]), 'Main window changed after settling'
+        owner=wintypes.DWORD();user32.GetWindowThreadProcessId(target[0],ctypes.byref(owner))
+        assert owner.value==process.pid and process.poll() is None, 'Main window no longer belongs to the tested EXE'
+        ctypes.set_last_error(0)
+        sent=user32.PostMessageW(target[0],0x0010,0,0)
+        close_error=ctypes.get_last_error()
+        assert sent, f'WM_CLOSE failed: WinError={close_error}, HWND={target[0]}, PID={process.pid}, exit={process.poll()}'
         code=process.wait(timeout=20)
         assert code==0, f'Normal EXE close returned {code}'
-        return {'visible_main_window':True,'title':found[0][1],'exit_code':code,'diagnostic_flag':False,
+        return {'visible_main_window':True,'title':target[1],'exit_code':code,'diagnostic_flag':False,
+                'main_window_observations':observations,'close_hwnd':target[0],
                 'startup_to_visible_s':startup,'working_set_bytes':memory.workingSet,'peak_working_set_bytes':memory.peakWorkingSet}
     finally:
         if process.poll() is None:
@@ -132,18 +215,66 @@ def verify(archive,evidence,release):
         assert service_run.returncode==0 and service['status']=='passed',service
         assert service['frozen'] and service['qt_platform']=='windows'
         assert service['completion']['status']=='passed'
-        assert len(service['completion']['checks'])==5 and all(c['passed'] for c in service['completion']['checks'])
+        assert_completion_checks(service['completion']['checks'])
         assert service['refinement']['status']=='passed'
+        assert service['workspace']['status']=='passed' and service['workspace']['operational_top_level_windows']==1
+        workspace_checks=service['workspace']['checks']
+        assert len(workspace_checks)==8 and {
+            'estimate_csv_and_localized_csv_match_frozen_quote',
+            'cancelled_issued_cost_change_preserves_data_and_docx',
+        } <= set(workspace_checks)
         assert len(service['refinement']['checks'])==3 and all(c['passed'] for c in service['refinement']['checks'])
         layout=service['refinement']['layout']
         assert layout['status']=='passed' and len(layout['cases'])==90
         assert all(not case['failures'] for case in layout['cases'])
         result['service']=service
+        result['project_loading']=[]
+        for scale in ('1','2'):
+            project_output=evidence/('Project-loading-'+scale)
+            project_env={**env,'QT_SCALE_FACTOR':scale}
+            project_run=subprocess.run([str(exe),'--project-loading-self-test','--require-windows','--output',str(project_output)],cwd=testroot,env=project_env,capture_output=True,timeout=120)
+            project=json.loads((project_output/'PROJECT-LOADING-SELF-TEST.json').read_text(encoding='utf-8'))
+            assert project_run.returncode==0,project
+            assert_project_loading_checks(project)
+            result['project_loading'].append({'scale':scale,**project})
+        stage2_output=evidence/'Stage2-business-routes'
+        stage2_run=subprocess.run([str(exe),'--stage2-self-test','--require-windows','--output',str(stage2_output)],cwd=testroot,env=env,capture_output=True,timeout=180)
+        stage2=json.loads((stage2_output/'STAGE2-SELF-TEST.json').read_text(encoding='utf-8'))
+        assert stage2_run.returncode==0,stage2
+        assert_stage2_checks(stage2);result['stage2']=stage2
+        result['stage3']=[]
+        for scale in ('1','1.25','1.5','2'):
+            stage3_output=evidence/('Stage3-'+scale)
+            stage3_run=subprocess.run([str(exe),'--stage3-self-test','--require-windows','--output',str(stage3_output)],cwd=testroot,env={**env,'QT_SCALE_FACTOR':scale},capture_output=True,timeout=180)
+            stage3=json.loads((stage3_output/'STAGE3-SELF-TEST.json').read_text(encoding='utf-8'))
+            assert stage3_run.returncode==0,stage3
+            assert_stage3_checks(stage3);result['stage3'].append({'scale':scale,**stage3})
+        result['stage4']=[]
+        for scale in ('1','1.25','1.5','2'):
+            stage4_output=evidence/('Stage4-'+scale)
+            stage4_run=subprocess.run([str(exe),'--stage4-self-test','--require-windows','--output',str(stage4_output)],cwd=testroot,env={**env,'QT_SCALE_FACTOR':scale},capture_output=True,timeout=180)
+            stage4=json.loads((stage4_output/'STAGE4-SELF-TEST.json').read_text(encoding='utf-8'))
+            assert stage4_run.returncode==0,stage4
+            assert_stage4_checks(stage4);result['stage4'].append({'scale':scale,**stage4})
+        result['hotfix']=[]
+        from docflow.service.hotfix_check import CHECKS as HOTFIX_CHECKS
+        for scale in ('1','1.25','1.5','1.75','2'):
+            output=evidence/('Hotfix-'+scale)
+            completed=subprocess.run([str(exe),'--hotfix-self-test','--require-windows','--output',str(output)],cwd=testroot,env={**env,'QT_SCALE_FACTOR':scale},capture_output=True,timeout=180)
+            report=json.loads((output/'HOTFIX-SELF-TEST.json').read_text(encoding='utf-8'))
+            assert completed.returncode==0 and report['status']=='passed' and report['frozen'] and report['qt_platform']=='windows',report
+            assert set(report['checks'])==HOTFIX_CHECKS and len(report['checks'])==len(HOTFIX_CHECKS)
+            result['hotfix'].append({'scale':scale,**report})
     result['status']='passed'
     result['limits']=['Automated native Windows runner, not manual Windows 10/11 acceptance',
-                      'Native OS file-dialog interaction is not tested; selections supplied by harness',
+                      'Native folder picker cancellation tested at 100%/200%; other file selections supplied by harness',
                       'DOCX ZIP/XML and content verified; Word/LibreOffice visual rendering not tested']
-    (evidence/'WINDOWS-CI-RESULTS.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
+    # Publish portable evidence without revealing the local machine's directories.
+    report=json.dumps(result,ensure_ascii=False,indent=2)
+    for root,label in ((testroot.parent,'<extracted-test>'),(evidence,'<evidence>')):
+        escaped=json.dumps(str(root),ensure_ascii=False)[1:-1]
+        report=report.replace(escaped,label)
+    (evidence/'WINDOWS-CI-RESULTS.json').write_text(report,encoding='utf-8')
     shutil.copy2(evidence/'WINDOWS-CI-RESULTS.json',release/'WINDOWS-CI-RESULTS.json')
     print(json.dumps({'status':result['status'],'runs':len(result['runs']),'docx_total':sum(x['generated_docx'] for x in result['runs'])}))
 

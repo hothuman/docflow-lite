@@ -4,12 +4,16 @@ Templates retain their sections, story parts, tables and embedded graphics.
 Only explicit variables/row prototypes/logo markers are changed. No expressions.
 """
 import bisect
+from dataclasses import dataclass
+from datetime import datetime
 import copy
+import hashlib
 import io
 import json
 import re
 import zipfile
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -26,6 +30,7 @@ from .attachments import safe_path, attachment_path, digest
 from .finance import ITEM_KINDS
 from .validation import ServiceError, rub, now, text
 from .statuses import STATUSES
+from .record_text import repair_display, readable_field, BUSINESS_FIELDS
 
 KINDS = {
     'intake':'Акт приёмки оборудования', 'completion':'Акт выполненных работ',
@@ -34,7 +39,7 @@ KINDS = {
     'estimate_final':'Окончательная смета', 'warranty':'Гарантийный талон',
 }
 MARKER = re.compile(r'\[\[items:(work|part|delivery|other|history)\]\]')
-ITEM_FIELDS = {'item_no','item_name','item_description','item_quantity','item_unit','item_price','item_total','item_kind'}
+ITEM_FIELDS = {'item_no','item_name','item_description','item_quantity','item_unit','item_price','item_total','item_kind','item_index'}
 ALIASES = {'n':'item_no','name':'item_name','qty':'item_quantity','unit':'item_unit','price':'item_price','sum':'item_total'}
 ITEM_FIELDS.update(ALIASES)
 HISTORY_FIELDS = {'history_number','history_date','history_client','history_complaint','history_defects',
@@ -65,10 +70,11 @@ def _row_table(document, group):
     return table
 
 
-def create_templates(folder):
+def create_templates(folder,*,modern=False,quality=False,workshop_layout=False,kinds=KINDS):
     """Editable neutral forms. Existing files are never overwritten."""
     folder=Path(folder); folder.mkdir(parents=True,exist_ok=True)
-    for kind,title in KINDS.items():
+    for kind in kinds:
+        title=KINDS[kind]
         path=folder/(kind+'.docx')
         if path.exists(): continue
         d=Document(); section=d.sections[0]
@@ -103,6 +109,9 @@ def create_templates(folder):
         if kind in ('defects','completion','combined','estimate_preliminary','estimate_final'):
             d.add_paragraph('Дефектовка','Heading 1'); d.add_paragraph('{{defects}}')
             d.add_paragraph('План: {{plan}}')
+        if kind in ('completion','combined'):
+            d.add_paragraph('[[optional:source_works]]Работы из источника','Heading 1')
+            d.add_paragraph('{{source_works}}')
         quote=kind.startswith('estimate_')
         if quote:
             d.add_paragraph('Версия {{estimate_version}} · Подготовлена {{estimate_date}} · {{estimate_prepared_by}}')
@@ -134,8 +143,14 @@ def create_templates(folder):
         d.add_paragraph('Проект формы. Сведения сторон и условия утверждаются отдельно; подписи не проставлены.').paragraph_format.keep_with_next=True
         d.add_paragraph('Передал ____________________     Принял ____________________')
         d.core_properties.author=''; d.core_properties.last_modified_by=''; d.core_properties.comments=''
+        if modern:
+            from .neutral_forms import refine
+            refine(d,kind)
+        if quality:
+            from .print_forms import refine as refine_print
+            refine_print(d,workshop_layout=workshop_layout)
         d.save(path)
-    return {kind:folder/(kind+'.docx') for kind in KINDS}
+    return {kind:folder/(kind+'.docx') for kind in kinds}
 
 
 def replace_spans(paragraph, pattern, callback):
@@ -167,15 +182,44 @@ def _image_width(path, section, caption=True, reserve_inches=None):
     return int(min(width,height*image.px_width/image.px_height))
 
 
-def render_service(template_path, values, items, images=(), *, history=(), logo=None):
-    template=Template.load(template_path)
+def _append_heading(document, value, level):
+    # Customer templates can contain localized styles or no heading styles.
+    # Apply a built-in style only when it exists; never replace their style set.
+    paragraph=document.add_paragraph()
+    try:
+        paragraph.style=document.styles['Heading '+str(level)]
+        paragraph.add_run(value)
+    except KeyError:
+        run=paragraph.add_run(value);run.bold=True
+        run.font.size=Pt(14 if level==1 else 12)
+        run.font.color.rgb=RGBColor(0,0,0)
+        outline=OxmlElement('w:outlineLvl');outline.set(qn('w:val'),str(level-1))
+        paragraph._p.get_or_add_pPr().append(outline)
+    paragraph.paragraph_format.keep_with_next=True
+    return paragraph
+
+
+def render_service(template_path, values, items, images=(), *, history=(), logo=None, stock_form=False):
+    template=template_path if isinstance(template_path,Template) else Template.load(template_path)
     document=Document(io.BytesIO(template.raw)); extra={}; count=0
-    stories=list(_stories(document))
+    stories=list(_stories(document));item_sequence=0
     for root,_ in stories:
         # Optional default expense sections disappear only when genuinely empty.
         # Custom tables without this explicit marker keep their header rows.
         for p in list(root.iter(W+'p')):
             content=''.join(t.text for t in paragraph_nodes(p))
+            if stock_form and not values.get('equipment_serial') and content == (
+                    'Оборудование: {{equipment_model}} · № {{equipment_number}} · серийный № {{equipment_serial}}'):
+                replace_spans(p,re.compile(r' · серийный № \{\{equipment_serial\}\}$'),lambda _: '')
+            if '[[optional:source_works]]' in content:
+                following=p.getnext()
+                if following is None or following.tag!=W+'p' or '{{source_works}}' not in ''.join(t.text for t in paragraph_nodes(following)):
+                    raise ServiceError('Необязательные работы из источника должны предшествовать их тексту')
+                if not values.get('source_works'):
+                    following.getparent().remove(following);p.getparent().remove(p)
+                else:
+                    replace_spans(p,re.compile(r'\[\[optional:source_works\]\]'),lambda m:'')
+                continue
             optional=re.search(r'\[\[optional:(delivery|other)\]\]',content)
             if optional:
                 group=optional.group(1)
@@ -201,9 +245,10 @@ def render_service(template_path, values, items, images=(), *, history=(), logo=
                     count+=1; clone=copy.deepcopy(row)
                     if group=='history': local=item; fields=HISTORY_FIELDS
                     else:
-                        local={'item_no':str(index),'item_name':item['name'],'item_description':item['description'],
-                               'item_quantity':item['quantity'],'item_unit':item['unit'],'item_price':rub(item['price_cents']),
-                               'item_total':rub(item['total_cents']),'item_kind':ITEM_KINDS[item['kind']]}
+                        item_sequence+=1
+                        local={'item_no':str(index),'item_index':str(item_sequence),'item_name':item['name'],'item_description':item['description'],
+                               'item_quantity':item['quantity'],'item_unit':item['unit'],'item_price':rub(item['price_cents'] if item.get('price_known',True) else None),
+                               'item_total':rub(item['total_cents'] if item.get('price_known',True) else None),'item_kind':ITEM_KINDS[item['kind']]}
                         fields=ITEM_FIELDS
                     for p in clone.iter(W+'p'):
                         replace_spans(p,MARKER,lambda m:'')
@@ -229,14 +274,14 @@ def render_service(template_path, values, items, images=(), *, history=(), logo=
                     p.getparent().remove(p)
     if len(images)>10: raise ServiceError('Для документа выберите не более десяти изображений')
     if images:
-        document.add_paragraph('Приложение с изображениями','Heading 1').paragraph_format.page_break_before=True
+        _append_heading(document,'Приложение с изображениями',1).paragraph_format.page_break_before=True
         previous_stage=None
         for index,image in enumerate(images):
             path,caption=image[:2]; stage=image[2] if len(image)>2 else ''
             if Path(path).stat().st_size>10*1024**2:
                 raise ServiceError('Изображение для DOCX больше 10 MiB; подготовьте уменьшенную копию')
             if stage and stage!=previous_stage:
-                heading=document.add_paragraph(stage,'Heading 2')
+                heading=_append_heading(document,stage,2)
                 if index:heading.paragraph_format.page_break_before=True
                 previous_stage=stage
             else:heading=None
@@ -264,7 +309,7 @@ def render_service(template_path, values, items, images=(), *, history=(), logo=
                     fields.update(m.group(1) for m in TOKEN.finditer(''.join(t.text for t in paragraph_nodes(p))))
     available={**values,**extra}
     if fields-available.keys(): raise ServiceError('Неизвестные поля шаблона: '+', '.join(sorted(fields-available.keys())))
-    return Template(Path(template_path),raw,frozenset(fields)).render(available)
+    return Template(template.path,raw,frozenset(fields)).render(available)
 
 
 def _history(store, repair):
@@ -276,18 +321,85 @@ def _history(store, repair):
     result=[]
     for row in rows:
         if row['id']==repair['id']: continue
-        def listing(kind): return '\n'.join(x['name']+(': '+x['description'] if x['description'] and x['description']!=x['name'] else '') for x in items.get(row['id'],[]) if x['kind']==kind)
+        row=repair_display(row)
+        def listing(kind):
+            result=[]
+            for x in items.get(row['id'],[]):
+                if x['kind']!=kind:continue
+                name=readable_field(x['name'],'name').text
+                description=readable_field(x['description'],'description').text
+                result.append(name+(': '+description if description and description!=name else ''))
+            return '\n'.join(result)
+        work_text=listing('work')
+        if row['source_works']:
+            work_text+='\nРаботы из источника: '+row['source_works']
         result.append({'history_number':row['number'],'history_date':row['received_at'],'history_client':row['client'],
-                       'history_complaint':row['complaint'],'history_defects':row['defects'],'history_works':listing('work'),
+                       'history_complaint':row['complaint'],'history_defects':row['defects'],'history_works':work_text.strip(),
                        'history_parts':listing('part'),'history_total':rub(row['total']),'history_status':row['status_display'],'history_notes':row['notes']})
     return result
 
 
-def generate_document(store, repair_id, kind, template=None, image_ids=(), *, estimate_id=None, image_choices=None):
+def document_values(snapshot,quote=None):
+    """One lossless projection for readiness and actual DOCX substitution."""
+    context=quote['payload'] if quote else snapshot
+    r=context['repair'];eq=context['equipment'];client=context['client'];organization=context['profile'];amounts=context['totals']
+    owner=context.get('owner') or {}
+    values={k:str(v if v is not None else '') for k,v in r.items()}
+    shown=repair_display(r)
+    values.update({key:shown[key] for key in BUSINESS_FIELDS})
+    values['source_works']=shown['source_works']
+    comparison=(quote['payload'].get('comparison') or snapshot['estimate_comparison']) if quote else snapshot['estimate_comparison']
+    values.update({'repair_number':r['number'],'equipment_number':eq['number'],'equipment_model':eq['model'],'equipment_serial':eq['serial'],
+                   'client_name':client['name'],'client_contact':client.get('contact',''),'client_phone':client.get('phone',''),
+                   'client_email':client.get('email',''),'client_legal_name':client.get('legal_name',''),
+                   'equipment_manufacturer':eq.get('manufacturer',''),'equipment_kind':eq.get('kind',''),
+                   'equipment_identifiers':eq.get('identifiers',''),'status':organization.get('status_labels',{}).get(r['status'],STATUSES[r['status']][0]),
+                   'organization_name':organization['organization_name'],'organization_details':organization['details'],
+                   'organization_contact':organization['contact'],'warranty_terms':organization['warranty_terms'] or '____________________',
+                   **{key:rub(amounts.get(key)) for key in ('discount','total','paid','balance')},
+                   'work_total':rub(amounts['work']),'parts_total':rub(amounts['parts']),
+                   'delivery_total':rub(amounts.get('delivery',0)),'other_total':rub(amounts.get('other',0)),
+                   'expenses_total':rub(sum(amounts.get(k,0) for k in ('parts','delivery','other'))) if all(amounts.get(k,0) is not None for k in ('parts','delivery','other')) else 'Неизвестно',
+                   'approved_preliminary_total':rub(comparison['preliminary_total']) if comparison['approved_estimate_id'] else 'не зафиксирован',
+                   'estimate_difference':rub(comparison['difference']) if comparison['approved_estimate_id'] else 'не определена'})
+    values.update({'owner_'+field:owner.get(field,'') for field in ('name','contact','phone','email')})
+    if quote:
+        states={'prepared':'Подготовлена','sent':'Передача отмечена вручную','approved':'Согласование отмечено вручную','rejected':'Отклонение отмечено вручную','withdrawn':'Отметка отозвана'}
+        values.update({'estimate_version':str(quote['version']),'estimate_date':quote['created_at'],
+                       'estimate_prepared_by':quote['prepared_by'],'estimate_state':states[quote['state']],
+                       'estimate_reason':quote['reason'],'estimate_comment':readable_field(quote['payload']['comment']).text})
+    for field in ('received_at','completed_at','issued_at','started_at'):
+        raw_date=r.get(field,'')
+        try:formatted=datetime.fromisoformat(raw_date).strftime('%d.%m.%Y') if raw_date else ''
+        except ValueError:formatted=raw_date
+        values[field.removesuffix('_at')+'_date']=formatted
+    if quote:
+        values['estimate_day']=datetime.fromisoformat(quote['created_at']).strftime('%d.%m.%Y')
+    # These are document fields, not properties of the template's location.
+    # The organization above may come from an immutable estimate snapshot.
+    values['executor_display']=organization['organization_name'] or 'Исполнитель не указан — нейтральная форма'
+    values['organization_block']='\n'.join(x for x in (('Исполнитель: '+organization['organization_name']) if organization['organization_name'] else 'Исполнитель не указан — нейтральная форма',organization['details'],organization['contact']) if x)
+    return values
+
+
+@dataclass(frozen=True)
+class PreparedServiceDocument:
+    project: Path
+    repair_id: str
+    repair_revision: int
+    kind: str
+    template_name: str
+    metadata: str
+    rendered: bytes
+    stock_template: bytes | None
+
+
+def prepare_document(store, repair_id, kind, template=None, image_ids=(), *, estimate_id=None, image_choices=None):
+    """Render a stable candidate without registering a document or writing to the project."""
     if kind not in KINDS: raise ServiceError('Неизвестный документ')
     with store.lock:
-        snapshot=store.snapshot(repair_id); r=snapshot['repair']; eq=snapshot['equipment']; client=snapshot['client']
-        amounts=snapshot['totals']; organization=snapshot['profile']; items=snapshot['repair_items']; quote=None
+        snapshot=store.snapshot(repair_id); r=snapshot['repair']
+        organization=snapshot['profile']; items=snapshot['repair_items']; quote=None
         if kind.startswith('estimate_'):
             from .estimates import get_estimate
             expected='preliminary' if kind=='estimate_preliminary' else 'final'
@@ -297,23 +409,11 @@ def generate_document(store, repair_id, kind, template=None, image_ids=(), *, es
             if not estimate_id: raise ServiceError('Сначала сохраните неизменяемую версию соответствующей сметы')
             with store.db.connection() as c: quote=get_estimate(c,estimate_id)
             if quote['repair_id']!=repair_id or quote['kind']!=expected: raise ServiceError('Выбрана другая смета или другой ремонт')
-            p=quote['payload']; r=p['repair']; eq=p['equipment']; client=p['client']; organization=p['profile']; items=p['lines']; amounts=p['totals']
-        values={k:str(v if v is not None else '') for k,v in r.items()}
-        comparison=(quote['payload'].get('comparison') or snapshot['estimate_comparison']) if quote else snapshot['estimate_comparison']
-        values.update({'repair_number':r['number'],'equipment_number':eq['number'],'equipment_model':eq['model'],'equipment_serial':eq['serial'],
-                       'client_name':client['name'],'status':organization.get('status_labels',{}).get(r['status'],STATUSES[r['status']][0]),
-                       'organization_name':organization['organization_name'],'organization_details':organization['details'],
-                       'organization_contact':organization['contact'],'warranty_terms':organization['warranty_terms'] or '____________________',
-                       **{key:rub(amounts.get(key,0)) for key in ('discount','total','paid','balance')},
-                       'work_total':rub(amounts['work']),'parts_total':rub(amounts['parts']),
-                       'delivery_total':rub(amounts.get('delivery',0)),'other_total':rub(amounts.get('other',0)),
-                       'approved_preliminary_total':rub(comparison['preliminary_total']) if comparison['approved_estimate_id'] else 'не зафиксирован',
-                       'estimate_difference':rub(comparison['difference']) if comparison['approved_estimate_id'] else 'не определена'})
-        if quote:
-            states={'prepared':'Подготовлена','sent':'Передача отмечена вручную','approved':'Согласование отмечено вручную','rejected':'Отклонение отмечено вручную','withdrawn':'Отметка отозвана'}
-            values.update({'estimate_version':str(quote['version']),'estimate_date':quote['created_at'],
-                           'estimate_prepared_by':quote['prepared_by'],'estimate_state':states[quote['state']],
-                           'estimate_reason':quote['reason'],'estimate_comment':quote['payload']['comment']})
+            p=quote['payload']; r=p['repair']; organization=p['profile']; items=p['lines']
+        values=document_values(snapshot,quote)
+        from .document_fields import configured_values
+        values,missing=configured_values(values,organization,kind)
+        if missing:raise ServiceError('Не заполнены обязательные поля шаблона: '+', '.join(missing))
         choices=image_choices if image_choices is not None else [{'id':key} for key in image_ids]
         if len({x['id'] for x in choices})!=len(choices): raise ServiceError('Одно изображение выбрано несколько раз')
         images=[]; selection=[]
@@ -325,33 +425,80 @@ def generate_document(store, repair_id, kind, template=None, image_ids=(), *, es
             images.append((attachment_path(store,item['id']),caption,stage))
             selection.append({'id':item['id'],'sha256':item['sha256'],'caption':caption,'stage':stage})
         relative_template=organization.get('template_paths',{}).get(kind)
-        path=Path(template) if template else (safe_path(store.root,relative_template) if relative_template else create_templates(safe_path(store.root,'templates/default-v3'))[kind])
+        stock=not (template or relative_template)
+        path=Path(template) if template else safe_path(store.root,relative_template or f'templates/default-v8/{kind}.docx')
         logo=safe_path(store.root,organization['logo_path']) if organization.get('logo_path') else None
+        managed_digest=None
         for file in (path if relative_template and not template else None,logo):
             if file:
                 with store.db.connection() as c: meta=c.execute('SELECT * FROM managed_files WHERE path=?',(file.relative_to(store.root).as_posix(),)).fetchone()
                 if meta is None or not file.is_file() or digest(file)!=meta['sha256']: raise ServiceError('Файл профиля изменён или отсутствует')
-        history=[]
-        raw=Template.load(path)
-        with zipfile.ZipFile(io.BytesIO(raw.raw)) as z:
-            has_history=any('[[items:history]]' in ''.join(t.text or '' for t in parse(z.read(n)).iter(W+'t')) for n in z.namelist() if STORY.fullmatch(n))
-        if has_history: history=_history(store,r)
-        rendered=render_service(path,values,items,images,history=history,logo=logo)
-        metadata={'repair_revision':r['revision'],'template_sha256':digest(path),'estimate_id':quote['id'] if quote else None,
+                if file==path:managed_digest=meta['sha256']
+        shown_items=[{**item,**{key:readable_field(item.get(key,''),key).text
+                              for key in ('name','description','notes')}} for item in items]
+        def render(raw):
+            checksum=hashlib.sha256(raw.raw).hexdigest()
+            if managed_digest and checksum!=managed_digest:
+                raise ServiceError('Файл профиля изменился во время подготовки. Проверьте шаблон.')
+            with zipfile.ZipFile(io.BytesIO(raw.raw)) as z:
+                has_history=any('[[items:history]]' in ''.join(t.text or '' for t in parse(z.read(n)).iter(W+'t')) for n in z.namelist() if STORY.fullmatch(n))
+            history=_history(store,r) if has_history else []
+            data=render_service(raw,values,shown_items,images,history=history,logo=logo,stock_form=stock)
+            return data,checksum
+        if stock and not path.is_file():
+            with TemporaryDirectory(prefix='docflow-form-') as folder:
+                source=create_templates(folder,modern=True,quality=True,workshop_layout=True,kinds=(kind,))[kind]
+                raw=Template.load(source)
+        else:
+            raw=Template.load(path)
+        rendered,template_sha=render(raw)
+        metadata={'repair_revision':r['revision'],'template_sha256':template_sha,'estimate_id':quote['id'] if quote else None,
                   'estimate_sha256':quote['payload_sha256'] if quote else None,'profile_id':organization['id'],'images':selection}
-        target=None; created=False
+        return PreparedServiceDocument(store.root,repair_id,snapshot['repair']['revision'],kind,path.name,
+                                       json.dumps(metadata,ensure_ascii=False),rendered,raw.raw if stock else None)
+
+
+def save_prepared_document(store, prepared):
+    """Commit the exact previewed bytes as the next immutable version."""
+    if prepared.project != store.root: raise ServiceError('Предпросмотр относится к другому проекту')
+    repair_id,kind=prepared.repair_id,prepared.kind
+    metadata=json.loads(prepared.metadata)
+    with store.lock:
+        target=None; created=False; installed_template=None
         try:
             with store.db.connection(True) as db:
                 current=db.execute('SELECT revision FROM repair_orders WHERE id=?',(repair_id,)).fetchone()
-                if not quote and current[0]!=snapshot['repair']['revision']: raise ServiceError('Карточка изменилась во время генерации; повторите по свежей версии')
+                if current is None or (not metadata['estimate_id'] and current[0]!=prepared.repair_revision):
+                    raise ServiceError('Карточка изменилась. Обновите предпросмотр и повторите создание документа.')
+                if prepared.stock_template is not None:
+                    create_templates(safe_path(store.root,'templates/default-v6'),modern=True)
+                    create_templates(safe_path(store.root,'templates/default-v7'),modern=True,quality=True)
+                    folder=safe_path(store.root,'templates/default-v8')
+                    folder.mkdir(parents=True,exist_ok=True)
+                    source=safe_path(folder,kind+'.docx')
+                    try:
+                        stream=source.open('xb')
+                    except FileExistsError:
+                        pass
+                    else:
+                        installed_template=source
+                        with stream:
+                            stream.write(prepared.stock_template)
                 version=db.execute('SELECT COALESCE(MAX(version),0)+1 FROM generated_documents WHERE repair_id=? AND kind=?',(repair_id,kind)).fetchone()[0]
                 relative=f'generated/{repair_id}/{kind}-v{version:03d}-{uuid4().hex[:8]}.docx'
                 target=safe_path(store.root,relative); target.parent.mkdir(parents=True,exist_ok=True)
-                with target.open('xb') as f: created=True; f.write(rendered)
+                with target.open('xb') as f: created=True; f.write(prepared.rendered)
                 db.execute('INSERT INTO generated_documents(id,repair_id,kind,version,created_at,path,sha256,template,metadata_json) VALUES(?,?,?,?,?,?,?,?,?)',
-                           (uuid4().hex,repair_id,kind,version,now(),relative,digest(target),path.name,json.dumps(metadata,ensure_ascii=False)))
+                           (uuid4().hex,repair_id,kind,version,now(),relative,digest(target),prepared.template_name,prepared.metadata))
                 store.audit(db,'document',repair_id,'generate',kind+':'+str(version))
         except Exception:
             if created: target.unlink(missing_ok=True)
+            if installed_template is not None:installed_template.unlink(missing_ok=True)
             raise
         return target
+
+
+def generate_document(store, repair_id, kind, template=None, image_ids=(), *, estimate_id=None, image_choices=None):
+    with store.lock:
+        prepared=prepare_document(store,repair_id,kind,template,image_ids,estimate_id=estimate_id,image_choices=image_choices)
+        return save_prepared_document(store,prepared)

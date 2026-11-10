@@ -6,7 +6,7 @@ from uuid import uuid4
 from functools import lru_cache
 from .validation import ServiceError,now
 
-SCHEMA_VERSION=4
+SCHEMA_VERSION=6
 MIGRATIONS={1:[
  '''CREATE TABLE clients(id TEXT PRIMARY KEY, kind TEXT NOT NULL, name TEXT NOT NULL, legal_name TEXT NOT NULL DEFAULT '', contact TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN(0,1)), created_at TEXT NOT NULL, updated_at TEXT NOT NULL)''',
  '''CREATE TABLE equipment(id TEXT PRIMARY KEY, number TEXT NOT NULL COLLATE NOCASE UNIQUE, manufacturer TEXT NOT NULL DEFAULT '', model TEXT NOT NULL, kind TEXT NOT NULL DEFAULT '', serial TEXT NOT NULL DEFAULT '', owner_id TEXT NOT NULL REFERENCES clients(id), identifiers TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN(0,1)), created_at TEXT NOT NULL, updated_at TEXT NOT NULL)''',
@@ -50,6 +50,17 @@ MIGRATIONS={1:[
 ],4:[
  'CREATE INDEX estimate_events_version ON estimate_events(estimate_id,id)',
  'CREATE INDEX repairs_received ON repair_orders(received_at)',
+],5:[
+ 'ALTER TABLE repair_items ADD COLUMN price_known INTEGER NOT NULL DEFAULT 1 CHECK(price_known IN(0,1))',
+ '''CREATE TABLE repair_finance_evidence(repair_id TEXT PRIMARY KEY REFERENCES repair_orders(id), cost_known INTEGER NOT NULL CHECK(cost_known IN(0,1)), payments_known INTEGER NOT NULL CHECK(payments_known IN(0,1)), note TEXT NOT NULL, updated_at TEXT NOT NULL)''',
+ "INSERT INTO repair_finance_evidence SELECT DISTINCT repair_id,0,0,'Исторический импорт прежней версии: полнота стоимости и оплат не подтверждена',imported_at FROM import_records GROUP BY repair_id"
+ ],6:[
+ "CREATE TABLE catalog_items(source TEXT NOT NULL, external_key TEXT NOT NULL, sku TEXT NOT NULL DEFAULT '', payload_json TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(source,external_key))",
+ "CREATE UNIQUE INDEX catalog_sku ON catalog_items(source,sku) WHERE sku<>''",
+ 'CREATE TABLE catalog_profiles(name TEXT PRIMARY KEY, config_json TEXT NOT NULL, updated_at TEXT NOT NULL)',
+ 'CREATE TABLE catalog_imports(id INTEGER PRIMARY KEY, source TEXT NOT NULL, file_sha256 TEXT NOT NULL, report_json TEXT NOT NULL, created_at TEXT NOT NULL)',
+ "CREATE TRIGGER catalog_log_immutable_update BEFORE UPDATE ON catalog_imports BEGIN SELECT RAISE(ABORT,'Catalog import logs are immutable'); END",
+ "CREATE TRIGGER catalog_log_immutable_delete BEFORE DELETE ON catalog_imports BEGIN SELECT RAISE(ABORT,'Catalog import logs are immutable'); END"
 ]}
 
 @lru_cache(maxsize=SCHEMA_VERSION)
@@ -85,12 +96,31 @@ def validate_schema(connection, version):
 
 
 class Database:
-    def __init__(self,path):
-        self.path=Path(path)
+    @staticmethod
+    def migration_required(path, *, require_existing=False):
+        """Read-only preflight for a GUI decision before opening older projects."""
+        path=Path(path).absolute()
+        if not path.exists():
+            if require_existing:
+                raise ServiceError('В этой папке нет service.db. Выберите папку существующего проекта.')
+            return None
+        wal=path.with_name(path.name+'-wal')
+        if wal.exists() and wal.stat().st_size:
+            raise ServiceError('Закройте прежнюю программу перед открытием проекта: журнал SQLite ещё содержит изменения')
+        try:
+            with closing(sqlite3.connect(path.as_uri()+'?mode=ro&immutable=1',uri=True)) as c:
+                version=c.execute('PRAGMA user_version').fetchone()[0]
+                validate_schema(c,version)
+                return version if version<SCHEMA_VERSION else None
+        except sqlite3.Error as exc:
+            raise ServiceError('Не удалось проверить базу; исходный файл не изменён') from exc
+    def __init__(self,path,*,allow_upgrade=True,require_existing=False):
+        self.path=Path(path).absolute()
+        self.require_existing=require_existing
         existed=self.path.exists()
         if existed and self.path.stat().st_size==0:raise ServiceError('База пуста; исходный файл не изменён. Восстановите проверенную копию')
         if self.path.is_symlink(): raise ServiceError('База не должна быть символической ссылкой')
-        self.path.parent.mkdir(parents=True,exist_ok=True)
+        if not require_existing:self.path.parent.mkdir(parents=True,exist_ok=True)
         try:
             with self.connection() as c:
                 if c.execute('PRAGMA quick_check').fetchone()[0]!='ok': raise ServiceError('База повреждена; используйте проверенную копию')
@@ -98,6 +128,8 @@ class Database:
                 version=c.execute('PRAGMA user_version').fetchone()[0]
                 if version>SCHEMA_VERSION: raise ServiceError('База создана более новой версией программы')
                 if existed:validate_schema(c,version)
+                if version and version<SCHEMA_VERSION and not allow_upgrade:
+                    raise ServiceError('Нужно обновление схемы. Создайте отдельную обновлённую копию проекта после подтверждения; исходная база не изменена')
                 if version and version<SCHEMA_VERSION:
                     backup=self.path.with_name(self.path.name+f'.before-v{version+1}-{uuid4().hex}.bak')
                     with backup.open('xb'): pass
@@ -122,7 +154,10 @@ class Database:
     def connection(self,write=False):
         c=None
         try:
-            c=sqlite3.connect(self.path,timeout=10)
+            if self.require_existing:
+                c=sqlite3.connect(self.path.as_uri()+'?mode=rw',uri=True,timeout=10)
+            else:
+                c=sqlite3.connect(self.path,timeout=10)
             c.row_factory=sqlite3.Row
             c.execute('PRAGMA trusted_schema=OFF')
             c.execute('PRAGMA foreign_keys=ON');c.execute('PRAGMA busy_timeout=10000')
