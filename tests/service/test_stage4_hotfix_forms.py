@@ -56,4 +56,3 @@ def test_save_error_retains_form_then_retry_is_single_atomic_write(app,tmp_path,
         assert len(result)==(1 if edit else 2)
         assert len([r for r in result if r['name' if entity=='client' else 'number']==('QA Updated' if entity=='client' else 'QA-2')])==1
     finally:timer.stop();timeout.stop();dispose(app,w)
-

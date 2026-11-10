@@ -42,4 +42,3 @@ def test_unchanged_intake_and_hidden_values_do_not_prompt(app,tmp_path,monkeypat
         d.new_equipment.setChecked(True);d.name.setText('HIDDEN');d.phone.setText('HIDDEN');d.existing_equipment.setChecked(True);d.repair_number.setText('HIDDEN')
         assert not d.dirty;d.reject();assert not d.isVisible() and not asked
     finally:d.accept();dispose(app,w)
-

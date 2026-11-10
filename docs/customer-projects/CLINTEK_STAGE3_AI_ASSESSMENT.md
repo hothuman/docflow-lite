@@ -1,6 +1,6 @@
 # 3C — PROTOTYPE / NOT_APPROVED_FOR_DELIVERY
 
-В клиентском EXE нет помощника/модели/API. experiments/repair_text_parser.py — отдельный stdlib CLI для синтетики, исключён из PyInstaller; он не импортирует приложение, БД и сеть, не записывает файлы. Исходник прототипа доступен отдельно для рассмотрения, не как функция Service.
+В клиентском EXE нет помощника/модели/API. experiments/repair_text_parser.py — отдельный stdlib CLI для синтетики, исключён из PyInstaller; он не импортирует приложение, БД и сеть, не записывает файлы. Исходник остался в истории [Stage 3](https://github.com/hothuman/docflow-lite/blob/fd5bf9a33e5b219843760a0ab86d201b889733c8/experiments/repair_text_parser.py). В комплект 1.0.1 он исключён.
 
 | Вариант | Предсказуемость / ресурсы | Ограничения |
 |---|---|---|

@@ -16,4 +16,3 @@ def test_catalog_import_has_no_page_horizontal_overflow(app,tmp_path,size):
         app.processEvents();app.processEvents();d.import_scroll.ensureWidgetVisible(d.skip);app.processEvents()
         assert d.import_scroll.horizontalScrollBar().maximum()==0
     finally:d.accept();dispose(app,w)
-
