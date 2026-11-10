@@ -53,7 +53,7 @@ def test_sbom_uses_actual_notices_and_exact_source_target(tmp_path):
     with pytest.raises(ValueError,match='absent'):generate(tmp_path,'1.0.0rc1','a'*40)
 
 
-@pytest.mark.parametrize('version,prerelease',[('1.0.0rc1',True),('1.0.0',False)])
+@pytest.mark.parametrize('version,prerelease',[('1.0.0rc1',True),('1.0.0',False),('1.0.1',False)])
 def test_site_activation_checks_exact_stage_and_immutable_published_bytes(tmp_path,version,prerelease):
     sys.path.insert(0,str(ROOT/'site/scripts'))
     import build_release_site as site
@@ -71,6 +71,14 @@ def test_site_activation_checks_exact_stage_and_immutable_published_bytes(tmp_pa
     release['prerelease']=prerelease;release['immutable']=False
     with pytest.raises(ValueError,match='immutable'):site.activate(tmp_path/'mutable',manifest,fetch,lambda u:'b'*64)
     release['immutable']=True
+    release['draft']=True
+    with pytest.raises(ValueError,match='publicly published'):
+        site.activate(tmp_path/'draft',manifest,fetch,lambda u:'b'*64)
+    assert not (tmp_path/'draft').exists()
+    release['draft']=False
+    with pytest.raises(ValueError,match='SHA256 differs'):
+        site.activate(tmp_path/'mismatch',manifest,fetch,lambda u:'c'*64)
+    assert not (tmp_path/'mismatch').exists()
     site.activate(tmp_path/'verified',manifest,fetch,lambda u:'b'*64)
     text=(tmp_path/'verified/index.html').read_text(encoding='utf-8')
     info=json.loads((tmp_path/'verified/build-info.json').read_text(encoding='utf-8'))

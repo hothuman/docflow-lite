@@ -1,4 +1,4 @@
-"""Build the public a6 site only after verifying the actual published prerelease.
+"""Build the download page only after verifying the actual published release.
 No upload, release publication, indexing or collection is performed.
 """
 from __future__ import annotations
@@ -35,7 +35,7 @@ def download_hash(url):
 def verify_published(manifest, fetch=get_json, hash_url=download_hash):
     version = manifest["version"]
     release_stage=stage(version)
-    if version not in {'0.3.0a6','1.0.0rc1','1.0.0'}:
+    if version not in {'0.3.0a6','1.0.0rc1','1.0.0','1.0.1'}:
         raise ValueError('Copy needs review for a different product version')
     prerelease=is_prerelease(version)
     required = {f"DocFlow-Lite-{version}-{suffix}.zip" for suffix in ("Windows-x64-Portable", "Source", "ThirdParty-Sources")}
@@ -97,6 +97,18 @@ def activate(output, manifest, fetch=get_json, hash_url=download_hash):
         replacements['DOCFLOW / ALPHA 0.3.0a6']='DOCFLOW / '+('RC ' if prerelease else '')+version
         # Version-bearing captions/alt text must match the verified download too.
         replacements['0.3.0a6']=version
+    if version == '1.0.1':
+        replacements.update({
+            'Настоящий интерфейс новой alpha. Публичная загрузка пока остаётся v0.1.1.':
+                'Интерфейс DocFlow Core на учебных данных.',
+            'Настоящий тёмный интерфейс DocFlow Core 0.3.0a6 на учебных данных':
+                'Интерфейс DocFlow Core на учебных данных',
+            'Настоящий тёмный интерфейс DocFlow Service 0.3.0a6 на учебных данных':
+                'Интерфейс DocFlow Service на учебных данных',
+            'DOCFLOW / ALPHA 0.3.0a6': 'DOCFLOW / ИНТЕРФЕЙС',
+        })
+        # Replace the existing screenshot labels before the generic version token.
+        replacements['0.3.0a6'] = replacements.pop('0.3.0a6')
     for page in Path(output).glob("*.html"):
         text = page.read_text(encoding="utf-8")
         for old, new in replacements.items():

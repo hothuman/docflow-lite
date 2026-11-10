@@ -4,9 +4,8 @@ No encryption or signatures are claimed. Restore only into a new empty folder.
 """
 from pathlib import Path
 from contextlib import closing
-import hashlib, json, os, sqlite3, tempfile, zipfile, shutil
+import hashlib, json, os, sqlite3, tempfile, zipfile
 import sys,time
-from uuid import uuid4
 from .attachments import safe_path,digest,MAX_ATTACHMENT
 from .database import Database,SCHEMA_VERSION,validate_schema
 from .validation import ServiceError,now
@@ -15,9 +14,9 @@ MAX_BACKUP=5*1024**3
 
 def _publish_windows(stage,destination):
     # Windows refuses replacement in every attempt. A scanner/open handle may
-    # briefly deny directory publication; never delete/copy over the target.
+    # briefly deny publication; never delete/copy over the target.
     for attempt in range(4):
-        if os.path.lexists(destination):raise FileExistsError('Папка восстановления уже существует')
+        if os.path.lexists(destination):raise FileExistsError('Путь назначения уже существует')
         try:os.rename(stage,destination);return
         except PermissionError as exc:
             if getattr(exc,'winerror',None) not in (5,32,33) or attempt==3:raise
@@ -43,14 +42,20 @@ def _publish_new_tree(stage,destination):
             code=ctypes.get_errno();raise OSError(code,os.strerror(code),str(destination))
     else:raise ServiceError('Система не поддерживает безопасное восстановление в новую папку')
 
+def _check_database(connection):
+    connection.execute('PRAGMA trusted_schema=OFF')
+    version = connection.execute('PRAGMA user_version').fetchone()[0]
+    validate_schema(connection, version)
+    if connection.execute('PRAGMA integrity_check').fetchone()[0] != 'ok' or connection.execute('PRAGMA foreign_key_check').fetchall():
+        raise ServiceError('Нарушена целостность резервной базы')
+    return version
+
+
 def _check_tree(folder):
     # Inspection must never migrate or create a missing/empty backup database.
     with closing(sqlite3.connect((folder/'service.db').as_uri()+'?mode=ro',uri=True)) as c:
         c.row_factory=sqlite3.Row
-        c.execute('PRAGMA trusted_schema=OFF')
-        version=c.execute('PRAGMA user_version').fetchone()[0]
-        validate_schema(c,version)
-        if c.execute('PRAGMA integrity_check').fetchone()[0]!='ok' or c.execute('PRAGMA foreign_key_check').fetchall():raise ServiceError('Нарушена целостность резервной базы')
+        version = _check_database(c)
         for table in ('attachments','generated_documents',*(('managed_files',) if version>=3 else ())):
             for r in c.execute(f'SELECT path,sha256 FROM {table}'):
                 f=safe_path(folder,r['path'])
@@ -58,22 +63,26 @@ def _check_tree(folder):
 
 def create_backup(store,destination):
     destination=Path(destination)
-    if destination.exists():raise ServiceError('Резервную копию нельзя перезаписать; выберите новое имя')
+    conflict = 'Резервную копию нельзя перезаписать; выберите новое имя'
+    if os.path.lexists(destination):
+        raise ServiceError(conflict)
     destination.parent.mkdir(parents=True,exist_ok=True)
-    temporary=destination.with_name('.'+destination.name+'.'+uuid4().hex+'.tmp')
     with store.lock,tempfile.TemporaryDirectory(prefix='docflow-backup-') as temp:
         stage=Path(temp)
         with store.db.connection() as src,closing(sqlite3.connect(stage/'service.db')) as dst:
             validate_schema(src,src.execute('PRAGMA user_version').fetchone()[0])
             src.backup(dst)
         files={'service.db':stage/'service.db'}
-        with closing(sqlite3.connect(stage/'service.db')) as c:
+        managed_hashes = {}
+        with closing(sqlite3.connect((stage/'service.db').as_uri()+'?mode=ro',uri=True)) as c:
             c.row_factory=sqlite3.Row
+            _check_database(c)
             for table in ('attachments','generated_documents','managed_files'):
                 for r in c.execute(f'SELECT path,sha256 FROM {table}'):
                     f=safe_path(store.root,r['path'])
                     if not f.is_file() or digest(f)!=r['sha256']:raise ServiceError('Не удалось включить изменённое или пропавшее вложение')
                     files[r['path']]=f
+                    managed_hashes[r['path']] = r['sha256']
         # User-edited templates are data too, even if not installed via a profile.
         templates=safe_path(store.root,'templates')
         if templates.exists():
@@ -82,27 +91,48 @@ def create_backup(store,destination):
                 if f.is_file():files[f.relative_to(store.root).as_posix()]=f
         if len(files)>19999:raise ServiceError('Слишком много файлов для резервной копии')
         if sum(f.stat().st_size for f in files.values())>MAX_BACKUP:raise ServiceError('Резервная копия превышает 5 GiB')
-        manifest={'format':'docflow-service-backup-1','schema':SCHEMA_VERSION,'created_at':now(),'files':{n:{'sha256':digest(p),'size':p.stat().st_size} for n,p in files.items()}}
-        created=False
+        manifest = {
+            'format': 'docflow-service-backup-1',
+            'schema': SCHEMA_VERSION,
+            'created_at': now(),
+            'files': {
+                name: {
+                    'sha256': managed_hashes[name] if name in managed_hashes else digest(path),
+                    'size': path.stat().st_size,
+                }
+                for name, path in files.items()
+            },
+        }
+        fd, temp_name = tempfile.mkstemp(prefix=f'.{destination.name}.', suffix='.tmp', dir=destination.parent)
+        temporary = Path(temp_name)
         try:
-            with zipfile.ZipFile(temporary,'w',zipfile.ZIP_DEFLATED,allowZip64=True) as z:
-                for name,path in files.items():z.write(path,name)
-                z.writestr('manifest.json',json.dumps(manifest,ensure_ascii=False,indent=2))
-            # Check the written bytes too; a concurrent external edit must not produce a false success.
-            with zipfile.ZipFile(temporary) as verified:
-                for name,meta in manifest['files'].items():
-                    h=hashlib.sha256()
-                    with verified.open(name) as member:
-                        for part in iter(lambda:member.read(1024*1024),b''):h.update(part)
-                    if h.hexdigest()!=meta['sha256']:raise ServiceError('Файл изменился во время резервирования')
-            # An exclusive destination prevents accidental replacement.
-            with temporary.open('rb') as src,destination.open('xb') as dst:
-                created=True;shutil.copyfileobj(src,dst)
+            with os.fdopen(fd, 'w+b') as written:
+                with zipfile.ZipFile(written, 'w', zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
+                    for name, path in files.items():
+                        archive.write(path, name)
+                    archive.writestr('manifest.json', json.dumps(manifest, ensure_ascii=False, indent=2))
+                written.flush()
+                if written.tell() > MAX_BACKUP:
+                    raise ServiceError('Резервная копия превышает 5 GiB')
+                with zipfile.ZipFile(written) as verified:
+                    if json.loads(verified.read('manifest.json')) != manifest:
+                        raise ServiceError('Повреждён манифест резервной копии')
+                    for name, meta in manifest['files'].items():
+                        with verified.open(name) as member:
+                            if verified.getinfo(name).file_size != meta['size'] or hashlib.file_digest(member, 'sha256').hexdigest() != meta['sha256']:
+                                raise ServiceError('Файл изменился во время резервирования')
+                os.fsync(written.fileno())
+            # Publish the verified sibling as one filesystem operation. Both
+            # primitives fail if another writer already owns the final name.
+            publish = _publish_windows if os.name == 'nt' else os.link
+            try:
+                publish(temporary, destination)
+            except FileExistsError as exc:
+                raise ServiceError(conflict) from exc
             return destination
-        except Exception:
-            if created:destination.unlink(missing_ok=True)
-            raise
-        finally:temporary.unlink(missing_ok=True)
+        finally:
+            temporary.unlink(missing_ok=True)
+
 
 def _extract_backup(z, stage):
     infos=z.infolist()
