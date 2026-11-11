@@ -2,7 +2,7 @@
 
 Новая версия сайта использует утверждённую концепцию «Ночной инструмент». Основной адрес: https://docflow-lite.pages.dev/. Хостинг — существующий Cloudflare Pages docflow-lite, Direct Upload. Обычный push не развёртывает production.
 
-Исходники — dist, локальная сборка — build. Команда: python site/scripts/build_site.py. Сборка с подтверждённой загрузкой prerelease выполняется build_release_site.py после проверки реальных GitHub файлов, target и SHA256. До этого preview сохраняет прежнюю действующую загрузку.
+Исходники — dist, локальная сборка — build. Команда: python site/scripts/build_site.py. Для переключения загрузки на 1.0.1 подготовьте манифест окончательной сборки. После публикации immutable Release запустите `python site/scripts/build_release_site.py --manifest <manifest.json> --output <folder>`. Скрипт сверяет тег, коммит и SHA256 загружаемых файлов. Черновик и несовпадение SHA256 блокируют сборку.
 
 Проверки: python -m pytest -q site/tests; node --check site/dist/app.js. Браузер: npm ci в site, npx playwright install chromium, npm run test:browser.
 
@@ -14,4 +14,4 @@ PDF услуг обновлён для Core/Service и рабочего email. �
 
 Публикация и откат: ../docs/OFFICIAL_RELEASE.md и docs/CLOUDFLARE_PAGES.md. Исторические отчёты Website 2.0 не являются проверкой нового deployment.
 
-Публичная программа 1.0.0: immutable Release v1.0.0, exact target ea2ed3ad5a515ee32dce611f5bdef177141b5eb8. Публикационный сайт строится по реально проверенным download/SHA, имеет новые снимки итогового EXE; source caption tokens преобразует build_release_site.py. Обычная offline-сборка не является подтверждением публичной загрузки. Коммерческие условия остаются проектом.
+До публикации 1.0.1 действующая ссылка ведёт на [v1.0.0](https://github.com/hothuman/docflow-lite/releases/tag/v1.0.0). Синтетический браузерный макет `prepare_browser_release_fixture.py --version 1.0.1` проверяет будущую страницу. Он использует тестовые метаданные и предназначен только для QA.

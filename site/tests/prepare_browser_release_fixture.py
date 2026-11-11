@@ -21,4 +21,4 @@ def build(output,version='1.0.0rc1'):
     print('Synthetic activated-layout fixture; not public release verification; NEVER DEPLOY')
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--output',type=Path,default=SITE/'build');p.add_argument('--version',choices=['0.3.0a6','1.0.0rc1','1.0.0'],default='1.0.0rc1');args=p.parse_args();build(args.output,args.version)
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--output',type=Path,default=SITE/'build');p.add_argument('--version',choices=['0.3.0a6','1.0.0rc1','1.0.0','1.0.1'],default='1.0.0rc1');args=p.parse_args();build(args.output,args.version)

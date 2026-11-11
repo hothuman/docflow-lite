@@ -195,11 +195,9 @@ def test_unicode_identifier_uniqueness(store):
 def test_backup_disk_full_keeps_source_and_removes_partial(store,tmp_path,monkeypatch):
  import docflow.service.backup as b
  s,ids=store;before=s.snapshot(ids['repair'])
- original=b.shutil.copyfileobj
- def full(src,dst,*args):
-  if args:return original(src,dst,*args)
-  dst.write(b'partial');raise OSError('No space left on device')
- monkeypatch.setattr(b.shutil,'copyfileobj',full)
+ def full(archive,*args,**kwargs):
+  archive.fp.write(b'partial');raise OSError('No space left on device')
+ monkeypatch.setattr(b.zipfile.ZipFile,'write',full)
  with pytest.raises(OSError):b.create_backup(s,tmp_path/'full.zip')
  assert not (tmp_path/'full.zip').exists() and s.snapshot(ids['repair'])==before
 
