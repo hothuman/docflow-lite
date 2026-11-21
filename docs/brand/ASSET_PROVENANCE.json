@@ -36,11 +36,12 @@
     "source": "https://github.com/google/fonts/tree/main/ofl/manrope",
     "license": "SIL Open Font License 1.1",
     "local_file": "site/dist/assets/fonts/Manrope-Variable.ttf",
-    "sha256": "3ae11c49db0455a3cc33e37d380f20fdb8c7f8b41dc07625c177e3d87a9d6ae6"
+    "sha256": "3ae11c49db0455a3cc33e37d380f20fdb8c7f8b41dc07625c177e3d87a9d6ae6",
+    "usage": "Segoe UI system font on Windows; unchanged local Manrope SIL OFL fallback on other platforms"
   },
   "logo": {
     "source": "existing DocFlow d/ SVG",
-    "treatment": "geometry retained, neutral surface and lime accent"
+    "treatment": "existing d/ path geometry retained; flat white d and acid slash, owner-approved Industrial Contrast A"
   },
   "approved_legal_main_sha256": {
     "privacy.html": "6d67ef3cdd1e2d19896becd9b09f5e708cfc82339e2cc84053140c39056d53cb",
@@ -49,15 +50,22 @@
   },
   "legal_baseline_commit": "e1b1df1c1f38fd9be04e608886fda7e6d63b64f5",
   "brand_files": {
-    "site/dist/assets/icon.svg": "d6bcb9288e127298ac875dcb8f63776d5e6f8ff7983b6502351fbdd5bae7269e",
+    "site/dist/assets/icon.svg": "4d1704b64de47557bcf87dfb048813102d6692d5262340827fffe86e0f70bb46",
     "site/dist/assets/icons.svg": "e0cee21c30247c2a103463a7110103f0ec2bf3feae60f0d40ffb21fb0fc7fe17",
-    "site/dist/assets/social-card.png": "5101525d609605213aca19f644430168e4e5d7f30cd747478356087a5fe978df",
-    "site/dist/assets/social-card.svg": "8ca0acde71d6584b739dc6a7885ee1b4e87df7a37fcd0ab11e81b401735295f3",
-    "site/dist/favicon.ico": "043a4d9bde7fab0a13581cfbcb36351e2065cea0aa9364875663918aa5621138"
+    "site/dist/assets/social-card.png": "1e76b3312dedddc838de81b1a231ebfc1b3a7cf42e15c9bbf3d14840d7089d0b",
+    "site/dist/assets/social-card.svg": "c98a7c51c43ac6b8bd8f65c87ef3afdfadb502123ba9794f5d5c5eea6c943740",
+    "site/dist/favicon.ico": "87d71ec6d893e38bd4ef27325229e4456a2cf8a76756972cea1d235c6d33a8ae"
   },
   "generated_cover": {
     "editable_source": "docs/brand/SOCIAL_PREVIEW.html",
     "exporter": "site/scripts/build_brand_preview.cjs",
-    "treatment": "HTML/CSS rendered in Edge 157 on Windows, not a product screenshot"
+    "treatment": "Industrial Contrast HTML/CSS in Windows Edge; genuine 1.0.1 screenshot plus a labelled document illustration",
+    "svg": "SVG retains exact embedded PNG bytes of core-current.png; no retouching"
+  },
+  "design_reference": {
+    "file": "docs/brand/reference/01-industrial-contrast.html",
+    "sha256": "4d22b04f030eeed443ae8cd9ce3d0f3a18b5ef1b535f48c83261ab48e6435a49",
+    "owner_approved": true,
+    "kind": "visual prototype with schematic UI; never used as evidence of the application"
   }
 }

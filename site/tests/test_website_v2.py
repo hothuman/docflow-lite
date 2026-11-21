@@ -136,7 +136,10 @@ class WebsiteV2Tests(unittest.TestCase):
             return sum(v*w for v,w in zip(c,(.2126,.7152,.0722)))
         import re
         css=(SITE/'dist/style.css').read_text(encoding="utf-8")
-        colors=dict(re.findall(r'--([a-z-]+):#([0-9a-fA-F]{6})',css))
+        # Scoped paper panels deliberately use dark text. Pair only the root
+        # roles here; paper surfaces have their own regression and browser axe.
+        root=re.search(r':root\s*\{([^}]+)\}',css,re.S).group(1)
+        colors=dict(re.findall(r'--([a-z-]+):\s*#([0-9a-fA-F]{6})',root))
         pairs=[(colors['text'],colors['bg']),(colors['muted'],colors['surface']),(colors['accent-text'],colors['accent']),(colors['accent-text'],colors['accent-hover']),(colors['teal'],colors['teal-soft']),(colors['error'],colors['error-soft'])]
         for foreground,background in pairs:
             a,b=sorted((luminance(foreground),luminance(background)))

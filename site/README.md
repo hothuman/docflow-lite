@@ -1,12 +1,12 @@
 # Сайт DocFlow
 
-Новая редакция **Industrial Atelier** развивает тёмный характер DocFlow через нейтральные поверхности, лайм, крупную типографику и образ документа. Дизайн-система, три концепции и происхождение графики находятся в [docs/brand](../docs/brand/WEBSITE_REDESIGN.md). Эта ветка готовит сайт к согласованию и не меняет приложение.
+Текущая редакция **Industrial Contrast** переносит утверждённый владельцем вариант A из [01-industrial-contrast.html](../docs/brand/reference/01-industrial-contrast.html). Графит, насыщенный лайм, тяжёлая типографика, прямоугольные элементы и контрастные бумажные разделы следуют этому референсу. [Дизайн-система и решения](../docs/brand/WEBSITE_REDESIGN.md) сохраняют происхождение графики и сравнение с прежней Industrial Atelier. Приложение эта работа не меняет.
 
 Основной адрес — https://docflow-lite.pages.dev/. Хостинг — существующий Cloudflare Pages docflow-lite, Direct Upload. Обычный push не развёртывает production.
 
 Исходники — dist, локальная сборка — build. Команда: python site/scripts/build_site.py. Для переключения загрузки на 1.0.1 подготовьте манифест окончательной сборки. После публикации immutable Release запустите `python site/scripts/build_release_site.py --manifest <manifest.json> --output <folder>`. Скрипт сверяет тег, коммит и SHA256 загружаемых файлов. Черновик и несовпадение SHA256 блокируют сборку.
 
-Проверки — `python -m pytest -q site/tests tests/test_v1_release.py tests/test_release_preparation.py`, `node --check site/dist/app.js`. Браузер — `npm ci --prefix site --ignore-scripts`, установка Chromium через Playwright и `node site/tests/browser_check.cjs`. Локальный Edge можно выбрать через `DOCFLOW_BROWSER_CHANNEL=msedge`. Папку доказательств задаёт `DOCFLOW_SITE_QA_OUTPUT`. Проверяются восемь страниц, 11 ширин, Axe desktop/mobile, клавиатура, диалог изображения, демо, отсутствие JS, reduced motion и рефлоу 2x. CI запускает текущий публичный вариант и отдельную синтетическую fixture будущего 1.0.1.
+Проверки — `python -m pytest -q site/tests tests/test_v1_release.py tests/test_release_preparation.py`, `node --check site/dist/app.js`. Браузер — `npm ci --prefix site --ignore-scripts`, установка Chromium через Playwright и `node site/tests/browser_check.cjs`. Локальный Edge можно выбрать через `DOCFLOW_BROWSER_CHANNEL=msedge`. Папку доказательств задаёт `DOCFLOW_SITE_QA_OUTPUT`. Первый экран также сверяется с утверждённым HTML A по цветам, типографике, ширине и форме компонентов. Проверяются восемь страниц, 15 ширин, Axe desktop/mobile, клавиатура, диалог изображения, демо, отсутствие JS, reduced motion и рефлоу 2x. CI запускает текущий публичный вариант и отдельную синтетическую fixture будущего 1.0.1.
 
 Core и Service бесплатны по условиям программы. Настройка — отдельная услуга, Service оценивается по задаче. Контакты: https://t.me/de1grace и docflow.lite@gmail.com.
 

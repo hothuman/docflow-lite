@@ -6,7 +6,7 @@ const fs=require('node:fs/promises');const path=require('node:path');const http=
 const root=path.resolve(__dirname,'../build');const publicBase=process.env.DOCFLOW_PUBLIC_BASE_URL;
 if(publicBase){const u=new URL(publicBase);assert.equal(u.protocol,'https:');assert.equal(u.hostname,'docflow-lite.pages.dev');assert.equal(u.pathname,'/');assert.equal(u.search,'');assert.equal(u.hash,'');}
 const output=process.env.DOCFLOW_SITE_QA_OUTPUT?path.resolve(process.env.DOCFLOW_SITE_QA_OUTPUT):path.resolve(__dirname,publicBase?'../../artifacts/website-public':'../../artifacts/website');
-const widths=[320,360,390,620,768,860,861,1024,1280,1440,1920];
+const widths=[320,360,390,620,680,681,768,860,861,1000,1001,1024,1280,1440,1920];
 (async()=>{
  await fs.mkdir(output,{recursive:true});
  const headers={};for(const line of (await fs.readFile(path.join(root,'_headers'),'utf8')).split('\n')){if(/^\s+[^:]+:/.test(line)){const colon=line.indexOf(':');headers[line.slice(0,colon).trim()]=line.slice(colon+1).trim();}}
@@ -69,7 +69,7 @@ const widths=[320,360,390,620,768,860,861,1024,1280,1440,1920];
     await tabs.first().click();
     const expand=page.locator('[data-open-screen]');await expand.focus();await page.keyboard.press('Enter');assert(await page.locator('.screen-dialog').isVisible());
     assert.equal(await page.locator('.screen-dialog img').getAttribute('alt'),await page.locator('.showcase-image').getAttribute('alt'));
-    if(width<=560){
+    if(width<=680){
      const region=page.locator('.screen-scroll');assert(await region.evaluate(el=>el.scrollWidth>el.clientWidth));
      await region.focus();await page.keyboard.press('ArrowRight');await page.waitForFunction(()=>document.querySelector('.screen-scroll').scrollLeft>0);
      assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
@@ -113,6 +113,19 @@ const widths=[320,360,390,620,768,860,861,1024,1280,1440,1920];
   const missing=await browser.newPage();const notFound=await missing.goto(base+'/missing-page-for-qa');assert.equal(notFound.status(),404);assert.equal(await missing.locator('h1').count(),1);await missing.close();
   const nojs=await browser.newContext({javaScriptEnabled:false,viewport:{width:390,height:900}});const page=await nojs.newPage();await page.goto(base+'/index.html');await page.locator('.direction-nav a[href="service.html"]').click();await page.waitForLoadState('load');assert(await page.locator('#service-title').isVisible());assert.equal(await page.locator('.route-switch').isVisible(),false);assert((await page.locator('.route-stops').innerText()).includes('Аппарат'));results.push({scenario:'no_javascript_navigation_and_static_route',passed:true});await nojs.close();
   const reduced=await browser.newContext({reducedMotion:'reduce',viewport:{width:390,height:900}});const reducedPage=await reduced.newPage();await reducedPage.goto(base+'/index.html');const motion=await reducedPage.evaluate(()=>({requested:matchMedia('(prefers-reduced-motion: reduce)').matches,scroll:getComputedStyle(document.documentElement).scrollBehavior,animated:[...document.querySelectorAll('body *')].some(el=>getComputedStyle(el).animationName!=='none'||getComputedStyle(el).transitionProperty!=='none')}));assert.equal(motion.requested,true);assert.equal(motion.scroll,'auto');assert.equal(motion.animated,false);results.push({scenario:'reduced_motion',passed:true});await reduced.close();
+  // Check the real implementation against the owner-supplied A, not an
+  // independently invented style snapshot. This file is never deployed.
+  const designContext=await browser.newContext({viewport:{width:1440,height:900}});
+  const designPage=await designContext.newPage();
+  const reference=require('node:url').pathToFileURL(path.resolve(__dirname,'../../docs/brand/reference/01-industrial-contrast.html')).href;
+  async function designFingerprint(referenceMode){return designPage.evaluate(isReference=>{
+   const heading=document.querySelector('.hero h1'),s=getComputedStyle(heading),root=getComputedStyle(document.documentElement);
+   return {background:root.getPropertyValue('--bg').trim(),accent:root.getPropertyValue(isReference?'--acid':'--accent').trim(),heading:heading.innerText.replace(/\s+/g,' ').trim(),size:s.fontSize,weight:s.fontWeight,lineHeight:s.lineHeight,tracking:s.letterSpacing,container:document.querySelector(isReference?'.layout':'.wrap').getBoundingClientRect().width,radius:getComputedStyle(document.querySelector(isReference?'.btn.primary':'.hero .button.primary')).borderRadius,paper:getComputedStyle(document.querySelector(isReference?'.paper':'.contrast-paper')).backgroundColor,featured:getComputedStyle(document.querySelector(isReference?'.plan.featured':'.featured-plan')).backgroundColor};
+  },referenceMode);}
+  await designPage.goto(reference);await designPage.evaluate(()=>document.fonts.ready);const approved=await designFingerprint(true);
+  await designPage.goto(base+'/index.html');await designPage.evaluate(()=>document.fonts.ready);const implemented=await designFingerprint(false);
+  assert.deepEqual(implemented,approved);results.push({scenario:'approved_industrial_contrast_reference',passed:true,approved,implemented});
+  await designContext.close();
   assert.deepEqual(errors,[]);assert.deepEqual(foreign,[]);assert.deepEqual(writes,[]);assert.deepEqual(consoleErrors,[]);assert.deepEqual(failedResources,[]);
   await fs.writeFile(path.join(output,'browser-checks.json'),JSON.stringify({status:'passed',browser:browser.version(),widths,results,script_errors:errors,console_errors:consoleErrors,failed_resources:failedResources,external_requests:foreign,data_writes:writes,production_deployed:Boolean(publicBase)},null,2));
  }catch(e){await fs.writeFile(path.join(output,'browser-checks.json'),JSON.stringify({status:'failed',error:e.stack,results,script_errors:errors,external_requests:foreign,data_writes:writes},null,2));throw e;}

@@ -1,0 +1,40 @@
+{
+  "id": "docflow-industrial-atelier",
+  "name": "DocFlow Industrial Atelier",
+  "mode": "dark",
+  "mood": "precise,material,clear",
+  "font_display": "\"Manrope\", \"Segoe UI\", sans-serif",
+  "font_body": "\"Manrope\", \"Segoe UI\", sans-serif",
+  "font_mono": "\"Cascadia Code\", \"Consolas\", monospace",
+  "radius": "8px",
+  "shadow": "none",
+  "border_width": "1px",
+  "colors": {
+    "bg": "#111310",
+    "surface": "#1b1e1a",
+    "raised": "#242923",
+    "text": "#f1f3eb",
+    "muted": "#b0b8aa",
+    "border": "#363d32",
+    "accent": "#c2e88a",
+    "accent_text": "#172014",
+    "focus": "#d7f6af",
+    "success": "#b7e19b",
+    "warning": "#efc98b",
+    "danger": "#ffb4a4",
+    "control_border": "#7c8871"
+  },
+  "recipe": {
+    "layout": "editorial",
+    "platform": "web",
+    "density": "airy",
+    "fit": "B2B documents and local repair software",
+    "grid": "Editorial headline paired with document artifact, followed by actual product viewport",
+    "type": "Large sans display, readable text and tabular metadata",
+    "states": "Visible keyboard focus, local synthetic demo and meaningful status text",
+    "adapt": "Stack narrative and artifact, compact navigation, keep actions reachable",
+    "effects": "Rules, offset document edges and restrained lime",
+    "avoid": "Glow, invented metrics, fake product screenshots",
+    "sample": "Document workflow and workshop"
+  }
+}
