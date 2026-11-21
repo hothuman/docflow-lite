@@ -95,6 +95,8 @@ class AtelierTests(unittest.TestCase):
             tags=Tags(text).tags
             self.assertEqual(sum(t=='h1' for t,a in tags),1)
             self.assertFalse(any(t in {'form','input','textarea'} for t,a in tags))
+            if name!='download.html':
+                self.assertIn('data-release-preview',text)
 
 
 if __name__=='__main__':unittest.main()

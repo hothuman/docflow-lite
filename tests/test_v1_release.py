@@ -91,3 +91,9 @@ def test_site_activation_checks_exact_stage_and_immutable_published_bytes(tmp_pa
     assert version in service and 'НАСТОЯЩИЙ ИНТЕРФЕЙС / НОВАЯ ALPHA' not in service
     assert all('\\' not in name for name in info['file_sha256'])
     assert not info['lead_collection_enabled'] and not info['indexing_enabled']
+    home=(tmp_path/'verified/index.html').read_text(encoding='utf-8')
+    if version=='1.0.1':
+        assert 'data-release-preview' not in home and 'data-release-candidate' not in text
+        assert '/releases/download/v1.0.0/' not in text
+    else:
+        assert 'data-release-preview' in home

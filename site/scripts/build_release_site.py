@@ -109,6 +109,7 @@ def activate(output, manifest, fetch=get_json, hash_url=download_hash):
             return re.sub(r'href="[^"]*"', 'href="' + base + quote(name) + '"', tag)
         text = re.sub(r'<a\b[^>]* data-release-(?:asset|file)="[^"]+"[^>]*>', link, text)
         if version == '1.0.1':
+            text = re.sub(r'<p\b[^>]* data-release-preview[^>]*>.*?</p>', '', text, flags=re.S)
             text = re.sub(r'<div\b[^>]* data-release-candidate[^>]*>.*?</div>',
                           '<div class="candidate-note"><h3>Версия 1.0.1 опубликована</h3>'
                           '<p>Перед обновлением сохраните копию проекта. Проверяйте документы на ваших шаблонах.</p></div>',
