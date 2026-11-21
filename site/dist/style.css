@@ -1257,7 +1257,8 @@ a:focus-visible,button:focus-visible,select:focus-visible,summary:focus-visible,
   color:var(--paper-ink);
   padding:28px;
   margin-top:18px;
-  scroll-margin-top:24px
+  scroll-margin-top:24px;
+  overflow-wrap:anywhere
 }
 .request-panel h3{
   font-size:27px;

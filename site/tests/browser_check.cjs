@@ -111,7 +111,7 @@ const widths=[320,360,390,620,680,681,768,860,861,1000,1001,1024,1280,1440,1920]
    await enlarged.goto(base+'/'+name);await enlarged.evaluate(()=>document.fonts.ready);
    assert(await enlarged.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
    results.push({scenario:'1280px_at_200_percent_zoom_equivalent',page:name,css_width:640,device_scale:2,passed:true});
-  }await reflow.close();
+  }await commercial.verifyEnlargedText(enlarged,base,results);await reflow.close();
   // Reproduce Linux fallback-font metrics on Windows too. The approved font
   // stack intentionally uses local Manrope when Segoe UI is unavailable.
   const fallback=await browser.newContext({viewport:{width:320,height:900},bypassCSP:true});const fallbackPage=await fallback.newPage();

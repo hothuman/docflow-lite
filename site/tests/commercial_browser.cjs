@@ -90,4 +90,19 @@ async function verifyWithoutJS(page,base,results){
  }
  results.push({scenario:'all_packages_and_prepared_email_without_javascript',passed:true});
 }
-module.exports={verify,verifyWithoutJS};
+async function verifyEnlargedText(page,base,results){
+ await page.setViewportSize({width:390,height:900});
+ for(const name of ['index.html','service.html']){
+  await page.goto(base+'/'+name+'#request-service');await page.evaluate(()=>document.fonts.ready);
+  assert(await page.locator('[data-request-package=service]').isVisible());
+  await page.evaluate(()=>{
+   const elements=[...document.querySelectorAll('[data-request-workspace] h3,[data-request-workspace] h4,[data-request-workspace] p,[data-request-workspace] a,[data-request-workspace] button,[data-request-workspace] pre')];
+   const sizes=elements.map(el=>[el,parseFloat(getComputedStyle(el).fontSize)]);
+   sizes.forEach(([el,size])=>el.style.fontSize=(2*size)+'px');
+  });
+  const size=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
+  assert(size.scroll<=size.width,JSON.stringify({name,scenario:'new request text200',...size}));
+  results.push({scenario:'request_service_text_200_percent_at_390px',page:name,passed:true});
+ }
+}
+module.exports={verify,verifyWithoutJS,verifyEnlargedText};
