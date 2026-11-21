@@ -69,6 +69,11 @@ const widths=[320,360,390,620,768,860,861,1024,1280,1440,1920];
     await tabs.first().click();
     const expand=page.locator('[data-open-screen]');await expand.focus();await page.keyboard.press('Enter');assert(await page.locator('.screen-dialog').isVisible());
     assert.equal(await page.locator('.screen-dialog img').getAttribute('alt'),await page.locator('.showcase-image').getAttribute('alt'));
+    if(width<=560){
+     const region=page.locator('.screen-scroll');assert(await region.evaluate(el=>el.scrollWidth>el.clientWidth));
+     await region.focus();await page.keyboard.press('ArrowRight');await page.waitForFunction(()=>document.querySelector('.screen-scroll').scrollLeft>0);
+     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    }
     await page.keyboard.press('Escape');assert.equal(await page.locator('.screen-dialog').isVisible(),false);assert(await expand.evaluate(el=>el===document.activeElement));
     if(width===390||width===1440){
      const accessibility=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa','wcag22aa']).analyze();
