@@ -41,6 +41,13 @@ class AtelierTests(unittest.TestCase):
         for name, expected in proof['approved_legal_main_sha256'].items():
             text=(ROOT/'site/dist'/name).read_text(encoding='utf-8')
             main=re.search(r'<main\b.*?</main>',text,re.S)[0]
+            # Only the owner-requested factual delta is allowed. Reversing it
+            # must recover the previous exact body, including all draft terms.
+            page=proof.get('legal_factual_update',{}).get('pages',{}).get(name)
+            if page:
+                for change in reversed(page['replacements']):
+                    self.assertEqual(main.count(change['after']),1,name)
+                    main=main.replace(change['after'],change['before'],1)
             self.assertEqual(hashlib.sha256(main.encode()).hexdigest(),expected,name)
 
     def test_actual_screenshots_and_font_have_reproducible_provenance(self):

@@ -92,6 +92,81 @@ if (screenDialog) {
     }
   });
 }
+// A package is a public, fixed service description, not customer data. Hash
+// links preserve that choice without a form, storage, fetch or a new endpoint.
+document.querySelectorAll('[data-request-workspace]').forEach(workspace => {
+  const panels = new Map([...workspace.querySelectorAll('[data-request-package]')]
+    .map(panel => [panel.dataset.requestPackage, panel]));
+  const choices = [...document.querySelectorAll('[data-select-request]')];
+  const selection = workspace.querySelector('[data-request-selection]');
+  const initialStatus = new Map([...panels.values()].map(panel =>
+    [panel, panel.querySelector('[data-copy-status]').textContent]));
+  let active;
+  let epoch = 0;
+  function keyFromHash() {
+    const key = location.hash.slice('#request-'.length);
+    return location.hash.startsWith('#request-') && panels.has(key) ? key : null;
+  }
+  function show(key) {
+    if (!panels.has(key) || active === key) return;
+    active = key; epoch += 1;
+    panels.forEach((panel, name) => {
+      panel.hidden = name !== key;
+      const feedback = panel.querySelector('[data-copy-status]');
+      feedback.textContent = initialStatus.get(panel);
+      feedback.classList.remove('copy-fallback', 'copy-success');
+    });
+    workspace.querySelectorAll('[data-select-request]').forEach(link => {
+      if (link.dataset.selectRequest === key) link.setAttribute('aria-current', 'true');
+      else link.removeAttribute('aria-current');
+    });
+    const panel = panels.get(key);
+    selection.textContent = 'Выбрано: ' + panel.querySelector('h3').textContent + '. Перед обращением скопируйте текст этого пакета или откройте письмо.';
+  }
+  choices.forEach(link => link.addEventListener('click', () => {
+    show(link.dataset.selectRequest);
+    // Keep native hash navigation, history and focus semantics. The target is
+    // revealed before the browser follows the anchor, including keyboard use.
+  }));
+  window.addEventListener('hashchange', () => {
+    const key = keyFromHash();
+    if (key) {
+      show(key);
+      panels.get(key).focus({preventScroll: true});
+    }
+  });
+  panels.forEach(panel => {
+    const button = panel.querySelector('[data-copy-request]');
+    const message = panel.querySelector('[data-request-message]');
+    const feedback = panel.querySelector('[data-copy-status]');
+    button.hidden = false;
+    button.addEventListener('click', async () => {
+      const clickedEpoch = epoch;
+      button.disabled = true; button.textContent = 'Копирование…';
+      button.setAttribute('aria-busy', 'true');
+      try {
+        if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error('Clipboard unavailable');
+        await navigator.clipboard.writeText(message.textContent);
+        if (epoch !== clickedEpoch) return;
+        feedback.textContent = 'Текст выбранного пакета скопирован. Откройте Telegram и вставьте его. Сообщение не отправлено.';
+        feedback.classList.remove('copy-fallback'); feedback.classList.add('copy-success');
+      } catch {
+        if (epoch !== clickedEpoch) return;
+        const range = document.createRange(); range.selectNodeContents(message);
+        const currentSelection = window.getSelection();
+        if (currentSelection) { currentSelection.removeAllRanges(); currentSelection.addRange(range); }
+        message.focus({preventScroll: true});
+        feedback.textContent = 'Автоматическое копирование недоступно. Скопируйте выделенный текст вручную: через меню устройства или Ctrl+C. Затем вставьте его в Telegram.';
+        feedback.classList.remove('copy-success'); feedback.classList.add('copy-fallback');
+      } finally {
+        button.disabled = false; button.textContent = 'Скопировать текст';
+        button.removeAttribute('aria-busy');
+      }
+    });
+  });
+  show(keyFromHash() || workspace.dataset.defaultPackage);
+});
+
 // Presentation only: route diagrams never read or transmit user data.
 document.querySelectorAll('[data-route]').forEach(panel => {
   const routes = {

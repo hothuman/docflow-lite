@@ -2,6 +2,7 @@
 // Isolated CI browser tests: only synthetic static build files are served.
 const {chromium}=require('playwright');
 const AxeBuilder=require('@axe-core/playwright').default;
+const commercial=require('./commercial_browser.cjs');
 const fs=require('node:fs/promises');const path=require('node:path');const http=require('node:http');const crypto=require('node:crypto');const assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'../build');const publicBase=process.env.DOCFLOW_PUBLIC_BASE_URL;
 if(publicBase){const u=new URL(publicBase);assert.equal(u.protocol,'https:');assert.equal(u.hostname,'docflow-lite.pages.dev');assert.equal(u.pathname,'/');assert.equal(u.search,'');assert.equal(u.hash,'');}
@@ -60,6 +61,7 @@ const widths=[320,360,390,620,680,681,768,860,861,1000,1001,1024,1280,1440,1920]
       results.push({scenario:'browser_demo_download',bytes:got.length,sha256:crypto.createHash('sha256').update(got).digest('hex')});
      }
     }
+    await commercial.verify({page,context,base,name,width,output,results});
     const tabs=page.locator('[data-screen-src]');
     for(const tab of await tabs.all()){
      await tab.focus();await page.keyboard.press('Enter');
@@ -119,7 +121,8 @@ const widths=[320,360,390,620,680,681,768,860,861,1000,1001,1024,1280,1440,1920]
    results.push({scenario:'local_fallback_font_at_320px',page:name,passed:true});
   }await fallback.close();
   const missing=await browser.newPage();const notFound=await missing.goto(base+'/missing-page-for-qa');assert.equal(notFound.status(),404);assert.equal(await missing.locator('h1').count(),1);await missing.close();
-  const nojs=await browser.newContext({javaScriptEnabled:false,viewport:{width:390,height:900}});const page=await nojs.newPage();await page.goto(base+'/index.html');await page.locator('.direction-nav a[href="service.html"]').click();await page.waitForLoadState('load');assert(await page.locator('#service-title').isVisible());assert.equal(await page.locator('.route-switch').isVisible(),false);assert((await page.locator('.route-stops').innerText()).includes('Аппарат'));results.push({scenario:'no_javascript_navigation_and_static_route',passed:true});await nojs.close();
+  const nojs=await browser.newContext({javaScriptEnabled:false,viewport:{width:390,height:900}});const page=await nojs.newPage();await page.goto(base+'/index.html');await page.locator('.direction-nav a[href="service.html"]').click();await page.waitForLoadState('load');assert(await page.locator('#service-title').isVisible());assert.equal(await page.locator('.route-switch').isVisible(),false);assert((await page.locator('.route-stops').innerText()).includes('Аппарат'));results.push({scenario:'no_javascript_navigation_and_static_route',passed:true});
+  await commercial.verifyWithoutJS(page,base,results);await nojs.close();
   const reduced=await browser.newContext({reducedMotion:'reduce',viewport:{width:390,height:900}});const reducedPage=await reduced.newPage();await reducedPage.goto(base+'/index.html');const motion=await reducedPage.evaluate(()=>({requested:matchMedia('(prefers-reduced-motion: reduce)').matches,scroll:getComputedStyle(document.documentElement).scrollBehavior,animated:[...document.querySelectorAll('body *')].some(el=>getComputedStyle(el).animationName!=='none'||getComputedStyle(el).transitionProperty!=='none')}));assert.equal(motion.requested,true);assert.equal(motion.scroll,'auto');assert.equal(motion.animated,false);results.push({scenario:'reduced_motion',passed:true});await reduced.close();
   // Check the real implementation against the owner-supplied A, not an
   // independently invented style snapshot. This file is never deployed.
