@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Документация и первый запуск — DocFlow</title><meta name="description" content="Создание документов, работа мастерской, импорт и безопасное резервирование.">
+<meta name="robots" content="noindex,follow"><meta name="theme-color" content="#111310"><meta name="color-scheme" content="dark">
+<meta property="og:type" content="website"><meta property="og:locale" content="ru_RU"><meta property="og:site_name" content="DocFlow"><meta property="og:title" content="Документация и первый запуск — DocFlow"><meta property="og:description" content="Создание документов, работа мастерской, импорт и безопасное резервирование."><meta property="og:image" content="assets/social-card.png"><meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml"><link rel="icon" href="favicon.ico"><link rel="preload" href="assets/fonts/Manrope-Variable.ttf" as="font" type="font/ttf" crossorigin><link rel="stylesheet" href="style.css">
+<script src="assets/demo-data.js" defer></script><script src="app.js" defer></script>
+</head><body data-public-version="1.0.0">
+<a class="skip-link" href="#main">Перейти к содержимому</a>
+<header class="site-header"><div class="wrap header-inner">
+  <a class="brand" href="./" aria-label="DocFlow — главная"><img src="assets/icon.svg" width="36" height="36" alt=""><span>DocFlow<span class="brand-dot">.</span></span></a>
+  <button class="menu-toggle" type="button" aria-controls="main-nav" aria-expanded="false">Меню <span class="menu-bars" aria-hidden="true"></span></button>
+  <nav id="main-nav" aria-label="Основная навигация"><a href="./#product">Core</a><a href="service.html">Service</a><a href="./#example">Демо</a><a href="./#services">Настройка</a><a href="docs.html">Помощь</a></nav>
+  <a class="button primary header-download" href="download.html">Скачать бесплатно</a>
+</div></header>
+<main id="main" tabindex="-1">
+<section class="wrap section docs-intro"><p class="eyebrow">Руководство DocFlow</p><h1>От первого запуска<br>до вашей задачи.</h1><p class="lead">Начните с учебного примера. Настройки, профили и проекты сохраняйте перед обновлением.</p></section>
+<div class="wrap docs-layout"><nav class="docs-nav" aria-label="Содержание руководства"><a href="#start">Первый запуск</a><a href="#core">Документы Core</a><a href="#service">Мастерская Service</a><a href="#import">Импорт журнала</a><a href="#update">Копии и обновление</a><a href="#support">Поддержка</a></nav><div class="docs-content">
+  <section id="start"><p class="eyebrow">Начало работы</p><h2>Распакуйте.<br>Откройте пример.</h2><ol><li><a href="download.html">Скачайте опубликованный Portable</a> и сверьте SHA256.</li><li>Распакуйте ZIP целиком. Запустите EXE с папкой <code>_internal</code> рядом.</li><li>В «Документах» откройте демопример. В «Мастерской» создайте учебный проект.</li></ol><p>Исходные таблицы, шаблоны и готовые документы можно <a href="assets/DocFlow-Lite-Demo.zip" download>скачать отдельным ZIP</a>.</p></section>
+  <section id="core"><p class="eyebrow">Документы</p><h2>Excel / CSV в DOCX</h2><ol><li>Выберите таблицу и нужный лист или кодировку.</li><li>Добавьте DOCX-шаблоны с переменными вида <code>{{Клиент}}</code>.</li><li>Сопоставьте поля и проверьте строки. Исправьте обнаруженные ошибки.</li><li>Создайте документы. Откройте результат и проверьте вёрстку.</li></ol><p>Профиль сохраняет настройки для следующего запуска. Готовые документы и отчёт доступны в папке результата.</p><a class="text-link" href="https://github.com/hothuman/docflow-lite/blob/main/docs/USER_GUIDE.md">Подробное руководство в GitHub</a></section>
+  <section id="service"><p class="eyebrow">Мастерская</p><h2>От аппарата<br>к отдельным ремонтам</h2><p>Создайте клиента и оборудование, оформите обращение. Заполните диагностику, работы, смету и документы. Для следующего ремонта используйте тот же аппарат и новое обращение.</p><p>Статусы, версии смет и внутренний учёт оплаты ведутся отдельно. Отметка об оплате не проводит деньги.</p><a class="text-link" href="service.html">Возможности Service</a></section>
+  <section id="import"><p class="eyebrow">Исторические данные</p><h2>Импортируйте<br>через проверку</h2><ol><li>Сначала сохраните копию текущего проекта.</li><li>Подготовьте обезличенный XLSX / CSV и определите смысл номеров, сумм и статусов.</li><li>В мастере истории сопоставьте поля, проверьте аппараты, клиентов и конфликты.</li><li>Применяйте только проверенные записи. После импорта сверьте результат.</li></ol><p>Пустые и неизвестные суммы требуют проверки. Выгрузку конкретной 1С нужно сначала проверить на отдельном проекте.</p></section>
+  <section id="update"><p class="eyebrow">Сохранность</p><h2>Копия проверяется<br>восстановлением</h2><p>Создайте резервный ZIP средствами Service. Проверьте его и восстановите в новую папку. Храните копии отдельно от рабочего проекта.</p><p>При обновлении с 1.0.0 старый проект схемы 4 обновляется в отдельной копии до схемы 6. Для отката используйте прежний EXE и копию до обновления. Архивы не зашифрованы.</p><a class="text-link" href="https://github.com/hothuman/docflow-lite/blob/main/docs/UPDATE.md">Полная инструкция обновления и отката</a></section>
+  <section id="support"><p class="eyebrow">Если возник вопрос</p><h2>Опишите шаги<br>и результат</h2><p>Укажите версию приложения, Windows, шаги воспроизведения и текст ошибки. Прикладывайте только обезличенные материалы.</p><div class="actions"><a class="button primary" href="mailto:docflow.lite@gmail.com?subject=DocFlow">Написать в поддержку</a><a class="text-link" href="https://github.com/hothuman/docflow-lite/issues/new/choose" target="_blank" rel="noopener noreferrer">Сообщить об ошибке</a></div><p class="fine">Не публикуйте рабочие базы, персональные данные, ключи и реальные документы клиентов.</p></section>
+</div></div>
+</main>
+
+<footer class="site-footer"><div class="wrap">
+  <div class="footer-top"><a class="brand" href="./"><img src="assets/icon.svg" width="36" height="36" alt=""><span>DocFlow<span class="brand-dot">.</span></span></a><p>Документы и история ремонта.<br>Под вашим контролем.</p><a class="footer-mail" href="mailto:docflow.lite@gmail.com">docflow.lite@gmail.com</a></div>
+  <div class="footer-links"><a href="download.html">Скачать</a><a href="docs.html">Документация</a><a href="software.html">Условия программы</a><a href="terms.html">Условия услуг</a><a href="privacy.html">Персональные данные</a><a href="https://github.com/hothuman/docflow-lite" target="_blank" rel="noopener noreferrer">GitHub</a></div>
+  <div class="footer-bottom"><span>© 2026 Гапоненко Ростислав Дмитриевич</span><span>Публичная версия <span data-release-version>1.0.0</span> · Windows x64</span></div>
+</div></footer>
+<dialog class="screen-dialog" aria-labelledby="screen-dialog-title"><div class="dialog-toolbar"><h2 id="screen-dialog-title">Экран DocFlow</h2><button type="button" class="button" data-close-screen>Закрыть</button></div><img alt="" width="1400" height="860"></dialog>
+</body></html>

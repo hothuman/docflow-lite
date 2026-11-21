@@ -113,12 +113,14 @@ class WebsiteV2Tests(unittest.TestCase):
             self.assertNotIn(call,script)
     def test_service_review_is_current_and_not_an_unpublished_download(self):
         html=(SITE/'dist/service.html').read_text(encoding="utf-8")
-        self.assertIn('0.3.0a6',html)
+        self.assertIn('1.0.1',html)
         self.assertNotIn('0.3.0a2',html)
-        for name in ('service.png','service-repair.png'):
+        for name in ('service-current.png','service-history.png','service-documents.png'):
             self.assertIn('assets/'+name,html)
             self.assertTrue((SITE/'dist/assets'/name).is_file())
-        self.assertIn('не входит в публичный Release v0.1.1',html)
+        self.assertIn('подготовленного 1.0.1',html)
+        self.assertIn('data-release-version>1.0.0',html)
+        self.assertNotIn('releases/download/v1.0.1',html)
         self.assertNotIn('releases/download/v0.3',html)
         self.assertIn('предварительной и окончательной сметы',html)
         self.assertIn('мастер',html.lower())

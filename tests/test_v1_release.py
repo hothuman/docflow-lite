@@ -60,6 +60,7 @@ def test_site_activation_checks_exact_stage_and_immutable_published_bytes(tmp_pa
     sha='a'*40
     assets=[{'name':f'DocFlow-Lite-{version}-{suffix}.zip','sha256':'b'*64,'size':123}
             for suffix in ('Windows-x64-Portable','Source','ThirdParty-Sources')]
+    assets += [{'name':name,'sha256':'b'*64,'size':123} for name in ('SHA256SUMS.txt','BUILD-INFO.json','SBOM.cdx.json')]
     manifest={'version':version,'tag':'v'+version,'release_target':sha,'assets':assets}
     release={'tag_name':'v'+version,'draft':False,'prerelease':prerelease,'immutable':True,'published_at':'2026-10-26T00:00:00Z',
              'assets':[{**a,'state':'uploaded','browser_download_url':site.REPO+'/releases/download/v'+version+'/'+a['name']} for a in assets]}
@@ -80,10 +81,10 @@ def test_site_activation_checks_exact_stage_and_immutable_published_bytes(tmp_pa
         site.activate(tmp_path/'mismatch',manifest,fetch,lambda u:'c'*64)
     assert not (tmp_path/'mismatch').exists()
     site.activate(tmp_path/'verified',manifest,fetch,lambda u:'b'*64)
-    text=(tmp_path/'verified/index.html').read_text(encoding='utf-8')
+    text=(tmp_path/'verified/download.html').read_text(encoding='utf-8')
     info=json.loads((tmp_path/'verified/build-info.json').read_text(encoding='utf-8'))
     assert info['application_version']==version and info['public_prerelease']==prerelease
-    assert '/releases/download/v'+version+'/' in text and 'SHA256 Portable: '+'b'*64 in text
+    assert '/releases/download/v'+version+'/' in text and 'data-release-sha>'+'b'*64 in text
     assert 'alpha 0.3.0a6' not in text and '<form' not in text
     service=(tmp_path/'verified/service.html').read_text(encoding='utf-8')
     assert '0.3.0a6' not in service and 'DOCFLOW / ALPHA' not in service

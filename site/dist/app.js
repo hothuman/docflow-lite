@@ -15,6 +15,10 @@ if (menuToggle && navigation) {
     navigation.classList.toggle('is-open', open);
   });
   navigation.querySelectorAll('a').forEach(link => link.addEventListener('click', () => closeMenu()));
+  document.addEventListener('click', event => {
+    if (!navigation.contains(event.target) && !menuToggle.contains(event.target)) closeMenu();
+  });
+  matchMedia('(min-width: 861px)').addEventListener('change', () => closeMenu());
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && menuToggle.getAttribute('aria-expanded') === 'true') closeMenu(true);
   });
@@ -52,10 +56,42 @@ rows.forEach((row, i) => {
   button.append(number, text, state); button.addEventListener('click', () => { selected = i; render(); }); records.append(button);
 });
 selector.addEventListener('change', render); render();
-
-
 }
 
+// Genuine product screenshots. The image description follows the selected view.
+const screenDialog = document.querySelector('.screen-dialog');
+document.querySelectorAll('.showcase-section').forEach(section => {
+  const image = section.querySelector('.showcase-image');
+  const caption = section.querySelector('.screen-caption');
+  if (!image || !caption) return;
+  section.querySelectorAll('[data-screen-src]').forEach(button => {
+    button.addEventListener('click', () => {
+      image.src = button.dataset.screenSrc;
+      const stage = document.body.dataset.publicVersion === '1.0.1' ? 'версии' : 'кандидата';
+      image.alt = button.dataset.screenLabel + ' · реальный экран ' + stage + ' 1.0.1 на учебных данных';
+      caption.textContent = button.dataset.screenLabel;
+      section.querySelectorAll('[data-screen-src]').forEach(tab => {
+        tab.setAttribute('aria-pressed', String(tab === button));
+      });
+    });
+  });
+  const expand = section.querySelector('[data-open-screen]');
+  if (expand && screenDialog) expand.addEventListener('click', () => {
+    screenDialog.querySelector('img').src = image.src;
+    screenDialog.querySelector('img').alt = image.alt;
+    screenDialog.querySelector('h2').textContent = caption.textContent;
+    screenDialog.showModal();
+  });
+});
+if (screenDialog) {
+  screenDialog.querySelector('[data-close-screen]').addEventListener('click', () => screenDialog.close());
+  screenDialog.addEventListener('click', event => {
+    if (event.target === screenDialog) {
+      const bounds = screenDialog.getBoundingClientRect();
+      if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) screenDialog.close();
+    }
+  });
+}
 // Presentation only: route diagrams never read or transmit user data.
 document.querySelectorAll('[data-route]').forEach(panel => {
   const routes = {

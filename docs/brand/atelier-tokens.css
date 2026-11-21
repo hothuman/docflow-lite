@@ -1,0 +1,34 @@
+:root {
+  color-scheme: dark;
+  --atelier-bg: #111310;
+  --atelier-surface: #1b1e1a;
+  --atelier-raised: #242923;
+  --atelier-text: #f1f3eb;
+  --atelier-muted: #b0b8aa;
+  --atelier-border: #363d32;
+  --atelier-accent: #c2e88a;
+  --atelier-accent-text: #172014;
+  --atelier-focus: #d7f6af;
+  --atelier-success: #b7e19b;
+  --atelier-warning: #efc98b;
+  --atelier-danger: #ffb4a4;
+  --atelier-control-border: #7c8871;
+  --atelier-font-display: "Manrope", "Segoe UI", sans-serif;
+  --atelier-font-body: "Manrope", "Segoe UI", sans-serif;
+  --atelier-font-mono: "Cascadia Code", "Consolas", monospace;
+  --atelier-radius: 8px;
+  --atelier-shadow: none;
+  --atelier-border-width: 1px;
+  --atelier-text-size: 17px;
+  --atelier-leading: 1.6;
+  --atelier-gap: 16px;
+  --atelier-section-gap: 36px;
+  --atelier-space-1: 4px;
+  --atelier-space-2: 8px;
+  --atelier-space-3: 12px;
+  --atelier-space-4: 16px;
+  --atelier-space-6: 24px;
+  --atelier-space-8: 32px;
+  --atelier-space-12: 48px;
+  --atelier-space-16: 64px;
+}

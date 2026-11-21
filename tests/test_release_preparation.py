@@ -27,7 +27,11 @@ class ReleasePreparationTests(unittest.TestCase):
     def fetch(self,url):
         return self.release if "/releases/tags/" in url else {"object":{"type":"commit","sha":self.sha}}
     def activate(self):
-        return build_release_site.activate(self.root/"site",self.manifest,self.fetch,lambda url:"b"*64)
+        metadata=[{'name':name,'size':123,'sha256':'b'*64} for name in ('SHA256SUMS.txt','BUILD-INFO.json','SBOM.cdx.json')]
+        manifest={**self.manifest,'assets':self.manifest['assets']+metadata}
+        release={**self.release,'assets':self.release['assets']+[{**a,'state':'uploaded','browser_download_url':build_release_site.REPO+'/releases/download/v'+self.version+'/'+a['name']} for a in metadata]}
+        def fetch(url):return release if '/releases/tags/' in url else self.fetch(url)
+        return build_release_site.activate(self.root/"site",manifest,fetch,lambda url:"b"*64)
     def test_unpublished_or_stable_release_does_not_write_site(self):
         for changes in ({"draft":True},{"published_at":None},{"prerelease":False},{"tag_name":"v0.1.1"}):
             saved=dict(self.release);self.release.update(changes)
@@ -44,14 +48,14 @@ class ReleasePreparationTests(unittest.TestCase):
         with self.assertRaises(ValueError):self.activate()
         self.assertFalse((self.root/"site").exists())
     def test_verified_release_activates_matching_link_and_preserves_privacy(self):
-        proof=self.activate();self.assertEqual(proof["assets_verified"],3)
-        text=(self.root/"site/index.html").read_text(encoding="utf-8")
+        proof=self.activate();self.assertEqual(proof["assets_verified"],6)
+        text=(self.root/"site/download.html").read_text(encoding="utf-8")
         self.assertIn("/releases/download/v0.3.0a6/DocFlow-Lite-0.3.0a6-Windows-x64-Portable.zip",text)
         self.assertNotIn("/releases/download/v0.1.1",text)
-        self.assertIn("SHA256 Portable: "+"b"*64,text)
+        self.assertIn('data-release-sha>'+"b"*64,text)
         self.assertNotIn("не входит в публичный Release",(self.root/"site/service.html").read_text(encoding="utf-8"))
         self.assertNotIn("<form",text)
-        self.assertIn("Что написать для оценки",text)
+        self.assertIn("Что написать для оценки",(self.root/"site/index.html").read_text(encoding="utf-8"))
         info=json.loads((self.root/"site/build-info.json").read_text(encoding="utf-8"))
         self.assertEqual(info["application_version"],self.version)
         self.assertFalse(info["indexing_enabled"]);self.assertFalse(info["lead_collection_enabled"])
