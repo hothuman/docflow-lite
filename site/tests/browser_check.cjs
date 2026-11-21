@@ -110,6 +110,14 @@ const widths=[320,360,390,620,680,681,768,860,861,1000,1001,1024,1280,1440,1920]
    assert(await enlarged.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
    results.push({scenario:'1280px_at_200_percent_zoom_equivalent',page:name,css_width:640,device_scale:2,passed:true});
   }await reflow.close();
+  // Reproduce Linux fallback-font metrics on Windows too. The approved font
+  // stack intentionally uses local Manrope when Segoe UI is unavailable.
+  const fallback=await browser.newContext({viewport:{width:320,height:900},bypassCSP:true});const fallbackPage=await fallback.newPage();
+  for(const name of ['index.html','service.html','download.html','docs.html','software.html','privacy.html','terms.html','404.html']){
+   await fallbackPage.goto(base+'/'+name);await fallbackPage.addStyleTag({content:':root{--font:Manrope,Arial,sans-serif;--mono:monospace}'});await fallbackPage.evaluate(()=>document.fonts.ready);
+   const size=await fallbackPage.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));assert(size.scroll<=size.width,JSON.stringify({name,fallback:'Manrope',...size}));
+   results.push({scenario:'local_fallback_font_at_320px',page:name,passed:true});
+  }await fallback.close();
   const missing=await browser.newPage();const notFound=await missing.goto(base+'/missing-page-for-qa');assert.equal(notFound.status(),404);assert.equal(await missing.locator('h1').count(),1);await missing.close();
   const nojs=await browser.newContext({javaScriptEnabled:false,viewport:{width:390,height:900}});const page=await nojs.newPage();await page.goto(base+'/index.html');await page.locator('.direction-nav a[href="service.html"]').click();await page.waitForLoadState('load');assert(await page.locator('#service-title').isVisible());assert.equal(await page.locator('.route-switch').isVisible(),false);assert((await page.locator('.route-stops').innerText()).includes('Аппарат'));results.push({scenario:'no_javascript_navigation_and_static_route',passed:true});await nojs.close();
   const reduced=await browser.newContext({reducedMotion:'reduce',viewport:{width:390,height:900}});const reducedPage=await reduced.newPage();await reducedPage.goto(base+'/index.html');const motion=await reducedPage.evaluate(()=>({requested:matchMedia('(prefers-reduced-motion: reduce)').matches,scroll:getComputedStyle(document.documentElement).scrollBehavior,animated:[...document.querySelectorAll('body *')].some(el=>getComputedStyle(el).animationName!=='none'||getComputedStyle(el).transitionProperty!=='none')}));assert.equal(motion.requested,true);assert.equal(motion.scroll,'auto');assert.equal(motion.animated,false);results.push({scenario:'reduced_motion',passed:true});await reduced.close();
