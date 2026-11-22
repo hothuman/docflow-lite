@@ -73,48 +73,55 @@ def verify_published(manifest, fetch=get_json, hash_url=download_hash):
 
 def activate(output, manifest, fetch=get_json, hash_url=download_hash):
     proof = verify_published(manifest, fetch, hash_url)  # Fail before writing anything.
+    if not {'SHA256SUMS.txt', 'BUILD-INFO.json', 'SBOM.cdx.json'}.issubset(a['name'] for a in manifest['assets']):
+        raise ValueError('Download page metadata must be verified before writing')
     info = build_site.build(Path(output), "https://docflow-lite.pages.dev/", index_home=False)
     version = manifest["version"]
     portable = f"DocFlow-Lite-{version}-Windows-x64-Portable.zip"
     expected = next(a for a in manifest["assets"] if a["name"] == portable)
-    replacements = {
-      "Подготовительная alpha 0.3.0a6.": "Публичная alpha 0.3.0a6.",
-      "https://github.com/hothuman/docflow-lite/releases/download/v0.1.1/DocFlow-Lite-0.1.1-Windows-x64-Portable.zip": REPO+"/releases/download/v"+version+"/"+portable,
-      "Настоящий интерфейс новой alpha. Публичная загрузка пока остаётся v0.1.1.": "Настоящий интерфейс публичной alpha 0.3.0a6. Данные вымышлены.",
-      "Публичный Core v0.1.1. Новая alpha 0.3.0a6 проходит отдельную приёмку и здесь не подменяет опубликованный файл.": "Публичная alpha 0.3.0a6 · Core + Service. EXE не подписан. Перед обновлением сохраните копию проекта. SHA256 Portable: "+expected["sha256"],
-      "Alpha 0.3.0a6 не входит в публичный Release v0.1.1. Новый интерфейс подготовлен для приёмки; промышленное внедрение не заявляется.": "Публичная alpha 0.3.0a6 включает Core и Service. Сначала проверьте учебный проект; промышленное внедрение и клиентская приёмка не заявляются.",
-      "Core v0.1.1 · новая alpha 0.3.0a6": "Core + Service · alpha 0.3.0a6",
-      "DocFlow · Core v0.1.1 · alpha 0.3.0a6": "DocFlow · Core + Service · alpha 0.3.0a6",
-      "НАЧНИТЕ С ПУБЛИЧНОЙ ВЕРСИИ": "ПУБЛИЧНЫЙ ПРЕДВАРИТЕЛЬНЫЙ ВЫПУСК",
-      "Core для Windows.<br>Без установки Python.": "Core + Service для Windows.<br>Без установки Python."
-    }
-    if version!='0.3.0a6':
-        prerelease=is_prerelease(version)
-        label=('Кандидат '+version if prerelease else 'Стабильная версия '+version)
-        replacements={old:new.replace('Публичная alpha 0.3.0a6',label).replace('публичной alpha 0.3.0a6',label).replace('alpha 0.3.0a6',label).replace('0.3.0a6',version) for old,new in replacements.items()}
-        replacements['ПУБЛИЧНЫЙ ПРЕДВАРИТЕЛЬНЫЙ ВЫПУСК']='ПУБЛИЧНЫЙ ПРЕДВАРИТЕЛЬНЫЙ ВЫПУСК' if prerelease else 'СТАБИЛЬНЫЙ ВЫПУСК'
-        replacements['НАСТОЯЩИЙ ИНТЕРФЕЙС / НОВАЯ ALPHA']='НАСТОЯЩИЙ ИНТЕРФЕЙС'
-        replacements['DOCFLOW / ALPHA 0.3.0a6']='DOCFLOW / '+('RC ' if prerelease else '')+version
-        # Version-bearing captions/alt text must match the verified download too.
-        replacements['0.3.0a6']=version
-    if version == '1.0.1':
-        replacements.update({
-            'Настоящий интерфейс новой alpha. Публичная загрузка пока остаётся v0.1.1.':
-                'Интерфейс DocFlow Core на учебных данных.',
-            'Настоящий тёмный интерфейс DocFlow Core 0.3.0a6 на учебных данных':
-                'Интерфейс DocFlow Core на учебных данных',
-            'Настоящий тёмный интерфейс DocFlow Service 0.3.0a6 на учебных данных':
-                'Интерфейс DocFlow Service на учебных данных',
-            'DOCFLOW / ALPHA 0.3.0a6': 'DOCFLOW / ИНТЕРФЕЙС',
-        })
-        # Replace the existing screenshot labels before the generic version token.
-        replacements['0.3.0a6'] = replacements.pop('0.3.0a6')
-    for page in Path(output).glob("*.html"):
-        text = page.read_text(encoding="utf-8")
-        for old, new in replacements.items():
-            text = text.replace(old, new)
-        page.write_text(text, encoding="utf-8")
-    info.update(application_version=version, review_application_version=version, public_prerelease=is_prerelease(version), release_verification=proof, source_commit=manifest["release_target"])
+    # Semantic markers keep release activation independent of marketing copy.
+    # Only this function may change the download after verify_published succeeds.
+    prerelease = is_prerelease(version)
+    label = ('Публичный предварительный выпуск' if prerelease else 'Публичный стабильный выпуск')
+    base = REPO + '/releases/download/v' + version + '/'
+    def render(text):
+        text = re.sub(r'data-public-version="[^"]+"', 'data-public-version="'+version+'"', text)
+        text = re.sub(r'(<[^>]+ data-release-version[^>]*>)[^<]*(</[^>]+>)',
+                      lambda m: m[1] + version + m[2], text)
+        text = re.sub(r'(<[^>]+ data-release-stage[^>]*>)[^<]*(</[^>]+>)',
+                      lambda m: m[1] + label + m[2], text)
+        text = re.sub(r'(<[^>]+ data-release-sha[^>]*>)[^<]*(</[^>]+>)',
+                      lambda m: m[1] + expected['sha256'] + m[2], text)
+        def link(match):
+            tag = match[0]
+            suffix = re.search(r'data-release-asset="([^"]+)"', tag)
+            file = re.search(r'data-release-file="([^"]+)"', tag)
+            if suffix:
+                if suffix[1] not in {'Windows-x64-Portable', 'Source', 'ThirdParty-Sources'}:
+                    raise ValueError('Unknown release asset marker')
+                name = f'DocFlow-Lite-{version}-{suffix[1]}.zip'
+            else:
+                name = file[1]
+                if name not in {'SHA256SUMS.txt', 'BUILD-INFO.json', 'SBOM.cdx.json'}:
+                    raise ValueError('Unknown release metadata marker')
+            if name not in {asset['name'] for asset in manifest['assets']}:
+                raise ValueError('Linked release file was not verified: ' + name)
+            return re.sub(r'href="[^"]*"', 'href="' + base + quote(name) + '"', tag)
+        text = re.sub(r'<a\b[^>]* data-release-(?:asset|file)="[^"]+"[^>]*>', link, text)
+        if version == '1.0.1':
+            text = re.sub(r'<p\b[^>]* data-release-preview[^>]*>.*?</p>', '', text, flags=re.S)
+            text = re.sub(r'<div\b[^>]* data-release-candidate[^>]*>.*?</div>',
+                          '<div class="candidate-note"><h3>Версия 1.0.1 опубликована</h3>'
+                          '<p>Перед обновлением сохраните копию проекта. Проверяйте документы на ваших шаблонах.</p></div>',
+                          text, flags=re.S)
+            text = text.replace('подготовленного кандидата 1.0.1', 'версии 1.0.1')
+            text = text.replace('подготовленного 1.0.1', 'версии 1.0.1')
+            text = text.replace('подготовленный кандидат. Публичная загрузка пока 1.0.0.', 'публичный выпуск.')
+            text = text.replace('подготовленный кандидат', 'публичный выпуск')
+        return text
+    for page in Path(output).glob('*.html'):
+        page.write_text(render(page.read_text(encoding='utf-8')), encoding='utf-8')
+    info.update(application_version=version, public_prerelease=is_prerelease(version), release_verification=proof, source_commit=manifest["release_target"])
     info["file_sha256"] = {p.relative_to(output).as_posix():hashlib.sha256(p.read_bytes()).hexdigest()
                            for p in sorted(Path(output).rglob("*")) if p.is_file() and p.name != "build-info.json"}
     (Path(output)/"build-info.json").write_text(json.dumps(info,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")

@@ -1,0 +1,105 @@
+{
+  "application_version": "1.0.1",
+  "source_commit": "e1b1df1c1f38fd9be04e608886fda7e6d63b64f5",
+  "portable_sha256": "c61cbe6b076d8f0ee11a2a19e82fe6fe40b1e0b4f6a514fb46ed7f0b27d6eac5",
+  "status": "draft candidate, not public release",
+  "data": "synthetic",
+  "screenshots": {
+    "core-current.png": {
+      "source": "Запуск 1/demo-loaded.png",
+      "sha256": "73148198557f1e8b79f1fad400b8cf58af391fc8c440f32355f25decda819596",
+      "treatment": "original pixels, no retouching"
+    },
+    "core-result.png": {
+      "source": "Запуск 1/demo-generated.png",
+      "sha256": "af7efd0d897a07bce57273e392e5e875bc5d4825d11eb9f5ff1dfc79348d8187",
+      "treatment": "original pixels, no retouching"
+    },
+    "service-current.png": {
+      "source": "Service с пробелами/Unified workspace/04-finance.png",
+      "sha256": "d44d1d1732b6caa96fe439d713ac79999e46251fe652b5adffdd15e9299b8487",
+      "treatment": "original pixels, no retouching"
+    },
+    "service-history.png": {
+      "source": "Service с пробелами/Unified workspace/08-comparison.png",
+      "sha256": "c2c581c1f337a2faa8b906440ef95f79ea893d2c66f23f9e666335b1f164efde",
+      "treatment": "original pixels, no retouching"
+    },
+    "service-documents.png": {
+      "source": "Service с пробелами/Unified workspace/06-document-result.png",
+      "sha256": "1ad70199034a0ba4cb1db28f1a3459c1c79fe13f7d07d6a424718f9cf9187707",
+      "treatment": "original pixels, no retouching"
+    }
+  },
+  "font": {
+    "family": "Manrope",
+    "source": "https://github.com/google/fonts/tree/main/ofl/manrope",
+    "license": "SIL Open Font License 1.1",
+    "local_file": "site/dist/assets/fonts/Manrope-Variable.ttf",
+    "sha256": "3ae11c49db0455a3cc33e37d380f20fdb8c7f8b41dc07625c177e3d87a9d6ae6",
+    "usage": "Segoe UI system font on Windows; unchanged local Manrope SIL OFL fallback on other platforms"
+  },
+  "logo": {
+    "source": "existing DocFlow d/ SVG",
+    "treatment": "existing d/ path geometry retained; flat white d and acid slash, owner-approved Industrial Contrast A"
+  },
+  "approved_legal_main_sha256": {
+    "privacy.html": "6d67ef3cdd1e2d19896becd9b09f5e708cfc82339e2cc84053140c39056d53cb",
+    "terms.html": "75cb2385639607cbbc0403d4bff83cc4352d1e7a8c7db904e111ab6d98391cb2",
+    "software.html": "6974f91198337ef08b1886726c4f88f311c1eedae7f8d2d49b7051009fff917e"
+  },
+  "legal_baseline_commit": "e1b1df1c1f38fd9be04e608886fda7e6d63b64f5",
+  "brand_files": {
+    "site/dist/assets/icon.svg": "4d1704b64de47557bcf87dfb048813102d6692d5262340827fffe86e0f70bb46",
+    "site/dist/assets/icons.svg": "e0cee21c30247c2a103463a7110103f0ec2bf3feae60f0d40ffb21fb0fc7fe17",
+    "site/dist/assets/social-card.png": "1e76b3312dedddc838de81b1a231ebfc1b3a7cf42e15c9bbf3d14840d7089d0b",
+    "site/dist/assets/social-card.svg": "c98a7c51c43ac6b8bd8f65c87ef3afdfadb502123ba9794f5d5c5eea6c943740",
+    "site/dist/favicon.ico": "87d71ec6d893e38bd4ef27325229e4456a2cf8a76756972cea1d235c6d33a8ae"
+  },
+  "generated_cover": {
+    "editable_source": "docs/brand/SOCIAL_PREVIEW.html",
+    "exporter": "site/scripts/build_brand_preview.cjs",
+    "treatment": "Industrial Contrast HTML/CSS in Windows Edge; genuine 1.0.1 screenshot plus a labelled document illustration",
+    "svg": "SVG retains exact embedded PNG bytes of core-current.png; no retouching"
+  },
+  "design_reference": {
+    "file": "docs/brand/reference/01-industrial-contrast.html",
+    "sha256": "4d22b04f030eeed443ae8cd9ce3d0f3a18b5ef1b535f48c83261ab48e6435a49",
+    "owner_approved": true,
+    "kind": "visual prototype with schematic UI; never used as evidence of the application"
+  },
+  "legal_factual_update": {
+    "date": "2026-11-22",
+    "authorization": "Owner request to correct absent-form information and implement the local package/contact path; not approval of service terms or privacy policy",
+    "approves_service_terms_or_policy": false,
+    "baseline_website_commit": "9d9cc96864f13ec4d3a89ef714ea57489b804b77",
+    "pages": {
+      "privacy.html": {
+        "current_main_sha256": "4acc5b64e1529eded43ed740c8c9a2688bd25cdfd4538dd10b7f3a80c18d74e8",
+        "replacements": [
+          {
+            "before": "<h2>2. Как работает форма сейчас</h2><p>Поля имени, контакта и описания задачи заблокированы. Отправка не работает; нет обработчика на сервере, базы заявок или загрузки файлов. Код формы не отправляет сведения в сторонние сервисы, не сохраняет их в браузере и не показывает сообщение об успешной отправке.</p><p>Форма не будет включена только удалением пометки «Скоро». Сначала нужны утверждённые условия и проверенный путь обработки данных, затем отдельная техническая реализация и проверка.</p>",
+            "after": "<h2>2. Как обратиться сейчас</h2><p>На этом сайте сейчас нет формы заявки и загрузки файлов клиента. Код сайта не отправляет заявки и не создаёт хранилище обращений. Контактные ссылки открывают Telegram или почтовую программу; сообщение вы отправляете самостоятельно в выбранном сервисе.</p><p>Добавление формы потребует отдельного решения владельца, утверждённых условий, проверенного пути обработки данных и технической проверки. В текущем сайте такой формы нет.</p>"
+          },
+          {
+            "before": "<h2>3. Telegram и email</h2><p>Ссылки открывают контакт <a href=\"https://t.me/de1grace\" target=\"_blank\" rel=\"noopener noreferrer\">@de1grace</a> или почтовую программу с адресом <a href=\"mailto:docflow.lite@gmail.com\">docflow.lite@gmail.com</a>. Переход не отправляет сообщение. Вы сами решаете, что написать, и отправляете его в отдельном сервисе.</p>",
+            "after": "<h2>3. Telegram и email</h2><p>Ссылки открывают контакт <a href=\"https://t.me/de1grace\" target=\"_blank\" rel=\"noopener noreferrer\">@de1grace</a> или почтовую программу с адресом <a href=\"mailto:docflow.lite@gmail.com\">docflow.lite@gmail.com</a>. Выбор пакета меняет только подготовленное описание услуги. Email-ссылка передаёт выбранные тему и текст в почтовую программу. Кнопка копирования помещает подготовленный текст в буфер обмена устройства. Эти действия не отправляют сообщение. Вы сами дополняете его и решаете, что отправить в выбранном сервисе.</p>"
+          }
+        ]
+      },
+      "terms.html": {
+        "current_main_sha256": "a237970af19553269bbe3e5500e207b74bcaccad9f7c64ac4c1e3c11d03a83d7",
+        "replacements": [
+          {
+            "before": "Форма сайта заблокирована.",
+            "after": "На сайте нет формы заявки или загрузки файлов клиента. Выбор пакета подготавливает тему и текст обращения; сообщение отправляет сам посетитель в почтовой программе или Telegram."
+          },
+          {
+            "before": "<p>Запуск и генерация проверены в Windows CI. Владелец сообщил об открытии приложения на своём компьютере; полная ручная проверка генерации и оформления DOCX на нём пока отдельно не подтверждена. Результат всегда нужно проверить перед использованием.</p>",
+            "after": "<p>Результаты проверок относятся к конкретной версии выпуска. Перед рабочим использованием проверьте подстановки и оформление DOCX в своём редакторе на согласованных примерах. Текстовый предпросмотр не заменяет проверку вёрстки.</p>"
+          }
+        ]
+      }
+    }
+  }
+}

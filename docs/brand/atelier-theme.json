@@ -1,0 +1,40 @@
+{
+  "id": "docflow-industrial-contrast",
+  "name": "DocFlow Industrial Contrast",
+  "mode": "dark",
+  "mood": "industrial,high-contrast,precise",
+  "font_display": "\"Segoe UI\", \"Manrope\", Arial, sans-serif",
+  "font_body": "\"Segoe UI\", \"Manrope\", Arial, sans-serif",
+  "font_mono": "\"Consolas\", \"Cascadia Code\", monospace",
+  "radius": "0px",
+  "shadow": "0 25px 40px rgba(0,0,0,.4)",
+  "border_width": "1px",
+  "colors": {
+    "bg": "#090f12",
+    "surface": "#121c20",
+    "raised": "#172429",
+    "text": "#f5f8f2",
+    "muted": "#b3c0b7",
+    "border": "#34434a",
+    "accent": "#cbff55",
+    "accent_text": "#111b10",
+    "focus": "#cbff55",
+    "success": "#7fe6d0",
+    "warning": "#efc98b",
+    "danger": "#ffb4a4",
+    "control_border": "#667977"
+  },
+  "recipe": {
+    "layout": "editorial",
+    "platform": "web",
+    "density": "airy",
+    "fit": "Approved Industrial Contrast A, real local Windows software",
+    "grid": "1400 px grid, three-line bold hero, tilted actual screen and light document, full-width paper sections",
+    "type": "Segoe UI 820 display, tight tracking, Manrope local fallback",
+    "states": "High contrast segmented controls, accessible paper panels, real demo errors and image panning",
+    "adapt": "Hero stacks at 1000 px, page content at 680 px, keyboard menu at 860 px",
+    "effects": "Static -4/+7 degree artifact composition, thin rules, 2 px button hover only",
+    "avoid": "Invented UI screenshots, popularity claims, glow, a new concept",
+    "sample": "Excel. Word. Готово."
+  }
+}
