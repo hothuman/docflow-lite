@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QSizePolicy, QStackedWidget, QTabWidget, QTableWidget, QTableWidgetItem,
     QTextBrowser, QVBoxLayout, QWidget,
 )
+from shiboken6 import isValid
 from .. import __version__
 from ..versioning import stage
 from ..batch import BatchResult, Prepared, generate, prepare
@@ -444,7 +445,7 @@ class MainWindow(QMainWindow):
         if previous_focus and self.isActiveWindow():
             if self.pages.currentIndex() == 2 and previous_focus is self.core_next and self.validation_panel.first.isVisible():
                 self.validation_panel.first.setFocus(Qt.FocusReason.OtherFocusReason)
-            elif previous_focus.isVisible() and previous_focus.isEnabled():
+            elif isValid(previous_focus) and previous_focus.isVisible() and previous_focus.isEnabled():
                 previous_focus.setFocus(Qt.FocusReason.OtherFocusReason)
             else:
                 self._focus_core_action()

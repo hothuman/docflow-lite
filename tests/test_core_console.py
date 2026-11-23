@@ -4,6 +4,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLabel
+from shiboken6 import isValid
 
 from docflow.gui import MainWindow
 from docflow.release_check import wait_idle
@@ -96,6 +97,28 @@ def test_all_rejected_rows_offer_report_and_about_has_one_release_stage(tmp_path
         assert any('Стабильный выпуск' in label for label in labels)
         assert all('Предварительная версия' not in label for label in labels)
         assert not window.result_file_btn.isVisible()
+    finally:
+        wait_idle(window)
+        window.close()
+
+
+def test_async_table_reload_moves_focus_from_replaced_mapping_control(tmp_path):
+    window = MainWindow(service_root=tmp_path / 'service')
+    window.show()
+    window.activateWindow()
+    try:
+        window.load_demo()
+        wait_idle(window)
+        window.navigate(2)
+        previous = window.mapping_table.cellWidget(0, 1)
+        previous.setFocus()
+        assert previous.hasFocus()
+        window._load_data(window.table.source)
+        wait_idle(window)
+        QApplication.processEvents()
+        assert not isValid(previous)
+        assert window.core_next.hasFocus()
+        assert window.mapping_table.cellWidget(0, 1).accessibleName()
     finally:
         wait_idle(window)
         window.close()
