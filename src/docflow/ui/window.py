@@ -137,8 +137,8 @@ class MainWindow(QMainWindow):
         self.account_caption=text('УЧЁТ И НАСТРОЙКИ','eyebrow');self.account_caption.setContentsMargins(0,12,0,0);self.account_caption.hide();nav.addWidget(self.account_caption)
         for i in (4,6):nav.addWidget(self.service_nav[i])
         ordered=[self.service_nav[i] for i in (0,2,1,3,5,4,6,7)]
-        for a,b in zip(ordered,ordered[1:]):QWidget.setTabOrder(a,b)
         nav.addStretch();nav.addWidget(self.service_nav[7])
+        for a,b in zip(ordered,ordered[1:]):QWidget.setTabOrder(a,b)
         self.local_note=text('Локальная обработка\nБез сети и телеметрии','muted');nav.addWidget(self.local_note)
         outer.addWidget(self.rail)
         self.work=QWidget();self.work.setObjectName('work');outer.addWidget(self.work,1)
