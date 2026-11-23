@@ -6,7 +6,7 @@ from pathlib import Path
 from PySide6.QtCore import QThread, QTimer, QUrl, Qt, Signal, Slot, QSize, QByteArray
 from PySide6.QtGui import QDesktopServices, QColor, QIcon
 from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QComboBox, QFileDialog, QFrame, QGridLayout,
+    QApplication, QBoxLayout, QCheckBox, QComboBox, QFileDialog, QFrame, QGridLayout,
     QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem,
     QMainWindow, QMessageBox, QProgressBar, QPushButton, QScrollArea,
     QSizePolicy, QStackedWidget, QTabWidget, QTableWidget, QTableWidgetItem,
@@ -75,7 +75,7 @@ class GenerationWorker(QThread):
 
 
 class MainWindow(QMainWindow):
-    PAGE_NAMES=('1. Выберите таблицу','2. Добавьте шаблоны Word','3. Проверьте поля и данные','4. Создайте документы','О программе','Обзор мастерской')
+    PAGE_NAMES=('Выберите таблицу','Шаблоны Word','Проверка данных','Создание документов','О программе','Обзор мастерской')
     NAV_NAMES=('Документы','Шаблоны Word','Поля и проверка','Создание','О программе','Мастерская')
 
     def __init__(self,service_root=None):
@@ -141,7 +141,7 @@ class MainWindow(QMainWindow):
         self.demo_btn=self.button('Открыть демопример',self.load_demo);self.demo_btn.setToolTip('Открыть встроенные вымышленные данные и два DOCX-шаблона')
         self.folder_btn=self.button('Открыть папку',self.open_result,'folder');self.folder_btn.setEnabled(False)
         self.folder_btn.hide();work.addLayout(header)
-        self.operation_notice=text('','status');self.operation_notice.setAccessibleName('Сообщение о действии');self.operation_notice.setMaximumHeight(64);self.operation_notice.hide();work.addWidget(self.operation_notice)
+        self.operation_notice=text('','operationNotice');self.operation_notice.setAccessibleName('Сообщение о действии');self.operation_notice.setMaximumHeight(64);self.operation_notice.hide();work.addWidget(self.operation_notice)
         self.core_route=QFrame();self.core_route.setObjectName('routeBar');route=FlowLayout(self.core_route);self.route_buttons=[]
         for i,label in enumerate(('1  Таблица','2  Шаблоны','3  Проверка','4  Создание')):
             b=self.button(label,lambda checked=False,index=i:self.navigate(index));b.setObjectName('journey');b.setCheckable(True);route.addWidget(b);self.route_buttons.append(b)
@@ -149,11 +149,17 @@ class MainWindow(QMainWindow):
         self.pages=QStackedWidget();work.addWidget(self.pages,1)
         self._build_create();self._build_templates();self._build_mapping();self._build_result();self._build_about();self.pages.addWidget(QWidget())
         self.status=text('Откройте демопример или выберите свои файлы','status');self.status.setAccessibleName('Текущий статус')
-        self.footer_layout=QHBoxLayout();self.footer_layout.setSpacing(12);self.footer_layout.addWidget(self.status,1)
+        self.footer_layout=QHBoxLayout();self.footer_layout.setSpacing(8)
+        self.core_back=self.button('← Назад',self._core_previous_step)
+        self.core_back.setAccessibleName('Назад на предыдущий шаг')
+        self.footer_layout.addWidget(self.core_back)
+        self.footer_layout.addWidget(self.status,1)
+        self.footer_layout.addStretch()
         self.cancel_btn=self.button('Отменить генерацию',self.cancel_generation)
         self.cancel_btn.setToolTip('Дождаться текущего документа и удалить незавершённый новый пакет')
         self.cancel_btn.hide();self.footer_layout.addWidget(self.cancel_btn)
         self.core_next=self.button('Выбрать таблицу',self.core_next_step,primary=True);self.footer_layout.addWidget(self.core_next)
+        self.footer_layout.addWidget(self.result_file_btn)
         self._pinned_action=None;work.addLayout(self.footer_layout)
         self.compact_settings=self.button('Настройки',lambda:self._navigate_service(7),'gear')
         self.compact_settings.setAccessibleName('Настройки мастерской')
@@ -174,6 +180,8 @@ class MainWindow(QMainWindow):
 
     def page(self):
         scroll=QScrollArea();scroll.setWidgetResizable(True)
+        scroll.setObjectName('corePageScroll')
+        scroll.setAccessibleName(self.PAGE_NAMES[self.pages.count()])
         page=QWidget();page.setObjectName('page');scroll.setWidget(page)
         self.pages.addWidget(scroll);layout=QVBoxLayout(page);layout.setContentsMargins(0,0,2,0);layout.setSpacing(14)
         return page,layout
@@ -193,11 +201,16 @@ class MainWindow(QMainWindow):
         body.addWidget(text('Удаление из списка не удаляет исходный файл. PDF, макросы и сложные выражения шаблонов не поддерживаются.','muted'));layout.addStretch()
 
     def _build_mapping(self):
-        page,layout=self.page();box,body=card('Сопоставление полей','Выберите столбец для каждой переменной. Имя переменной и заголовок таблицы могут различаться.')
-        layout.addWidget(box)
+        page,layout=self.page()
         from .core_workflow import ValidationPanel
-        self.validation_panel=ValidationPanel(self);body.addWidget(self.validation_panel)
+        self.validation_panel=ValidationPanel(self)
+        layout.addWidget(self.validation_panel)
         self.validation_report=self.validation_panel.report
+        box,body=card('Сопоставление полей','Свяжите каждую переменную Word со столбцом таблицы.')
+        self.check_columns=QBoxLayout(QBoxLayout.Direction.TopToBottom)
+        self.check_columns.setSpacing(12)
+        self.check_columns.addWidget(box, 3)
+        layout.addLayout(self.check_columns)
         from .configuration import propose,restore
         assistance=FlowLayout()
         self.suggest_config_btn=self.button('Предложить связи',lambda:propose(self),'fields')
@@ -216,14 +229,14 @@ class MainWindow(QMainWindow):
         for col in (2,3):self.mapping_table.horizontalHeader().setSectionResizeMode(col,QHeaderView.ResizeMode.ResizeToContents)
         self.mapping_table.horizontalHeader().setMinimumSectionSize(100);self.mapping_table.verticalHeader().hide();body.addWidget(self.mapping_table,1)
         self.mapping_feedback=text('Сначала загрузите файлы','muted');body.addWidget(self.mapping_feedback)
-        previewbox,previewbody=card('Пример документа','Текстовый пример выбранной строки и шаблона. Оформление результата проверяйте в Word.')
-        layout.addWidget(previewbox)
+        previewbox,previewbody=card('Текстовый пример','Выберите строку и шаблон. Вёрстку готового DOCX проверяйте в Word.')
+        self.check_columns.addWidget(previewbox, 2, Qt.AlignmentFlag.AlignTop)
         self.config_row=QComboBox();self.config_row.setModel(self.record_model);self.config_row.setAccessibleName('Строка примера настройки')
         self.config_template=QComboBox();self.config_template.setModel(self.template_selector.model());self.config_template.setAccessibleName('Шаблон примера настройки')
         for mirror,original in ((self.config_row,self.row_selector),(self.config_template,self.template_selector)):
             mirror.setMinimumContentsLength(12);mirror.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
             mirror.currentIndexChanged.connect(original.setCurrentIndex);original.currentIndexChanged.connect(mirror.setCurrentIndex);previewbody.addWidget(mirror)
-        self.config_preview=QTextBrowser();self.config_preview.setAccessibleName('Текстовый пример настройки');self.config_preview.setMinimumHeight(140);self.config_preview.setMaximumHeight(250);previewbody.addWidget(self.config_preview)
+        self.config_preview=QTextBrowser();self.config_preview.setObjectName('corePreviewPaper');self.config_preview.setAccessibleName('Текстовый пример настройки');self.config_preview.setMinimumHeight(156);self.config_preview.setMaximumHeight(250);previewbody.addWidget(self.config_preview)
         self.preview_text.textChanged.connect(lambda:self.config_preview.setPlainText(self.preview_text.toPlainText()))
         row=FlowLayout();self.open_profile_btn=self.button('Открыть сохранённую настройку',self.open_profile,'folder')
         self.save_profile_btn=self.button('Сохранить настройку',lambda:self.save_profile(background=True))
@@ -241,12 +254,13 @@ class MainWindow(QMainWindow):
         build_result(self)
 
     def _build_about(self):
-        page,layout=self.page();box,body=card('DocFlow Lite',f'Версия {__version__} · Core + Service · {stage(__version__)}')
+        version_stage = {'stable': 'Стабильный выпуск', 'RC': 'Кандидат в релиз',
+                         'alpha': 'Альфа-версия', 'beta': 'Бета-версия'}[stage(__version__)]
+        page,layout=self.page();box,body=card('DocFlow Lite',f'Версия {__version__} · {version_stage}')
         layout.addWidget(box)
         body.addWidget(text('Локальная генерация Word-документов из XLSX/CSV. Данные и шаблоны не отправляются на сервер.'))
         body.addWidget(text('До 5 000 записей, 100 столбцов и 20 DOCX-шаблонов за запуск. Исходники не перезаписываются.'))
         body.addWidget(text('Поддерживаются простые переменные {{поле}}. В Core нет PDF-экспорта, циклов и истории. Service отдельно ведёт ремонты и поддерживает ограниченное повторение строк. Текстовый предпросмотр не заменяет проверку оформления в Word/LibreOffice.','muted'))
-        body.addWidget(text('Предварительная версия Core + Service. Проверяйте готовые документы в своей версии Word/LibreOffice.','muted'))
         body.addWidget(text('© 2026 Гапоненко Ростислав Дмитриевич. Бесплатное личное и деловое использование по условиям поставки.'))
         body.addWidget(text('Используются Qt / PySide6 / Shiboken под LGPLv3 и другие сторонние библиотеки. Их лицензии сохраняются; совместимая замена LGPL-библиотек допускается.','muted'))
         from pathlib import Path
@@ -289,6 +303,8 @@ class MainWindow(QMainWindow):
         if (index==5)!=(previous==5):self._clear_notice()
         self.pages.setCurrentIndex(index)
         self.title.setText('Результаты создания' if index==3 and self.last_result else self.PAGE_NAMES[index])
+        if index < 4:
+            self.pages.currentWidget().setAccessibleName(self.title.text())
         if index<4:self._last_core_page=index
         self.mode_picker.blockSignals(True);self.mode_picker.setCurrentIndex(1 if index==5 else 0);self.mode_picker.blockSignals(False)
         self.nav_caption.setText('МАСТЕРСКАЯ' if index==5 else 'ДОКУМЕНТЫ')
@@ -303,7 +319,16 @@ class MainWindow(QMainWindow):
             self.status.setText('Найдите аппарат или начните новый ремонт')
         elif hasattr(self,'_core_status'):
             self.status.setText(self._core_status);del self._core_status
-        if index!=5:self.subtitle.setText('Из таблицы — в готовый комплект документов')
+        if index != 5:
+            subtitles = (
+                'Начните новый комплект DOCX или откройте учебный пример.',
+                'Выберите шаблоны, которые будут заполнены для каждой подходящей строки.',
+                'Сопоставьте поля, проверьте строки и посмотрите текст примера.',
+                'В этом комплекте доступны документы и отчёт о строках.' if self.last_result else
+                'Укажите папку результатов и запустите генерацию.',
+                '',
+            )
+            self.subtitle.setText(subtitles[index])
         for i,button in enumerate(self.nav_buttons):button.setChecked(i==index or i==0 and index<4)
         self._responsive();self.update_readiness();self.remember_location()
 
@@ -363,7 +388,15 @@ class MainWindow(QMainWindow):
         self.nav_caption.setVisible(self.height()>=600)
         self.core_route.setVisible(self.pages.currentIndex()<4)
         self.core_state.setVisible(self.pages.currentIndex()<4 and self.height()>=500)
-        self.status.setVisible(not service and self.height()>=500)
+        core_page = self.pages.currentIndex()
+        self.status.setVisible(self.height() >= 500 and core_page < 4 and (core_page != 3 or not self.last_result))
+        if not service:
+            self.subtitle.setVisible(self.height() >= 600 and bool(self.subtitle.text()))
+        work_width = self.width() - (24 if compact else 248)
+        check_direction = (QBoxLayout.Direction.LeftToRight if work_width >= 1010
+                           else QBoxLayout.Direction.TopToBottom)
+        if self.check_columns.direction() != check_direction:
+            self.check_columns.setDirection(check_direction)
         self.about_button.setVisible(compact)
         self.compact_settings.setVisible(compact and service and not short_detail)
         if hasattr(self,'core_next'):
@@ -373,14 +406,24 @@ class MainWindow(QMainWindow):
 
     def error(self,message):
         self.status.setText('Ошибка: '+str(message));self.report_text.setPlainText(str(message));self.result_report.setPlainText(str(message))
+        self._set_notice_error(True)
         self.operation_notice.setText('Ошибка: '+str(message));self.operation_notice.setToolTip(str(message));self.operation_notice.show()
         self.validation_panel.set_error(str(message),self.validation_signature())
         self.tabs.setCurrentIndex(2)
     def _clear_notice(self):
         self.operation_notice.hide();self.operation_notice.clear();self.operation_notice.setToolTip('')
+        self._set_notice_error(False)
+
+    def _set_notice_error(self, is_error):
+        self.operation_notice.setProperty('isError', is_error)
+        self.operation_notice.style().unpolish(self.operation_notice)
+        self.operation_notice.style().polish(self.operation_notice)
 
     def _task(self,function,success,message):
         if self._busy:return
+        previous_focus = self.focusWidget()
+        self._task_focus = previous_focus if previous_focus and self.isAncestorOf(previous_focus) else None
+        self._clear_notice()
         self._task_success=success;self.set_busy(True);self.status.setText(message)
         self.operation_notice.setText(message);self.operation_notice.show()
         self.task_worker=TaskWorker(function,self)
@@ -397,6 +440,14 @@ class MainWindow(QMainWindow):
         self.task_worker.deleteLater();self.task_worker=None;self._task_success=None
         self.set_busy(False)
         if not self.status.text().startswith('Ошибка:'):self.operation_notice.hide()
+        previous_focus, self._task_focus = self._task_focus, None
+        if previous_focus and self.isActiveWindow():
+            if self.pages.currentIndex() == 2 and previous_focus is self.core_next and self.validation_panel.first.isVisible():
+                self.validation_panel.first.setFocus(Qt.FocusReason.OtherFocusReason)
+            elif previous_focus.isVisible() and previous_focus.isEnabled():
+                previous_focus.setFocus(Qt.FocusReason.OtherFocusReason)
+            else:
+                self._focus_core_action()
 
     def load_demo(self):
         def install_demo(prepared):
@@ -605,7 +656,23 @@ class MainWindow(QMainWindow):
 
     def core_next_step(self):
         from .core_workflow import next_step
+        previous = self.pages.currentIndex()
         next_step(self)
+        if not self._busy and self.pages.currentIndex() != previous:
+            self._focus_core_action()
+
+    def _core_previous_step(self):
+        page = self.pages.currentIndex()
+        if 0 < page < 4:
+            self.navigate(page - 1)
+            if self.pages.currentIndex() != page:
+                self._focus_core_action()
+
+    def _focus_core_action(self):
+        for button in (self.result_file_btn, self.generate_btn, self.core_next, self.select_first_table):
+            if button.isVisible() and button.isEnabled():
+                button.setFocus(Qt.FocusReason.OtherFocusReason)
+                return
 
     def validation_signature(self):
         try:
@@ -736,6 +803,7 @@ class MainWindow(QMainWindow):
     def _begin_generation(self,prepared):
         try:
             if not self.output_path.text().strip():raise DocFlowError('Выберите папку результата')
+            self._clear_notice()
             self.last_result=None
             if self.pages.currentIndex()==3:self.title.setText(self.PAGE_NAMES[3])
             for control in (self.folder_btn,self.result_open_btn,self.report_btn):control.setEnabled(False)
@@ -782,6 +850,8 @@ class MainWindow(QMainWindow):
         self.worker.prepared=None
         self.cancel_btn.hide();self.generate_btn.setVisible(self.pages.currentIndex()==3)
         self.set_busy(False)
+        if self.pages.currentIndex() == 3:
+            self._focus_core_action()
 
     def set_busy(self,busy):
         self._busy=busy
@@ -796,12 +866,18 @@ class MainWindow(QMainWindow):
         from .core_workflow import issue_summary
         self._clear_notice()
         self.last_result=result;self.folder_btn.setEnabled(True);self.result_open_btn.setEnabled(True);self.report_btn.setEnabled(True)
+        self.new_run_btn.setChecked(False)
         self.progress.setValue(100);self.progress_label.setText(f'Завершено: {result.total} / {result.total} записей')
         summary=f'Готово: {result.documents} DOCX · {result.accepted} записей обработано · {result.rejected} пропущено'
         self.status.setText(summary);self.result_summary.setText(summary)
         self.result_path.setText(result.directory.name);self.result_path.setToolTip(str(result.directory))
         self.result_files_model.setStringList(list(getattr(result,'files',())))
-        if self.result_files_model.rowCount():self.result_files.setCurrentIndex(self.result_files_model.index(0,0))
+        file_count = self.result_files_model.rowCount()
+        self.result_files.setVisible(bool(file_count))
+        if file_count:
+            self.result_files.setCurrentIndex(self.result_files_model.index(0,0))
+            rows_height = min(file_count, 8) * self.result_files.sizeHintForRow(0)
+            self.result_files.setMaximumHeight(max(100, rows_height + 8))
         message=(f'Всего записей: {result.total}\nСоздано DOCX: {result.documents}\nОбработано: {result.accepted}\nПропущено: {result.rejected}'
                  f'\n\n{issue_summary(result.issues,self.mapping()[0])}\n\nПолные отчёты: report.json и report.csv')
         self.report_text.setPlainText(message);self.result_report.setPlainText(message);self.tabs.setCurrentIndex(2);self.navigate(3,internal=True)

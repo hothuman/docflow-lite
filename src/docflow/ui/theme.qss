@@ -9,11 +9,14 @@ QLabel#section {font-size:15px;font-weight:600;}
 QLabel#muted,QLabel#version {color:@muted@;}
 QLabel#eyebrow {color:@muted@;font-family:"Consolas","DejaVu Sans Mono";font-size:12px;}
 QLabel#status {color:@muted@;padding:5px 0;}
+QLabel#operationNotice {color:@text@;background:@surface@;border-left:3px solid @info@;padding:5px 8px;}
+QLabel#operationNotice[isError="true"] {color:@error@;border-left-color:@error@;}
 QLabel#projectLocation {color:@muted@;font-size:13px;padding-bottom:4px;}
 QLabel#metric,QLabel#metricValue {font-size:25px;font-weight:650;color:@text@;}
 QLabel#ready {color:@success@;font-weight:600;}
 QLabel#error {color:@error@;}
 QFrame#card,QGroupBox {background:@surface@;border:1px solid @border@;border-radius:9px;}
+QFrame#coreStart,QFrame#coreResult {background:@surface@;border:1px solid @border@;border-top:2px solid @accent@;border-radius:6px;}
 QFrame#metricCard {background:@surface@;border:1px solid @border@;border-top:2px solid @border@;border-radius:7px;}
 QFrame#queueRow {background:@raised@;border:0;border-left:2px solid @warning@;border-radius:4px;}
 QFrame#routeBar {background:@rail@;border:1px solid @border@;border-radius:7px;}
@@ -37,6 +40,7 @@ QPushButton:pressed {background:@selection@;}
 QPushButton:disabled {background:@surface@;border-color:@border@;color:@disabled@;}
 QPushButton#primary {background:@accent@;border-color:@accent@;color:@accentText@;font-weight:600;padding:12px;}
 QPushButton#primary:hover {background:@accentHover@;border-color:@accentHover@;}
+QPushButton#primary:focus {border:2px solid @accentText@;padding:11px;}
 QPushButton#primary:pressed {background:#ABD679;}
 QPushButton#primary:disabled {background:@raised@;border-color:@border@;color:@disabled@;}
 QPushButton#nav {text-align:left;background:transparent;border:1px solid transparent;padding:9px 10px;color:@muted@;}
@@ -69,6 +73,11 @@ QTabBar::tab:selected {background:@surface@;color:@accent@;border-bottom:2px sol
 QTabBar::tab:focus {border:1px solid @focus@;}
 QTabBar#repairStageBar::tab {padding:7px 9px;}
 QScrollArea {background:transparent;border:0;}
+QScrollArea#corePageScroll {border:2px solid transparent;}
+QScrollArea#corePageScroll:focus {border-color:@focus@;}
+QTextBrowser#corePreviewPaper {background:#f2efe3;color:#202620;border:2px solid #d1cdbb;selection-background-color:#42584c;selection-color:#ffffff;padding:10px;}
+QTextBrowser#corePreviewPaper:focus {border-color:#56712b;}
+QListView#coreResultFiles::item {padding:3px 5px;}
 QScrollBar:vertical {background:@rail@;width:9px;margin:0;}
 QScrollBar::handle:vertical {background:#63827A;border-radius:4px;min-height:26px;}
 QScrollBar:horizontal {background:@rail@;height:9px;margin:0;}

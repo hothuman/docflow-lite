@@ -208,8 +208,15 @@ def save_source_column(w, section, _old_width, width):
 
 def build_create(w):
     page,layout=w.page()
-    w.empty_card,empty=card('Первый комплект документов','Выберите таблицу Excel или CSV. Затем добавьте Word-шаблон — программа подставит значения из каждой строки.')
-    empty.addWidget(text('Можно начать с вымышленного примера: в нём уже есть таблица и два шаблона.','muted'));empty.addWidget(w.demo_btn);layout.addWidget(w.empty_card)
+    w.empty_card,empty=card('Начните с таблицы', 'Каждая строка Excel или CSV станет комплектом Word-документов.')
+    w.empty_card.setObjectName('coreStart')
+    empty.addWidget(text('Для знакомства откройте демопример с учебной таблицей и двумя шаблонами.', 'muted'))
+    w.select_first_table = w.button('Выбрать таблицу', w.select_data, 'folder', primary=True)
+    actions = ActionBar()
+    actions.addWidget(w.select_first_table)
+    actions.addWidget(w.demo_btn)
+    empty.addWidget(actions)
+    layout.addWidget(w.empty_card)
     w.source_card,source=card('1. Таблица с данными','Одна строка — один комплект документов. Исходная таблица остаётся без изменений.');layout.addWidget(w.source_card)
     w.data_path=QLineEdit();w.data_path.setReadOnly(True);w.data_path.setAccessibleName('Выбранная таблица');source.addWidget(w.data_path)
     w.load_btn=w.button('Выбрать другую таблицу',w.select_data,'folder');source.addWidget(w.load_btn)
@@ -221,7 +228,7 @@ def build_create(w):
     w.source_table.horizontalHeader().sectionResized.connect(lambda *args: save_source_column(w, *args))
     preview=QWidget();pv=QVBoxLayout(preview);w.row_selector=QComboBox();w.record_model=RecordModel(w);w.row_selector.setModel(w.record_model);w.row_selector.setAccessibleName('Запись для предпросмотра');w.template_selector=QComboBox();w.template_selector.setAccessibleName('Шаблон для предпросмотра')
     for selector in (w.row_selector,w.template_selector):selector.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon);selector.setMinimumContentsLength(12);pv.addWidget(selector)
-    w.row_selector.currentIndexChanged.connect(w.update_preview);w.template_selector.currentIndexChanged.connect(w.update_preview);pv.addWidget(text('Текст документа. Оформление проверьте в Word или другом редакторе.','muted'));w.preview_text=QTextBrowser();w.preview_text.setOpenExternalLinks(False);w.preview_text.setAccessibleName('Текстовый предпросмотр документа');pv.addWidget(w.preview_text);w.tabs.addTab(preview,'Пример документа');w.report_text=QTextBrowser();w.report_text.setOpenExternalLinks(False);w.tabs.addTab(w.report_text,'Подробности проверки');layout.addStretch()
+    w.row_selector.currentIndexChanged.connect(w.update_preview);w.template_selector.currentIndexChanged.connect(w.update_preview);pv.addWidget(text('Текст документа. Оформление проверьте в Word или другом редакторе.','muted'));w.preview_text=QTextBrowser();w.preview_text.setObjectName('corePreviewPaper');w.preview_text.setOpenExternalLinks(False);w.preview_text.setAccessibleName('Текстовый предпросмотр документа');pv.addWidget(w.preview_text);w.tabs.addTab(preview,'Пример документа');w.report_text=QTextBrowser();w.report_text.setAccessibleName('Подробности проверки строк');w.report_text.setOpenExternalLinks(False);w.tabs.addTab(w.report_text,'Подробности проверки');layout.addStretch()
     w.template_summary=text('Шаблон ещё не выбран','muted')
     w.options_card,options=card('4. Создание документов','Проверьте папку сохранения. Каждый запуск создаёт новый пакет.');w.options_layout=options
     w.name_selector=QComboBox();w.name_selector.setAccessibleName('Столбец для названий папок')
@@ -237,14 +244,17 @@ def build_create(w):
     w.ready_card=QFrame();w.readiness=text('','muted');w.ready_details=text('','muted');w.ready_details.hide()
 
 def build_result(w):
-    page,layout=w.page();layout.addWidget(w.options_card)
-    w.result_card,body=card('Результаты','Каждый запуск создаёт свой комплект. Выберите документ, чтобы открыть его.')
+    page,layout=w.page()
+    w.result_card,body=card('Комплект документов')
+    w.result_card.setObjectName('coreResult')
     layout.addWidget(w.result_card)
     w.result_summary=text('Документы ещё не созданы','section');body.addWidget(w.result_summary)
     w.result_path=text('','muted')
-    w.result_path.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+    w.result_path.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
+    w.result_path.setAccessibleName('Папка созданного комплекта')
     body.addWidget(w.result_path)
     w.result_files=QListView()
+    w.result_files.setObjectName('coreResultFiles')
     w.result_files.setAccessibleName('Созданные документы Word')
     w.result_files.setMinimumHeight(100)
     w.result_files.setUniformItemSizes(True)
@@ -254,19 +264,51 @@ def build_result(w):
     w.result_files.setModel(w.result_files_model)
     body.addWidget(w.result_files)
     actions=ActionBar();body.addWidget(actions)
-    w.result_file_btn=w.button('Открыть документ',w.open_result_file,'document')
-    w.result_file_btn.setEnabled(False);actions.addWidget(w.result_file_btn)
+    w.result_file_btn=w.button('Открыть документ',lambda:open_primary_result(w),'document',primary=True)
+    w.result_file_btn.setEnabled(False)
     w.result_open_btn=w.button('Показать в папке',w.open_result,'folder')
     w.result_open_btn.setEnabled(False);actions.addWidget(w.result_open_btn)
     w.report_btn=w.button('Отчёт о строках',w.open_report)
     w.report_btn.setEnabled(False);actions.addWidget(w.report_btn)
+    w.new_run_btn = w.button('Настройки нового запуска', lambda checked: toggle_new_run(w, checked))
+    w.new_run_btn.setCheckable(True)
+    actions.addWidget(w.new_run_btn)
     w.result_files.selectionModel().currentChanged.connect(
-        lambda current,_:w.result_file_btn.setEnabled(current.isValid() and bool(w.last_result)))
+        lambda current, _: sync_result_actions(w))
     w.result_files.activated.connect(lambda _:w.open_result_file())
     w.result_report=QTextBrowser();w.result_report.setMinimumHeight(100)
     w.result_report.setAccessibleName('Обработанные и пропущенные строки')
     w.result_report.setOpenExternalLinks(False);body.addWidget(w.result_report)
+    layout.addWidget(w.options_card)
     layout.addStretch()
+
+
+def toggle_new_run(w, expanded):
+    w.update_readiness()
+    if expanded:
+        w.output_path.setFocus(Qt.FocusReason.OtherFocusReason)
+
+
+def sync_result_actions(w):
+    has_file = w.result_files.currentIndex().isValid()
+    available = bool(w.last_result) and not w._busy
+    label = 'Открыть документ' if has_file else 'Открыть отчёт'
+    hint = 'Открыть выбранный DOCX' if has_file else 'Посмотреть обработанные и пропущенные строки'
+    w.result_file_btn.setText(label)
+    w.result_file_btn.setAccessibleName(label)
+    w.result_file_btn.setToolTip(hint)
+    w.result_file_btn.setAccessibleDescription(hint)
+    w.result_file_btn.setEnabled(available)
+    w.result_file_btn.setVisible(w.pages.currentIndex() == 3 and available)
+
+
+def open_primary_result(w):
+    if not w.result_file_btn.isEnabled():
+        return
+    if w.result_files.currentIndex().isValid():
+        w.open_result_file()
+    else:
+        w.open_report()
 
 
 def update_folder_preview(w):
@@ -282,9 +324,40 @@ def readiness(w,valid,message):
     w.template_list.setVisible(bool(w.templates));w.mapping_table.setVisible(loaded and bool(w.active_templates()))
     checked=w._full_check is not None and w._full_check[0]==w.validation_signature()
     states=[loaded,bool(w.active_templates()),checked,bool(w.last_result)]
-    for i,(b,complete) in enumerate(zip(w.route_buttons,states)):
-        b.setProperty('complete',complete);b.setChecked(w.pages.currentIndex()==i);b.setEnabled(not w._busy);b.style().unpolish(b);b.style().polish(b);b.setToolTip('Готово' if complete else 'Ещё не завершено')
-    page=w.pages.currentIndex();w.core_next.setVisible(page<3 or page==3 and not valid);w.generate_btn.setVisible(page==3 and valid and w.cancel_btn.isHidden())
+    page = w.pages.currentIndex()
+    steps = ('1  Таблица', '2  Шаблоны', '3  Проверка', '4  Результат' if w.last_result else '4  Создание')
+    for i, (button, complete) in enumerate(zip(w.route_buttons, states)):
+        button.setProperty('complete', complete)
+        button.setChecked(page == i)
+        button.setEnabled(not w._busy)
+        button.setText(steps[i])
+        button.setAccessibleName(steps[i])
+        status = 'Шаг завершён' if complete else 'Шаг не завершён'
+        if page == i:
+            status = 'Текущий шаг. ' + status
+        button.setToolTip(status)
+        button.setAccessibleDescription(status)
+        button.style().unpolish(button)
+        button.style().polish(button)
+    show_options = not w.last_result or w.new_run_btn.isChecked()
+    w.options_card.setVisible(show_options)
+    w.new_run_btn.setEnabled(not w._busy)
+    w.new_run_btn.setText('Свернуть настройки запуска' if w.new_run_btn.isChecked() else 'Настройки нового запуска')
+    w.new_run_btn.setAccessibleName(w.new_run_btn.text())
+    w.select_first_table.setEnabled(not w._busy)
+    w.core_back.setVisible(0 < page < 4 and not w._busy)
+    w.core_next.setVisible(page in (1, 2) or page == 0 and loaded or page == 3 and not valid and show_options)
+    w.generate_btn.setVisible(page == 3 and valid and show_options and w.cancel_btn.isHidden())
+    generate_label = 'Создать новый комплект' if w.last_result else 'Создать документы'
+    w.generate_btn.setText(generate_label)
+    w.generate_btn.setAccessibleName(generate_label)
+    generate_style = '' if w.last_result else 'primary'
+    if w.generate_btn.objectName() != generate_style:
+        w.generate_btn.setObjectName(generate_style)
+        w.generate_btn.style().unpolish(w.generate_btn)
+        w.generate_btn.style().polish(w.generate_btn)
+    sync_result_actions(w)
+    w.status.setVisible(w.height() >= 500 and page < 4 and (page != 3 or not w.last_result))
     title=('Выбрать таблицу' if not loaded else 'К шаблонам →','Добавить шаблон Word' if not w.active_templates() else 'К проверке полей →','Проверить все строки' if not checked else 'К созданию документов →')[min(page,2)]
     if not loaded:title='Выбрать таблицу'
     elif not w.active_templates():title='Добавить шаблон Word'
@@ -300,7 +373,9 @@ def readiness(w,valid,message):
     w.core_next.setText(title);w.core_next.setAccessibleName(title)
     w.core_next.setToolTip(hint);w.core_next.setAccessibleDescription(hint)
     w.core_next.setEnabled(not w._busy and (page!=2 or valid or not loaded or not w.active_templates()));w.generate_btn.setEnabled(valid and not w._busy)
-    state=('Таблица не выбрана' if not loaded else f'Таблица: {len(w.table.records)} строк')+' · '+('Шаблон не выбран' if not w.active_templates() else f'Шаблонов: {len(w.active_templates())}')
+    state=('Таблица не выбрана' if not loaded else f'Строк: {len(w.table.records)}')+' · '+('Шаблоны не выбраны' if not w.active_templates() else f'Шаблонов: {len(w.active_templates())}')
+    if page < 4:
+        state = f'Шаг {page + 1} из 4 · ' + state
     w.core_state.setText(state)
     update_folder_preview(w)
     feedback=(f'Все {w._full_check[2]} строк проверены. С ошибками: {w._full_check[1]}.' if checked else 'Поля связаны. Все строки ещё не проверены.' if valid else message)
