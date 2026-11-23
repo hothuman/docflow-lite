@@ -66,6 +66,9 @@ def test_completed_run_opens_selected_document_and_new_run_is_explicit(tmp_path,
         assert not window.result_file_btn.isVisible()
         assert window.options_card.isVisible() and window.generate_btn.isEnabled()
         assert window.operation_notice.property('isError') is True
+        assert 'Выберите другую папку результатов' in window.operation_notice.text()
+        assert 'WinError' not in window.operation_notice.text()
+        assert window.output_path.hasFocus()
         assert all(path.read_bytes() == content for path, content in previous_files.items())
         assert blocked.read_text(encoding='utf-8') == 'untouched'
     finally:

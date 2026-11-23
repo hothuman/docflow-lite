@@ -71,7 +71,18 @@ class GenerationWorker(QThread):
             self.validated.emit(issues)
             self.completed.emit(generate(self.prepared,self.output,progress,cancelled=self.isInterruptionRequested))
         except GenerationCancelled:self.cancelled.emit()
-        except (DocFlowError,OSError) as exc:record_exception('Core operation',exc);self.failed.emit(friendly_error(exc))
+        except (DocFlowError, OSError) as exc:
+            record_exception('Core operation', exc)
+            cause = exc.__cause__ if isinstance(exc, DocFlowError) else exc
+            if isinstance(cause, (FileExistsError, NotADirectoryError)):
+                message = 'Не удалось создать папку для комплекта. Выберите другую папку результатов.'
+            elif isinstance(cause, PermissionError):
+                message = 'Нет доступа к папке результатов. Проверьте права или выберите другую папку.'
+            elif isinstance(cause, OSError):
+                message = 'Не удалось сохранить комплект. Проверьте папку результатов и свободное место.'
+            else:
+                message = friendly_error(exc)
+            self.failed.emit(message)
         except Exception as exc:record_exception('Core generation',exc);self.failed.emit(friendly_error(exc))
 
 
@@ -852,7 +863,10 @@ class MainWindow(QMainWindow):
         self.cancel_btn.hide();self.generate_btn.setVisible(self.pages.currentIndex()==3)
         self.set_busy(False)
         if self.pages.currentIndex() == 3:
-            self._focus_core_action()
+            if self.operation_notice.property('isError') and self.output_path.isVisible():
+                self.output_path.setFocus(Qt.FocusReason.OtherFocusReason)
+            else:
+                self._focus_core_action()
 
     def set_busy(self,busy):
         self._busy=busy
