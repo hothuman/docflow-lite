@@ -3,9 +3,10 @@ from pathlib import Path
 from time import monotonic
 
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QLineEdit, QMessageBox, QVBoxLayout, QWidget
+from shiboken6 import isValid
 
 from docflow.gui import MainWindow
 from docflow.service.demo import seed_demo
@@ -169,3 +170,26 @@ def test_import_displays_only_source_specific_controls_without_writing(desk, tmp
     wizard.path.setText(str(tmp_path / 'journal.xlsx'))
     assert wizard.sheet.isVisible() and not wizard.encoding.isVisible()
     assert ui.store.snapshot(keys['repair']) == before
+
+
+def test_return_after_a_dynamic_form_replaces_its_focused_field(desk):
+    window, ui, _, _ = desk
+    parent = QWidget()
+    layout = QVBoxLayout(parent)
+    old_field = QLineEdit(parent)
+    layout.addWidget(old_field)
+    ui.push_page(parent, 'Исходная форма')
+    window.activateWindow()
+    QTest.qWait(30)
+    old_field.setFocus()
+    assert old_field.hasFocus()
+    nested = QWidget()
+    closed = []
+    ui.push_page(nested, 'Вложенная форма', on_close=lambda: closed.append(True))
+    old_field.deleteLater()
+    QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert not isValid(old_field)
+    ui.pages.pop()
+    QApplication.processEvents()
+    assert ui.current_page is parent and ui.pages.back_button.hasFocus()
+    assert closed == [True]
