@@ -396,7 +396,6 @@ class MainWindow(QMainWindow):
         if self.service_workspace:
             self.service_workspace.set_compact_layout(short_content, settings=short_settings)
             detail=self.service_workspace.current_page is not None
-            self.service_workspace.location.setVisible(not detail)
             self.service_workspace.section_picker.setVisible(service and compact and not detail)
             if detail:self.subtitle.hide()
         self.account_caption.setVisible(service and self.height()>=600)

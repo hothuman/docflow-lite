@@ -170,7 +170,7 @@ class ServiceWorkspace(QWidget):
 
     def _page_changed(self):
         self.tabs.setVisible(self.current_page is None)
-        self.location.setVisible(self.current_page is None)
+        self._sync_project_header()
         self.section_picker.setVisible(not self.shell_navigation and self.width()<920 and self.current_page is None)
         self.page_changed.emit()
 
@@ -212,13 +212,15 @@ class ServiceWorkspace(QWidget):
         self.message.set_compact(compact)
         if self._compact_settings != settings:
             self._compact_settings = settings
-            self._sync_project_actions()
+            self._sync_project_header()
 
-    def _sync_project_actions(self):
+    def _sync_project_header(self):
         needs_action = self.project_state in ('cancelled', 'error', 'locked', 'upgrade_available')
         # Settings already provides open, create and restore when no project is open.
         project_missing = self.store is None and not self._compact_settings
         self.project_actions.setVisible(needs_action or project_missing)
+        location_redundant = self._compact_settings and self.project_state == 'not_open'
+        self.location.setVisible(self.current_page is None and not location_redundant)
         idle = not self._project_busy and not self.worker
         self.retry_project_button.setVisible(needs_action and self._project_attempt is not None)
         self.retry_project_button.setEnabled(idle)
@@ -233,7 +235,7 @@ class ServiceWorkspace(QWidget):
         for control in (*self.searches.values(),*self.views.values(),self.status_filter,self.archived,self.clients_archived,self.active_only):control.setEnabled(ready)
         for control in (self.open_project_button,self.new_project_button,self.restore_project_button):control.setEnabled(available)
         self.journal.project_state(self.store is not None,ready)
-        self._sync_project_actions()
+        self._sync_project_header()
         if self.store is None:
             for key in self.views:self.update_list_state(key)
             self.dashboard.empty.setText('Проект не открыт. Откройте локальную папку, создайте отдельный проект или восстановите копию.')
