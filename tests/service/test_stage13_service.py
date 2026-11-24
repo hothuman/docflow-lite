@@ -1,6 +1,6 @@
 """Acceptance routes for the redesigned workshop using isolated synthetic projects."""
 from pathlib import Path
-from time import monotonic
+from time import monotonic, sleep
 
 import pytest
 from PySide6.QtCore import QEvent, Qt
@@ -20,7 +20,8 @@ def settle(ui):
     until = monotonic() + 35
     while ui.worker or ui._pending_refresh:
         assert monotonic() < until, ui.message.text()
-        QTest.qWait(10)
+        QApplication.processEvents()
+        sleep(0.005)
     QApplication.processEvents()
 
 
