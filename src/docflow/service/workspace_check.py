@@ -175,7 +175,11 @@ def exercise(app, output, *, stage10=True):
         invalid.save_button.click()
         idle()
         assert inside(FieldsDialog) is invalid and invalid.error.isVisible()
-        form({'amount':str(paid),'comment':'Учебный частичный расчёт'})
+        invalid.fields['amount'].setText(str(paid))
+        invalid.fields['comment'].setPlainText('Учебный частичный расчёт')
+        confirm_action(invalid.save_button.click,False,'Учесть оплату','внутренний расчёт')
+        assert inside(FieldsDialog) is invalid and not page.snapshot['payments']
+        confirm_action(invalid.save_button.click,True,'Учесть оплату','внутренний расчёт')
         totals = page.snapshot['totals']
         assert tuple(totals[k] for k in ('total','paid','balance'))==(total*100,paid*100,85000)
         assert 'Долг' in page.finance_values['balance'].text()

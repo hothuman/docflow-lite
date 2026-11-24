@@ -12,24 +12,11 @@ from PySide6.QtWidgets import (
     QProgressBar, QStyle, QStyleOptionComboBox, QStylePainter, QTabWidget,
     QTextBrowser, QVBoxLayout, QWidget,
 )
-from .widgets import DataModel, DataView, RecordModel, text
+from .widgets import DataModel, DataView, RecordModel, labeled_input, paper, section, text
 from .flow import ActionBar
 from .settings import load_widths, save_widths
 from .theme import COLORS
 from ..safety import safe_name
-
-
-def section(title='', description='', *, role='coreSection'):
-    panel = QFrame()
-    panel.setObjectName(role)
-    body = QVBoxLayout(panel)
-    body.setContentsMargins(12, 10, 12, 10)
-    body.setSpacing(8)
-    if title:
-        body.addWidget(text(title, 'coreSectionTitle'))
-    if description:
-        body.addWidget(text(description, 'muted'))
-    return panel, body
 
 
 class CoreCounts(QWidget):
@@ -428,14 +415,6 @@ def build_create(w):
     w.ready_details.hide()
 
 
-def labeled_input(layout, label, widget, *, accessible_name=None):
-    caption = text(label, 'coreControlLabel')
-    caption.setBuddy(widget)
-    widget.setAccessibleName(accessible_name or label)
-    layout.addWidget(caption)
-    layout.addWidget(widget)
-
-
 def toggle_source_settings(w, expanded):
     w.source_settings_btn.setChecked(expanded)
     w.source_settings.setVisible(expanded)
@@ -451,16 +430,6 @@ def add_preview_selectors(layout, row, template):
         selector.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         selector.setMinimumContentsLength(12)
         labeled_input(layout, caption, selector)
-
-
-def paper(name):
-    view = QTextBrowser()
-    view.setObjectName('corePreviewPaper')
-    view.setOpenExternalLinks(False)
-    view.setAccessibleName(name)
-    view.setAccessibleDescription('Текстовый пример. Оформление готового DOCX проверяйте в Word.')
-    view.document().setDocumentMargin(18)
-    return view
 
 
 def build_result(w):

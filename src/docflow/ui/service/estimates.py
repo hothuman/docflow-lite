@@ -2,13 +2,13 @@
 from uuid import uuid4
 from PySide6.QtCore import Qt,QTimer
 from PySide6.QtWidgets import (QDialog,QVBoxLayout,QLabel,QLineEdit,QPlainTextEdit,QWidget,
-                               QFileDialog,QMessageBox,QScrollArea,QTabBar,QFrame)
+                               QFileDialog,QMessageBox,QScrollArea,QTabBar)
 from ...service.estimates import save_draft,freeze_estimate,record_event,export_specification,normalize_lines
 from ...service.finance import ITEM_KINDS, calculate
 from ...service.validation import money,rub,ServiceError
 from .forms import FieldsDialog,fit_dialog
 from ..flow import FlowLayout
-from ..widgets import text
+from ..widgets import section, text
 from .presentation import STATES,KINDS_DISPLAY,date_text
 from .widgets import Grid,button
 
@@ -218,7 +218,7 @@ class EstimatesPanel(QWidget):
         note=QLabel('CSV — спецификация для ручного переноса, не интеграция с 1С. Кнопки не отправляют сообщения клиенту и не подтверждают банковскую оплату.');note.setWordWrap(True);layout.addWidget(note)
     def build_workspace(self,layout):
         layout.setContentsMargins(0,0,0,0)
-        overview=QFrame();overview.setObjectName('card');overview_layout=QVBoxLayout(overview)
+        overview,overview_layout=section(role='coreSubsection')
         overview_layout.setContentsMargins(12,6,12,6);overview_layout.setSpacing(3)
         self.summary=text('','section');overview_layout.addWidget(self.summary)
         overview_layout.addWidget(text('Предварительно — план. Остаток рассчитан по фактическим расходам и оплатам.','muted'))
@@ -236,6 +236,7 @@ class EstimatesPanel(QWidget):
         self.grid=Grid([('kind','Смета'),('version','№'),('created_at','Дата'),('prepared_by','Автор'),('state_label','Состояние'),('total','Итог')],
                        settings_key='repair/quote-versions')
         self.grid.setAccessibleName('Сохранённые версии сметы');versions.addWidget(self.grid)
+        self.grid.setObjectName('serviceLedger');self.grid.setShowGrid(False)
         versions.addWidget(self.version_hint)
         self.grid.selectionModel().currentRowChanged.connect(self.show_content)
         version_actions=FlowLayout();versions.addLayout(version_actions)
@@ -249,6 +250,7 @@ class EstimatesPanel(QWidget):
         self.caption=text('','section');layout.addWidget(self.caption)
         self.lines=Grid(LINE_COLUMNS,settings_key='repair/quote-content')
         self.lines.setAccessibleName('Состав сметы');layout.addWidget(self.lines)
+        self.lines.setObjectName('serviceLedger');self.lines.setShowGrid(False)
         self.empty=text('','empty');layout.addWidget(self.empty)
         self.line_detail=text('','muted');layout.addWidget(self.line_detail)
         self.lines.selectionModel().currentRowChanged.connect(self.show_line)

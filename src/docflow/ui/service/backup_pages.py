@@ -12,7 +12,7 @@ from ...service.validation import ServiceError
 from ..flow import ActionBar
 from ..settings import preferences
 from ..theme import COLORS
-from ..widgets import card, text
+from ..widgets import labeled_input, section, text
 from .widgets import button, confirm
 
 
@@ -29,7 +29,7 @@ class BackupPage(QWidget):
         body = QWidget()
         self.scroll.setWidget(body)
         self.content = QVBoxLayout(body)
-        self.panel, self.controls = card(heading, description)
+        self.panel, self.controls = section(heading, description, role='serviceContext')
         self.add_panel(self.panel)
         self.error = text('', 'error')
         self.error.setStyleSheet(f'border: 1px solid {COLORS["error"]}; border-radius: 5px; padding: 6px;')
@@ -62,10 +62,8 @@ class CreateBackupPage(BackupPage):
         actions = ActionBar()
         self.controls.addWidget(actions)
         button(actions, 'Выбрать папку назначения', self.choose_folder)
-        self.controls.addWidget(text('Имя ZIP', 'section'))
         self.filename = QLineEdit(f'DocFlow-{datetime.now():%Y%m%d-%H%M%S}.service-backup.zip')
-        self.filename.setAccessibleName('Имя резервного ZIP')
-        self.controls.addWidget(self.filename)
+        labeled_input(self.controls, 'Имя ZIP', self.filename, accessible_name='Имя резервного ZIP')
         self.target_label = text('', 'muted')
         self.controls.addWidget(self.target_label)
         self.filename.textChanged.connect(self.update_target)
@@ -73,7 +71,7 @@ class CreateBackupPage(BackupPage):
         actions = ActionBar()
         self.controls.addWidget(actions)
         self.create_button = button(actions, 'Создать ZIP', self.create, primary=True)
-        result, actions = card('Резервная копия создана')
+        result, actions = section('Резервная копия создана', role='serviceContext')
         self.result = result
         self.result_name = text('', 'section')
         actions.addWidget(self.result_name)
@@ -158,7 +156,7 @@ class RestoreBackupPage(BackupPage):
         button(bar, 'Выбрать ZIP-файл', self.choose_archive)
         self.check_button = button(bar, 'Проверить целостность', self.check, primary=True)
         self.check_button.setEnabled(False)
-        verified, steps = card('2. Выбрать место восстановления')
+        verified, steps = section('2. Выбрать место восстановления', role='serviceContext')
         self.verified = verified
         self.verification = text('', 'muted')
         self.verification.setAccessibleName('Результат проверки архива')

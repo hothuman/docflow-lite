@@ -26,7 +26,7 @@ from .diagnostics import record_exception,friendly_error
 from .theme import COLORS
 from .flow import FlowLayout
 from .core_workflow import ColumnChoice
-from .widgets import card, icon, text
+from .widgets import card, icon, section, text
 from .mode_switch import ModeSwitch
 from .settings import preferences
 
@@ -203,7 +203,6 @@ class MainWindow(QMainWindow):
         build_create(self)
 
     def _build_templates(self):
-        from .core_workflow import section
         _, layout = self.page()
         self.template_columns = QBoxLayout(QBoxLayout.Direction.LeftToRight)
         self.template_columns.setSpacing(12)
@@ -261,7 +260,7 @@ class MainWindow(QMainWindow):
 
     def _build_mapping(self):
         from .configuration import propose, restore
-        from .core_workflow import ValidationPanel, add_preview_selectors, paper, section
+        from .core_workflow import ValidationPanel, add_preview_selectors, paper
         _, layout = self.page()
         self.validation_panel = ValidationPanel(self)
         layout.addWidget(self.validation_panel)
@@ -394,7 +393,7 @@ class MainWindow(QMainWindow):
             self.pages.currentWidget().setAccessibleName(self.title.text())
         if index<4:self._last_core_page=index
         self.mode_picker.blockSignals(True);self.mode_picker.setCurrentIndex(1 if index==5 else 0);self.mode_picker.blockSignals(False)
-        self.nav_caption.setText('МАСТЕРСКАЯ' if index==5 else 'ДОКУМЕНТЫ')
+        self.nav_caption.setText('РАБОЧИЕ РАЗДЕЛЫ' if index==5 else 'ДОКУМЕНТЫ')
         self.breadcrumb.setText('МАСТЕРСКАЯ' if index==5 else 'ДОКУМЕНТЫ')
         for i,b in enumerate(self.nav_buttons):b.setVisible(index!=5 and i in (0,4))
         for b in self.service_nav:b.setVisible(index==5)
@@ -440,7 +439,8 @@ class MainWindow(QMainWindow):
         if self.pages.currentIndex()==5:
             titles=self.service_workspace.pages.titles
             section=('Обзор мастерской','Оборудование','Журнал ремонтов','Клиенты','Финансы','Документы','Сметы','Настройки мастерской')[index]
-            self.title.setText(titles[-1] if titles else section)
+            project_start = index == 0 and self.service_workspace.store is None and not titles
+            self.title.setText(titles[-1] if titles else 'Откройте проект мастерской' if project_start else section)
             self.subtitle.setText('' if titles else self._service_subtitle(index))
             self._responsive()
             self.remember_location()
@@ -473,7 +473,7 @@ class MainWindow(QMainWindow):
             self.service_workspace.set_compact_layout(short_journal or short_detail or short_settings, settings=short_settings)
             detail=self.service_workspace.current_page is not None
             self.service_workspace.section_picker.setVisible(service and compact and not detail)
-            if detail:self.subtitle.hide()
+            if service:self.subtitle.hide()
         self.account_caption.setVisible(service and self.height()>=600)
         self.nav_caption.setVisible(service and self.height()>=600)
         self.core_route.setVisible(self.pages.currentIndex() < 4 and not core_start)

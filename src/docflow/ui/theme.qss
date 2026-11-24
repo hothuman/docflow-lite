@@ -19,6 +19,14 @@ QFrame#card,QGroupBox {background:@surface@;border:1px solid @border@;border-rad
 QFrame#coreStart {background:@surface@;border:0;border-left:3px solid @accent@;border-radius:4px;}
 QFrame#coreSection,QFrame#coreResult {background:transparent;border:0;}
 QFrame#coreSubsection,QFrame#corePreviewWell {background:@surface@;border:0;border-radius:5px;}
+QFrame#serviceContext {background:@surface@;border:0;border-left:2px solid @border@;border-radius:4px;}
+QFrame#serviceRepairHint {background:transparent;border:0;}
+QLabel#serviceSelected {background:@surface@;color:@text@;padding:6px 9px;border-left:2px solid @accent@;}
+QTableView#serviceLedger {border:1px solid transparent;}
+QTableView#serviceLedger:focus {border:1px solid @focus@;}
+QTableView#serviceLedger::item:hover:!selected {background:@raised@;}
+QTableView#serviceLedger::item:selected {background:@journalSelection@;color:@text@;}
+QTableView#serviceLedger::item:selected:focus {border:1px solid @focus@;}
 QFrame#coreJourney {background:transparent;border-bottom:1px solid @border@;}
 QLabel#coreHeroTitle {font-size:33px;font-weight:700;color:@text@;}
 QLabel#coreLead {font-size:15px;color:@text@;}
@@ -135,11 +143,12 @@ QRadioButton::indicator:checked {background:@accent@;border:1px solid @raised@;}
 QLabel#intakeSummary {background:@surface@;padding:10px;border-left:2px solid @accent@;}
 
 /* Scoped Stage 9 shell controls. Existing editors keep the shared widget theme. */
-QLabel#projectLocation {font-size:14px;padding:3px 6px;border-left:2px solid @border@;}
+QLabel#projectLocation {font-size:14px;font-weight:600;padding:2px 8px;border-left:2px solid @border@;}
+QPushButton#serviceProjectMenu {padding:3px 9px;min-height:21px;}
 QPushButton#compactSettings {padding:4px 10px;min-height:20px;color:@muted@;}
 QPushButton#compactSettings:focus {color:@text@;border-color:@focus@;}
 
-QFrame#journalInspectorCard {background:@surface@;border:1px solid @border@;border-top:2px solid @accent@;border-radius:8px;}
+QFrame#journalInspectorCard {background:@surface@;border:0;border-left:2px solid @accent@;border-radius:4px;}
 QLabel#journalSelectionTitle {font-size:19px;font-weight:650;}
 QLabel#journalCount {color:@muted@;}
 QLabel#journalDetail[debt="true"] {color:@error@;font-weight:600;}
@@ -149,4 +158,4 @@ QTableView#repairJournal::item:hover:!selected {background:@raised@;}
 QTableView#repairJournal::item:selected {background:@journalSelection@;color:@text@;}
 QTableView#repairJournal::item:selected:focus {border:1px solid @focus@;}
 QLabel#journalSelectedSummary {background:@raised@;color:@text@;padding:4px 8px;border-left:2px solid @accent@;}
-QFrame#journalMoney {background:@raised@;border:1px solid @border@;border-radius:6px;}
+QFrame#journalMoney {background:@raised@;border:0;border-radius:4px;}

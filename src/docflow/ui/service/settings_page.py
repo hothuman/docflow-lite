@@ -5,7 +5,7 @@ from PySide6.QtWidgets import QCheckBox, QComboBox, QScrollArea, QStackedWidget,
 
 from ..flow import ActionBar
 from ..settings import RESUME_PROJECT_KEY, preferences
-from ..widgets import card, text
+from ..widgets import section, text
 from .widgets import button
 
 
@@ -58,15 +58,15 @@ class SettingsPage(QWidget):
             scroll.setAccessibleName(f'Настройки: {title}')
             page=QWidget()
             page_layout=QVBoxLayout(page)
-            panel,body=card(title,'' if title=='Проекты' else description)
+            panel,body=section(role='serviceContext')
             bar=ActionBar()
             body.addWidget(bar)
             for label,callback in actions:
                 control=button(bar,label,callback)
                 if callback in available_without_project:
                     workspace._safe_project_buttons.append(control)
+            body.addWidget(text(description,'muted'))
             if title=='Проекты':
-                body.addWidget(text(description,'muted'))
                 self.project_path=text('','muted')
                 self.project_path.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse |
                                                           Qt.TextInteractionFlag.TextSelectableByKeyboard)
