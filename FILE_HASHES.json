@@ -420,7 +420,7 @@
   "tests/service/test_history_import.py": "14955780993c9c911ffc1fd7e4121ef4ca75c9c7bead21a1a0678432e0440ad5",
   "tests/service/test_legacy_review.py": "a7505c876abaf478372e66afd19032a9d5dbf8c083f1eea934c367e520e6a010",
   "tests/service/test_post_stage8_review.py": "64de8b050b8009f588c8f52ce09130e8fe2bd76f0fee8cfa89ff09c080f862cf",
-  "tests/service/test_project_loading.py": "716e072f17e465ca0d9de94d7cc5a8a94a17f458978d08fd0c25733d7c54720c",
+  "tests/service/test_project_loading.py": "7663504ee924024490a1268dc6bd36e1b93e0d6b7c1e5f8d11d04bae80d803f6",
   "tests/service/test_rc17_estimates_workspace.py": "56a4a31f137db8b6c9b0467c026ff2f9823f114f43043dfd307183877f4d0ce0",
   "tests/service/test_rc17_import_backup.py": "43860393931ec1abf47b8129261ce4c6ae8fea9d16c472a4edebc94303449c6d",
   "tests/service/test_rc17_service_documents.py": "4874f68ad20c5e35a13c54ef46dfe008d1617003cb738f8469ef3a3289c42f3e",
