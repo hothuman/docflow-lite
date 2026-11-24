@@ -1,6 +1,6 @@
 # Выпуск DocFlow
 
-Публичная версия: неизменяемая стабильная 1.0.0, release commit ea2ed3ad5a515ee32dce611f5bdef177141b5eb8. PR8 объединён; выпуск и сайт прямо разрешены владельцем. [Протокол](release/V1_PUBLISHED.md). [Трекер](release/V1_STABLE_TRACKER.md), [матрица](release/V1_QA_MATRIX.md), [зависимости](release/V1_DEPENDENCY_REVIEW.md). Старый [процесс a6](release/HISTORICAL_A6_RELEASE_PROCESS.md) сохранён как история.
+Публичная версия — неизменяемый [стабильный выпуск 1.0.1](https://github.com/hothuman/docflow-lite/releases/tag/v1.0.1) из коммита `e1b1df1c1f38fd9be04e608886fda7e6d63b64f5`. [Сайт](https://docflow-lite.pages.dev/) предлагает 1.0.1. Предыдущий [выпуск 1.0.0](release/V1_PUBLISHED.md) и [процесс a6](release/HISTORICAL_A6_RELEASE_PROCESS.md) сохранены как история.
 
 ## Обязательные ворота
 
