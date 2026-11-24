@@ -26,7 +26,7 @@ def restore(w):
     checkpoint(w)  # A second press can return to the configuration just replaced.
     w.table = previous['table'];w.templates = previous['templates'];w._active_paths = previous['active']
     w.encoding = previous['encoding'];w.sheet = previous['sheet']
-    w.encoding_selector.setCurrentText(w.encoding);w.sheet_input.setText(w.sheet or '')
+    w.encoding_selector.setCurrentIndex(w.encoding_selector.findData(w.encoding));w.sheet_input.setText(w.sheet or '')
     w._mapping_cache = {};w._rules_cache = {}
     w.refresh(previous['mapping'], previous['rules'], previous['name'])
     w.status.setText('Прежние настройки возвращены. Проверьте строки перед созданием документов.')

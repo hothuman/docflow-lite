@@ -6,7 +6,7 @@ from pathlib import Path
 from PySide6.QtCore import QThread, QTimer, QUrl, Qt, Signal, Slot, QSize, QByteArray
 from PySide6.QtGui import QDesktopServices, QColor, QIcon
 from PySide6.QtWidgets import (
-    QApplication, QBoxLayout, QCheckBox, QComboBox, QFileDialog, QFrame, QGridLayout,
+    QApplication, QBoxLayout, QCheckBox, QComboBox, QFileDialog, QFrame,
     QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem,
     QMainWindow, QMessageBox, QProgressBar, QPushButton, QScrollArea,
     QSizePolicy, QStackedWidget, QTabWidget, QTableWidget, QTableWidgetItem,
@@ -25,7 +25,8 @@ from ..validation import Rule, values_for, validate_mapping
 from .diagnostics import record_exception,friendly_error
 from .theme import COLORS
 from .flow import FlowLayout
-from .widgets import DataModel, DataView, RecordModel, card, icon, text
+from .core_workflow import ColumnChoice
+from .widgets import card, icon, text
 from .mode_switch import ModeSwitch
 from .settings import preferences
 
@@ -144,20 +145,19 @@ class MainWindow(QMainWindow):
         self.work=QWidget();self.work.setObjectName('work');outer.addWidget(self.work,1)
         work=QVBoxLayout(self.work);work.setContentsMargins(22,20,22,12);work.setSpacing(10)
         mode_row=QHBoxLayout();mode_row.addWidget(self.mode_picker);mode_row.addStretch(1);self.about_button=self.button('О программе',lambda:self.navigate(4));mode_row.addWidget(self.about_button);work.addLayout(mode_row)
-        self.mode_help=text('Документы: таблица → Word. Мастерская: клиенты, аппараты и ремонты.','muted');work.addWidget(self.mode_help)
         header=QHBoxLayout();titles=QVBoxLayout();titles.setSpacing(5)
         self.breadcrumb=text('CORE / LITE · ДОКУМЕНТЫ','eyebrow');titles.addWidget(self.breadcrumb)
         self.title=text(self.PAGE_NAMES[0],'title');titles.addWidget(self.title)
         self.subtitle=text('Таблица → ваши шаблоны Word → комплект документов','muted');titles.addWidget(self.subtitle)
         header.addLayout(titles,1)
-        self.demo_btn=self.button('Открыть демопример',self.load_demo);self.demo_btn.setToolTip('Открыть встроенные вымышленные данные и два DOCX-шаблона')
+        self.demo_btn=self.button('Открыть учебный пример',self.load_demo);self.demo_btn.setToolTip('Открыть встроенные вымышленные данные и два DOCX-шаблона')
         self.folder_btn=self.button('Открыть папку',self.open_result,'folder');self.folder_btn.setEnabled(False)
         self.folder_btn.hide();work.addLayout(header)
         self.operation_notice=text('','operationNotice');self.operation_notice.setAccessibleName('Сообщение о действии');self.operation_notice.setMaximumHeight(64);self.operation_notice.hide();work.addWidget(self.operation_notice)
-        self.core_route=QFrame();self.core_route.setObjectName('routeBar');route=FlowLayout(self.core_route);self.route_buttons=[]
+        self.core_route=QFrame();self.core_route.setObjectName('coreJourney');route=FlowLayout(self.core_route);self.route_buttons=[]
         for i,label in enumerate(('1  Таблица','2  Шаблоны','3  Проверка','4  Создание')):
             b=self.button(label,lambda checked=False,index=i:self.navigate(index));b.setObjectName('journey');b.setCheckable(True);route.addWidget(b);self.route_buttons.append(b)
-        work.addWidget(self.core_route);self.core_state=text('','muted');work.addWidget(self.core_state)
+        work.addWidget(self.core_route)
         self.pages=QStackedWidget();work.addWidget(self.pages,1)
         self._build_create();self._build_templates();self._build_mapping();self._build_result();self._build_about();self.pages.addWidget(QWidget())
         self.status=text('Откройте демопример или выберите свои файлы','status');self.status.setAccessibleName('Текущий статус')
@@ -195,7 +195,7 @@ class MainWindow(QMainWindow):
         scroll.setObjectName('corePageScroll')
         scroll.setAccessibleName(self.PAGE_NAMES[self.pages.count()])
         page=QWidget();page.setObjectName('page');scroll.setWidget(page)
-        self.pages.addWidget(scroll);layout=QVBoxLayout(page);layout.setContentsMargins(0,0,2,0);layout.setSpacing(14)
+        self.pages.addWidget(scroll);layout=QVBoxLayout(page);layout.setContentsMargins(0,0,2,0);layout.setSpacing(10)
         return page,layout
 
     def _build_create(self):
@@ -203,63 +203,138 @@ class MainWindow(QMainWindow):
         build_create(self)
 
     def _build_templates(self):
-        page,layout=self.page();box,body=card('Word-шаблоны','Отметьте шаблоны для текущего комплекта. Поддерживаются переменные {{поле}} в тексте, таблицах и колонтитулах.')
-        layout.addWidget(box);body.addWidget(self.template_summary);self.template_list=QListWidget();self.template_list.setMinimumHeight(240)
-        self.template_list.setTextElideMode(Qt.TextElideMode.ElideMiddle);self.template_list.setAccessibleName('Шаблоны, выбранные для генерации')
-        self.template_list.itemChanged.connect(self._template_toggled);body.addWidget(self.template_list,1)
-        row=FlowLayout();self.template_add_btn=self.button('Добавить шаблоны',self.select_templates,'plus');row.addWidget(self.template_add_btn)
-        self.add_btn=self.template_add_btn
-        self.remove_btn=self.button('Убрать из списка',self.remove_template);row.addWidget(self.remove_btn);body.addLayout(row)
-        body.addWidget(text('Удаление из списка не удаляет исходный файл. PDF, макросы и сложные выражения шаблонов не поддерживаются.','muted'));layout.addStretch()
+        from .core_workflow import section
+        _, layout = self.page()
+        self.template_columns = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.template_columns.setSpacing(12)
+        layout.addLayout(self.template_columns)
+        library, body = section()
+        self.template_columns.addWidget(library, 3)
+        body.addWidget(self.template_summary)
+        self.templates_empty = text(
+            'Добавьте один или несколько файлов DOCX. DocFlow заполнит отмеченные шаблоны для каждой подходящей строки.',
+            'coreLead')
+        body.addWidget(self.templates_empty)
+        self.template_list = QListWidget()
+        self.template_list.setObjectName('coreTemplates')
+        self.template_list.setMinimumHeight(180)
+        self.template_list.setTextElideMode(Qt.TextElideMode.ElideMiddle)
+        self.template_list.setAccessibleName('Шаблоны для текущего комплекта')
+        self.template_list.setAccessibleDescription('Нажмите пробел, чтобы включить или исключить выбранный шаблон.')
+        self.template_list.itemChanged.connect(self._template_toggled)
+        self.template_list.currentRowChanged.connect(self._template_detail)
+        body.addWidget(self.template_list, 1)
+        actions = FlowLayout()
+        self.template_add_btn = self.button('Добавить DOCX', self.select_templates, 'plus')
+        self.add_btn = self.template_add_btn
+        self.remove_btn = self.button('Убрать из списка', self.remove_template)
+        actions.addWidget(self.template_add_btn)
+        actions.addWidget(self.remove_btn)
+        body.addLayout(actions)
+        body.addWidget(text('Файл на диске сохраняется, если убрать шаблон из списка.', 'muted'))
+
+        self.template_detail, details = section('Выбранный шаблон', role='coreSubsection')
+        self.template_columns.addWidget(self.template_detail, 2)
+        self.template_name = text('', 'coreMeta')
+        details.addWidget(self.template_name)
+        self.template_fields = QTextBrowser()
+        self.template_fields.setObjectName('corePlainDetails')
+        self.template_fields.setAccessibleName('Поля выбранного шаблона Word')
+        self.template_fields.setMinimumHeight(94)
+        self.template_fields.setMaximumHeight(178)
+        details.addWidget(self.template_fields)
+        details.addWidget(text('На следующем шаге укажите, из каких столбцов брать значения для этих полей.', 'muted'))
+        details.addStretch()
+        layout.addStretch()
+
+    def _template_detail(self, row):
+        exists = 0 <= row < len(self.templates)
+        self.template_detail.setVisible(exists)
+        self.remove_btn.setEnabled(exists and not self._busy)
+        if exists:
+            template = self.templates[row]
+            self.template_name.setText(template.path.name)
+            self.template_name.setToolTip(str(template.path))
+            self.template_fields.setPlainText(
+                '\n'.join('{{' + name + '}}' for name in sorted(template.fields))
+                or 'В этом файле нет полей для заполнения.')
 
     def _build_mapping(self):
-        page,layout=self.page()
-        from .core_workflow import ValidationPanel
-        self.validation_panel=ValidationPanel(self)
+        from .configuration import propose, restore
+        from .core_workflow import ValidationPanel, add_preview_selectors, paper, section
+        _, layout = self.page()
+        self.validation_panel = ValidationPanel(self)
         layout.addWidget(self.validation_panel)
-        self.validation_report=self.validation_panel.report
-        box,body=card('Сопоставление полей','Свяжите каждую переменную Word со столбцом таблицы.')
-        self.check_columns=QBoxLayout(QBoxLayout.Direction.TopToBottom)
+        self.validation_report = self.validation_panel.report
+        self.check_columns = QBoxLayout(QBoxLayout.Direction.TopToBottom)
         self.check_columns.setSpacing(12)
-        self.check_columns.addWidget(box, 3)
         layout.addLayout(self.check_columns)
-        from .configuration import propose,restore
-        assistance=FlowLayout()
-        self.suggest_config_btn=self.button('Предложить связи',lambda:propose(self),'fields')
-        self.restore_config_btn=self.button('Вернуть прежние настройки',lambda:restore(self),'history')
+
+        box, body = section('Поля Word и столбцы таблицы')
+        self.check_columns.addWidget(box, 3)
+        self.config_message = text('Выберите столбец для каждого поля.', 'muted')
+        body.addWidget(self.config_message)
+        self.preview_jump = self.button('К текстовому примеру', self._focus_preview, 'document')
+        body.addWidget(self.preview_jump, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.mapping_table = QTableWidget(0, 4)
+        self.mapping_table.setMinimumHeight(230)
+        self.mapping_table.setObjectName('coreFieldMapping')
+        self.mapping_table.setAccessibleName('Связи переменных со столбцами таблицы')
+        self.mapping_table.setAlternatingRowColors(True)
+        self.mapping_table.setShowGrid(False)
+        self.mapping_table.setHorizontalHeaderLabels(['Поле Word', 'Столбец таблицы', 'Правило', 'Обязательное'])
+        header = self.mapping_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        for col in (2, 3):
+            header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
+        header.setMinimumSectionSize(94)
+        self.mapping_table.verticalHeader().hide()
+        body.addWidget(self.mapping_table, 1)
+        self.mapping_feedback = text('', 'muted')
+
+        assistance = FlowLayout()
+        self.suggest_config_btn = self.button('Предложить связи', lambda: propose(self), 'fields')
+        self.restore_config_btn = self.button('Вернуть прежние настройки', lambda: restore(self), 'history')
         self.restore_config_btn.setEnabled(False)
-        self.diagnose_templates_btn=self.button('Диагностика шаблонов',self.diagnose_templates,'fields')
-        self.restore_config_btn.setToolTip('Возвращает предыдущие связи, правила, таблицу и шаблоны в текущем сеансе. Для следующего запуска сохраните профиль.')
-        assistance.addWidget(self.suggest_config_btn);assistance.addWidget(self.restore_config_btn);assistance.addWidget(self.diagnose_templates_btn);body.addLayout(assistance)
-        self.template_diagnostics=QTextBrowser();self.template_diagnostics.setAccessibleName('Диагностика шаблонов и выбранной записи');self.template_diagnostics.setMinimumHeight(100);self.template_diagnostics.setMaximumHeight(200);self.template_diagnostics.hide();body.addWidget(self.template_diagnostics)
-        self.config_message=text('Выберите столбец для каждого поля. Предложения можно исправить вручную.','muted');body.addWidget(self.config_message)
-        self.mapping_table=QTableWidget(0,4);self.mapping_table.setMinimumHeight(260)
-        self.mapping_table.setObjectName('coreFieldMapping');self.mapping_table.setAccessibleName('Связи переменных со столбцами таблицы')
-        self.mapping_table.setHorizontalHeaderLabels(['Переменная','Столбец таблицы','Проверка','Обязательно'])
-        self.mapping_table.horizontalHeader().setSectionResizeMode(0,QHeaderView.ResizeMode.ResizeToContents)
-        self.mapping_table.horizontalHeader().setSectionResizeMode(1,QHeaderView.ResizeMode.Stretch)
-        for col in (2,3):self.mapping_table.horizontalHeader().setSectionResizeMode(col,QHeaderView.ResizeMode.ResizeToContents)
-        self.mapping_table.horizontalHeader().setMinimumSectionSize(100);self.mapping_table.verticalHeader().hide();body.addWidget(self.mapping_table,1)
-        self.mapping_feedback=text('Сначала загрузите файлы','muted');body.addWidget(self.mapping_feedback)
-        previewbox,previewbody=card('Текстовый пример','Выберите строку и шаблон. Вёрстку готового DOCX проверяйте в Word.')
-        self.check_columns.addWidget(previewbox, 2, Qt.AlignmentFlag.AlignTop)
-        self.config_row=QComboBox();self.config_row.setModel(self.record_model);self.config_row.setAccessibleName('Строка примера настройки')
-        self.config_template=QComboBox();self.config_template.setModel(self.template_selector.model());self.config_template.setAccessibleName('Шаблон примера настройки')
-        for mirror,original in ((self.config_row,self.row_selector),(self.config_template,self.template_selector)):
-            mirror.setMinimumContentsLength(12);mirror.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
-            mirror.currentIndexChanged.connect(original.setCurrentIndex);original.currentIndexChanged.connect(mirror.setCurrentIndex);previewbody.addWidget(mirror)
-        self.config_preview=QTextBrowser();self.config_preview.setObjectName('corePreviewPaper');self.config_preview.setAccessibleName('Текстовый пример настройки');self.config_preview.setMinimumHeight(156);self.config_preview.setMaximumHeight(250);previewbody.addWidget(self.config_preview)
-        self.preview_text.textChanged.connect(lambda:self.config_preview.setPlainText(self.preview_text.toPlainText()))
-        row=FlowLayout();self.open_profile_btn=self.button('Открыть сохранённую настройку',self.open_profile,'folder')
-        self.save_profile_btn=self.button('Сохранить настройку',lambda:self.save_profile(background=True))
-        row.addWidget(self.open_profile_btn);row.addWidget(self.save_profile_btn);body.addLayout(row)
-        formatbox,settings=card('Чтение таблицы','CSV: auto определяет UTF-8 или Windows-1251. Для XLSX можно указать имя листа; пустое поле означает активный лист.')
-        layout.addWidget(formatbox)
-        self.encoding_selector=QComboBox();self.encoding_selector.addItems(['auto','utf-8-sig','cp1251']);self.encoding_selector.setAccessibleName('Кодировка CSV')
-        self.sheet_input=QLineEdit();self.sheet_input.setPlaceholderText('Имя листа XLSX (необязательно)');self.sheet_input.setAccessibleName('Лист XLSX')
-        settings.addWidget(self.encoding_selector);settings.addWidget(self.sheet_input)
-        self.reload_btn=self.button('Перечитать выбранную таблицу',self.reload_data);settings.addWidget(self.reload_btn)
+        self.restore_config_btn.setToolTip('Возвращает предыдущие связи, правила, таблицу и шаблоны в текущем сеансе.')
+        self.diagnose_templates_btn = self.button('Диагностика шаблонов', self.diagnose_templates)
+        for control in (self.suggest_config_btn, self.restore_config_btn, self.diagnose_templates_btn):
+            assistance.addWidget(control)
+        body.addLayout(assistance)
+        self.template_diagnostics = QTextBrowser()
+        self.template_diagnostics.setAccessibleName('Диагностика шаблонов и выбранной записи')
+        self.template_diagnostics.setMinimumHeight(100)
+        self.template_diagnostics.setMaximumHeight(200)
+        self.template_diagnostics.hide()
+        body.addWidget(self.template_diagnostics)
+        profile = FlowLayout()
+        self.open_profile_btn = self.button('Открыть профиль', self.open_profile, 'folder')
+        self.save_profile_btn = self.button('Сохранить профиль', lambda: self.save_profile(background=True))
+        profile.addWidget(self.open_profile_btn)
+        profile.addWidget(self.save_profile_btn)
+        body.addLayout(profile)
+
+        preview_box, preview_body = section('Текстовый предпросмотр', role='corePreviewWell')
+        self.check_columns.addWidget(preview_box, 2)
+        self.config_row = QComboBox()
+        self.config_row.setModel(self.record_model)
+        self.config_template = QComboBox()
+        self.config_template.setModel(self.template_selector.model())
+        for mirror, original in ((self.config_row, self.row_selector), (self.config_template, self.template_selector)):
+            mirror.currentIndexChanged.connect(original.setCurrentIndex)
+            original.currentIndexChanged.connect(mirror.setCurrentIndex)
+        add_preview_selectors(preview_body, self.config_row, self.config_template)
+        preview_body.addWidget(text('Показывает подставленный текст. Оформление проверьте в Word.', 'muted'))
+        self.config_preview = paper('Текстовый пример настройки')
+        self.config_preview.setMinimumHeight(170)
+        preview_body.addWidget(self.config_preview, 1)
+        self.preview_text.textChanged.connect(lambda: self.config_preview.setPlainText(self.preview_text.toPlainText()))
         layout.addStretch()
+
+    def _focus_preview(self):
+        self.config_row.setFocus(Qt.FocusReason.OtherFocusReason)
+        self.pages.widget(2).ensureWidgetVisible(self.config_row, 5, 6)
 
     def _build_result(self):
         from .core_workflow import build_result
@@ -324,7 +399,7 @@ class MainWindow(QMainWindow):
         for i,b in enumerate(self.nav_buttons):b.setVisible(index!=5 and i in (0,4))
         for b in self.service_nav:b.setVisible(index==5)
         if index==5:self._service_section_changed(self.service_workspace.tabs.currentIndex())
-        self.demo_btn.setVisible(index!=5);self.folder_btn.hide()
+        self.folder_btn.hide()
         self.generate_btn.setVisible(index==3 and self.cancel_btn.isHidden())
         if index==5:
             if not hasattr(self,'_core_status'):self._core_status=self.status.text()
@@ -333,11 +408,10 @@ class MainWindow(QMainWindow):
             self.status.setText(self._core_status);del self._core_status
         if index != 5:
             subtitles = (
-                'Начните новый комплект DOCX или откройте учебный пример.',
-                'Выберите шаблоны, которые будут заполнены для каждой подходящей строки.',
-                'Сопоставьте поля, проверьте строки и посмотрите текст примера.',
-                'В этом комплекте доступны документы и отчёт о строках.' if self.last_result else
-                'Укажите папку результатов и запустите генерацию.',
+                '',
+                'Отметьте документы, которые нужны для каждой подходящей строки.',
+                '',
+                '',
                 '',
             )
             self.subtitle.setText(subtitles[index])
@@ -380,7 +454,6 @@ class MainWindow(QMainWindow):
         fm=self.fontMetrics()
         compact=self.width()<max(800,fm.horizontalAdvance('Настройки мастерской')*6) or self.height()<max(590,fm.height()*27)
         self.rail.setVisible(not compact);self.rail.setFixedWidth(204)
-        self.mode_help.setVisible(not service and self.height()>=600)
         self.version_label.setVisible(self.height()>=650);self.local_note.setVisible(self.height()>=700)
         self.breadcrumb.hide();self.subtitle.setVisible(self.height()>=600)
         short_journal=service and self._last_service_page==2 and self.height()<490
@@ -388,20 +461,22 @@ class MainWindow(QMainWindow):
         short_detail=detail and self.height()<530
         short_settings = (service and not detail and self.height() < 490
                           and self.service_workspace.tabs.currentWidget() is self.service_workspace.settings_page)
-        short_content = short_journal or short_detail or short_settings
-        self.title.setVisible(not (short_detail or short_settings))
+        core_start = self.pages.currentIndex() == 0 and not self.table
+        short_core = self.pages.currentIndex() < 4 and self.height() < 430
+        short_content = short_journal or short_detail or short_settings or short_core
+        self.title.setVisible(not (short_detail or short_settings or core_start or short_core))
+        self.source_heading.setVisible(not short_core)
         self.work.layout().setSpacing(5 if short_content else 10)
         vertical_margin=6 if short_content else 10
         self.work.layout().setContentsMargins(12 if compact else 22,vertical_margin,12 if compact else 22,vertical_margin)
         if self.service_workspace:
-            self.service_workspace.set_compact_layout(short_content, settings=short_settings)
+            self.service_workspace.set_compact_layout(short_journal or short_detail or short_settings, settings=short_settings)
             detail=self.service_workspace.current_page is not None
             self.service_workspace.section_picker.setVisible(service and compact and not detail)
             if detail:self.subtitle.hide()
         self.account_caption.setVisible(service and self.height()>=600)
-        self.nav_caption.setVisible(self.height()>=600)
-        self.core_route.setVisible(self.pages.currentIndex()<4)
-        self.core_state.setVisible(self.pages.currentIndex()<4 and self.height()>=500)
+        self.nav_caption.setVisible(service and self.height()>=600)
+        self.core_route.setVisible(self.pages.currentIndex() < 4 and not core_start)
         core_page = self.pages.currentIndex()
         self.status.setVisible(self.height() >= 500 and core_page < 4 and (core_page != 3 or not self.last_result))
         if not service:
@@ -411,6 +486,11 @@ class MainWindow(QMainWindow):
                            else QBoxLayout.Direction.TopToBottom)
         if self.check_columns.direction() != check_direction:
             self.check_columns.setDirection(check_direction)
+        self.preview_jump.setVisible(check_direction == QBoxLayout.Direction.TopToBottom)
+        template_direction = (QBoxLayout.Direction.LeftToRight if work_width >= 710
+                              else QBoxLayout.Direction.TopToBottom)
+        if self.template_columns.direction() != template_direction:
+            self.template_columns.setDirection(template_direction)
         self.about_button.setVisible(compact)
         self.compact_settings.setVisible(compact and service and not (short_detail or short_settings))
         if hasattr(self,'core_next'):
@@ -419,7 +499,10 @@ class MainWindow(QMainWindow):
     def active_templates(self):return [t for t in self.templates if t.path in self._active_paths]
 
     def error(self,message):
-        self.status.setText('Ошибка: '+str(message));self.report_text.setPlainText(str(message));self.result_report.setPlainText(str(message))
+        self.status.setText('Ошибка: '+str(message))
+        self.report_text.setPlainText(str(message))
+        if not self.last_result:
+            self.result_report.setPlainText(str(message))
         self._set_notice_error(True)
         self.operation_notice.setText('Ошибка: '+str(message));self.operation_notice.setToolTip(str(message));self.operation_notice.show()
         self.validation_panel.set_error(str(message),self.validation_signature())
@@ -479,7 +562,8 @@ class MainWindow(QMainWindow):
         checkpoint(self,internal=True)
         self.table=prepared.table;self.templates=list(prepared.templates);self._active_paths={t.path for t in self.templates}
         self.encoding=prepared.profile.encoding;self.sheet=prepared.profile.sheet
-        self.encoding_selector.setCurrentText(self.encoding);self.sheet_input.setText(self.sheet or '')
+        self.encoding_selector.setCurrentIndex(self.encoding_selector.findData(self.encoding))
+        self.sheet_input.setText(self.sheet or '')
         self._mapping_cache={};self._rules_cache={}
         self.refresh(prepared.profile.mapping,prepared.profile.rules,prepared.profile.name_column)
         self.status.setText('Файлы загружены. Проверьте данные и предпросмотр перед генерацией')
@@ -494,7 +578,8 @@ class MainWindow(QMainWindow):
         else:self.error('Сначала выберите таблицу')
 
     def _load_data(self,path):
-        encoding=self.encoding_selector.currentText();sheet=self.sheet_input.text().strip() or None
+        encoding = self.encoding_selector.currentData() or 'auto'
+        sheet = self.sheet_input.text().strip() or None
         def install(table):
             from .configuration import checkpoint
             checkpoint(self,internal=True)
@@ -573,7 +658,11 @@ class MainWindow(QMainWindow):
         self.mapping_table.setRowCount(0);self.mapping_table.setRowCount(len(fields))
         for row,field in enumerate(fields):
             item=QTableWidgetItem(field);item.setFlags(item.flags()&~Qt.ItemFlag.ItemIsEditable);item.setToolTip('{{'+field+'}}');self.mapping_table.setItem(row,0,item)
-            column=QComboBox();column.addItem('');column.addItems(list(headers));column.setAccessibleName('Столбец для '+field)
+            column=ColumnChoice()
+            column.addItem('');column.setItemData(0,'Без столбца',Qt.ItemDataRole.ToolTipRole)
+            column.addItems(list(headers));column.setAccessibleName('Столбец для '+field)
+            column.setMinimumContentsLength(11)
+            column.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
             from ..matching import suggestions
             proposed,_=suggestions((field,),headers)
             candidate=self._mapping_cache.get(field,proposed.get(field,''))
@@ -588,6 +677,8 @@ class MainWindow(QMainWindow):
             column.currentTextChanged.connect(lambda *args:edited(self));kind.currentIndexChanged.connect(lambda *args:edited(self));required.stateChanged.connect(lambda *args:edited(self))
         if self.data_model.table is not self.table:
             self.data_model.set_table(self.table)
+            self.tabs.setCurrentIndex(0)
+            self.report_text.clear()
             from .core_workflow import restore_source_columns
             restore_source_columns(self)
         self.record_model.set_table(self.table)
@@ -597,15 +688,18 @@ class MainWindow(QMainWindow):
             self.data_path.setText(self.table.source.name);self.data_path.setToolTip(str(self.table.source))
             self.row_selector.setCurrentIndex(max(0,min(previous_row,len(self.table.records)-1)))
             prefix='Учебный пример · ' if self.table is self._demo_table else ''
-            self.stats.setText(prefix+f'{len(self.table.records)} записей · {len(headers)} столбцов')
+            source_format = 'Excel' if self.table.source.suffix.lower() == '.xlsx' else 'CSV'
+            self.stats.setText(f'{prefix}{source_format} · Строк: {len(self.table.records)} · Столбцов: {len(headers)}')
         else:self.data_path.clear();self.stats.setText('Данные ещё не загружены')
-        self.template_summary.setText(f'Выбрано {len(active)} из {len(self.templates)} шаблонов'+ ('\n'+'\n'.join(t.path.name for t in active[:3]) if active else ''))
+        self.template_summary.setText(f'В комплекте {len(active)} из {len(self.templates)} шаблонов')
+        self._template_detail(self.template_list.currentRow())
         self.template_summary.setToolTip('\n'.join(str(t.path) for t in active))
         for widget in selectors:widget.blockSignals(False)
         # Model resets affect both combo boxes, but the original selectors were
         # signal-blocked while restoring their previous selection above.
         for mirror,original in ((self.config_row,self.row_selector),(self.config_template,self.template_selector)):
             mirror.blockSignals(True);mirror.setCurrentIndex(original.currentIndex());mirror.blockSignals(False)
+        self._responsive()
         self.update_preview()
 
     def profile(self):
@@ -818,13 +912,6 @@ class MainWindow(QMainWindow):
         try:
             if not self.output_path.text().strip():raise DocFlowError('Выберите папку результата')
             self._clear_notice()
-            self.last_result=None
-            if self.pages.currentIndex()==3:self.title.setText(self.PAGE_NAMES[3])
-            for control in (self.folder_btn,self.result_open_btn,self.report_btn):control.setEnabled(False)
-            self.result_summary.setText('Новый запуск: документы ещё не созданы')
-            self.result_path.setText('Предыдущие файлы остаются в своих папках. Здесь появится результат нового запуска.')
-            self.result_report.clear()
-            self.result_files_model.setStringList([]);self.result_file_btn.setEnabled(False)
             self.set_busy(True);self.progress.setValue(0);self.progress_label.setText('Подготовка пакета…')
             self.status.setText('Создаю документы из загруженного снимка данных…')
             if self.worker:self.worker.deleteLater()
@@ -849,8 +936,7 @@ class MainWindow(QMainWindow):
         self.progress.setValue(0)
         self.progress_label.setText('Генерация отменена')
         self.status.setText('Генерация отменена. Измените настройки или запустите снова.')
-        self.result_summary.setText('Генерация отменена; новый пакет не сохранён')
-        self.result_path.setText('Ранее созданные результаты остаются в своих папках.')
+
 
     @Slot(int,int)
     def _progress(self,current,total):
@@ -866,7 +952,12 @@ class MainWindow(QMainWindow):
         self.set_busy(False)
         if self.pages.currentIndex() == 3:
             if self.operation_notice.property('isError') and self.output_path.isVisible():
-                self.output_path.setFocus(Qt.FocusReason.OtherFocusReason)
+                from .core_workflow import toggle_new_run
+                if self.last_result:
+                    self.new_run_btn.setChecked(True)
+                    toggle_new_run(self, True)
+                else:
+                    self.output_path.setFocus(Qt.FocusReason.OtherFocusReason)
             else:
                 self._focus_core_action()
 
@@ -877,6 +968,7 @@ class MainWindow(QMainWindow):
                        self.mapping_table,self.validation_panel,self.name_selector,self.check_btn,self.output_btn,self.output_path,self.template_list,
                        self.reload_btn,self.encoding_selector,self.sheet_input,self.open_after,self.template_add_btn):widget.setEnabled(not busy)
         self.update_readiness()
+        self._template_detail(self.template_list.currentRow())
 
     @Slot(object)
     def on_result(self,result:BatchResult):
@@ -884,6 +976,9 @@ class MainWindow(QMainWindow):
         self._clear_notice()
         self.last_result=result;self.folder_btn.setEnabled(True);self.result_open_btn.setEnabled(True);self.report_btn.setEnabled(True)
         self.new_run_btn.setChecked(False)
+        self.result_report_btn.setChecked(False)
+        self.result_report.hide()
+        self.result_counts.update_counts(result.documents, result.accepted, result.rejected)
         self.progress.setValue(100);self.progress_label.setText(f'Завершено: {result.total} / {result.total} записей')
         summary=f'Готово: {result.documents} DOCX · {result.accepted} записей обработано · {result.rejected} пропущено'
         self.status.setText(summary);self.result_summary.setText(summary)
@@ -898,9 +993,7 @@ class MainWindow(QMainWindow):
         message=(f'Всего записей: {result.total}\nСоздано DOCX: {result.documents}\nОбработано: {result.accepted}\nПропущено: {result.rejected}'
                  f'\n\n{issue_summary(result.issues,self.mapping()[0])}\n\nПолные отчёты: report.json и report.csv')
         self.report_text.setPlainText(message);self.result_report.setPlainText(message);self.tabs.setCurrentIndex(2);self.navigate(3,internal=True)
-        # Bring the completed package and its folder action into view, rather
-        # than leaving the user above the fold at the generation settings.
-        QTimer.singleShot(0,self,lambda:self.pages.widget(3).ensureWidgetVisible(self.result_open_btn,12,12))
+        self.pages.widget(3).verticalScrollBar().setValue(0)
         if self.open_after.isChecked():self.open_result()
 
     def open_result_file(self):

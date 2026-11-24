@@ -52,7 +52,9 @@ def test_completed_run_opens_selected_document_and_new_run_is_explicit(tmp_path,
         QTest.keyClick(window.result_file_btn, Qt.Key.Key_Space)
         assert opened == [window.last_result.directory / selected]
 
-        previous_files = {path: path.read_bytes() for path in window.last_result.directory.rglob('*.docx')}
+        previous = window.last_result
+        previous_files = {path: path.read_bytes() for path in previous.directory.rglob('*.docx')}
+        report = window.result_report.toPlainText()
         window.new_run_btn.setFocus()
         QTest.keyClick(window.new_run_btn, Qt.Key.Key_Space)
         assert window.options_card.isVisible() and window.generate_btn.isVisible()
@@ -64,8 +66,10 @@ def test_completed_run_opens_selected_document_and_new_run_is_explicit(tmp_path,
         window.output_path.setText(str(blocked))
         window.generate_btn.click()
         wait_idle(window)
-        assert window.last_result is None
-        assert not window.result_file_btn.isVisible()
+        assert window.last_result is previous
+        assert window.result_file_btn.isVisible()
+        assert window.result_report.toPlainText() == report
+        assert window.result_files.currentIndex().data(Qt.ItemDataRole.UserRole) == selected
         assert window.options_card.isVisible() and window.generate_btn.isEnabled()
         assert window.operation_notice.property('isError') is True
         assert 'Выберите другую папку результатов' in window.operation_notice.text()
@@ -73,6 +77,15 @@ def test_completed_run_opens_selected_document_and_new_run_is_explicit(tmp_path,
         assert window.output_path.hasFocus()
         assert all(path.read_bytes() == content for path, content in previous_files.items())
         assert blocked.read_text(encoding='utf-8') == 'untouched'
+        assert window.result_counts.values[0].text() == '4'
+        window.result_file_btn.click()
+        assert opened[-1] == previous.directory / selected
+        window.output_path.setText(str(tmp_path / 'retry'))
+        window.generate_btn.click()
+        wait_idle(window)
+        assert window.last_result is not previous
+        assert window.last_result.directory.parent == tmp_path / 'retry'
+        assert all(path.read_bytes() == content for path, content in previous_files.items())
     finally:
         wait_idle(window)
         window.close()

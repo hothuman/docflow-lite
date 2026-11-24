@@ -16,7 +16,20 @@ QLabel#metric,QLabel#metricValue {font-size:25px;font-weight:650;color:@text@;}
 QLabel#ready {color:@success@;font-weight:600;}
 QLabel#error {color:@error@;}
 QFrame#card,QGroupBox {background:@surface@;border:1px solid @border@;border-radius:9px;}
-QFrame#coreStart,QFrame#coreResult {background:@surface@;border:1px solid @border@;border-top:2px solid @accent@;border-radius:6px;}
+QFrame#coreStart {background:@surface@;border:0;border-left:3px solid @accent@;border-radius:4px;}
+QFrame#coreSection,QFrame#coreResult {background:transparent;border:0;}
+QFrame#coreSubsection,QFrame#corePreviewWell {background:@surface@;border:0;border-radius:5px;}
+QFrame#coreJourney {background:transparent;border-bottom:1px solid @border@;}
+QLabel#coreHeroTitle {font-size:33px;font-weight:700;color:@text@;}
+QLabel#coreLead {font-size:15px;color:@text@;}
+QLabel#coreSectionTitle {font-size:16px;font-weight:650;}
+QLabel#coreMeta {font-size:14px;font-weight:600;}
+QLabel#coreControlLabel {color:@muted@;font-size:13px;font-weight:600;}
+QFrame#coreCount {background:@surface@;border-radius:4px;}
+QLabel#coreCountCaption {color:@muted@;font-size:13px;}
+QLabel#coreCountValue,QLabel#coreCountGood,QLabel#coreCountBad {font-family:"Segoe UI","DejaVu Sans";font-size:21px;font-weight:700;}
+QLabel#coreCountGood {color:@success@;}
+QLabel#coreCountBad {color:@warning@;}
 QFrame#metricCard {background:@surface@;border:1px solid @border@;border-top:2px solid @border@;border-radius:7px;}
 QFrame#queueRow {background:@raised@;border:0;border-left:2px solid @warning@;border-radius:4px;}
 QFrame#routeBar {background:@rail@;border:1px solid @border@;border-radius:7px;}
@@ -26,8 +39,9 @@ QLabel#repairAmount {font-weight:650;color:@text@;}
 QLabel#repairStatus {font-size:18px;font-weight:650;color:@warning@;}
 QLabel#metricValue[debt="true"],QLabel#repairAmount[debt="true"] {color:@error@;}
 QLabel#workspaceBreadcrumb {color:@muted@;font-weight:600;}
-QFrame#coreValidation[severity="error"] {background:@surface@;border:1px solid @error@;border-left:3px solid @error@;border-radius:8px;}
-QFrame#coreValidation[severity="success"] {background:@surface@;border:1px solid @success@;border-radius:8px;}
+QFrame#coreValidation[severity="error"] {background:transparent;border-left:3px solid @error@;}
+QFrame#coreValidation[severity="success"] {background:transparent;border-left:3px solid @success@;}
+QFrame#coreValidation QTextBrowser,QTextBrowser#corePlainDetails {border:0;}
 QTableWidget#coreFieldMapping QComboBox[validationIssue="true"] {border-color:@error@;}
 QLabel#fieldError,QLabel#formError {color:@error@;font-weight:600;}
 QLabel#formError {background:@surface@;border:1px solid @error@;border-radius:6px;padding:7px;}
@@ -43,6 +57,9 @@ QPushButton#primary:hover {background:@accentHover@;border-color:@accentHover@;}
 QPushButton#primary:focus {border:2px solid @accentText@;padding:11px;}
 QPushButton#primary:pressed {background:#ABD679;}
 QPushButton#primary:disabled {background:@raised@;border-color:@border@;color:@disabled@;}
+QPushButton#coreQuiet {background:transparent;border:1px solid transparent;color:@muted@;padding:7px 10px;}
+QPushButton#coreQuiet:hover {background:@raised@;color:@text@;}
+QPushButton#coreQuiet:focus {border-color:@focus@;color:@text@;}
 QPushButton#nav {text-align:left;background:transparent;border:1px solid transparent;padding:9px 10px;color:@muted@;}
 QPushButton#nav:hover {background:@raised@;color:@text@;}
 QPushButton#nav:checked {background:@raised@;border-left:2px solid @accent@;color:@accent@;font-weight:600;}
@@ -71,13 +88,16 @@ QTabWidget::pane {border:0;background:transparent;}
 QTabBar::tab {background:transparent;color:@muted@;padding:10px 13px;margin-right:4px;border-bottom:2px solid transparent;}
 QTabBar::tab:selected {background:@surface@;color:@accent@;border-bottom:2px solid @accent@;font-weight:600;}
 QTabBar::tab:focus {border:1px solid @focus@;}
+QTabWidget#coreSourceTabs QTabBar::tab {padding:7px 10px;}
 QTabBar#repairStageBar::tab {padding:7px 9px;}
 QScrollArea {background:transparent;border:0;}
 QScrollArea#corePageScroll {border:2px solid transparent;}
 QScrollArea#corePageScroll:focus {border-color:@focus@;}
-QTextBrowser#corePreviewPaper {background:#f2efe3;color:#202620;border:2px solid #d1cdbb;selection-background-color:#42584c;selection-color:#ffffff;padding:10px;}
-QTextBrowser#corePreviewPaper:focus {border-color:#56712b;}
-QListView#coreResultFiles::item {padding:3px 5px;}
+QTextBrowser#corePreviewPaper {background:@paper@;color:@paperText@;border:2px solid @paper@;border-radius:4px;selection-background-color:#42584c;selection-color:#ffffff;}
+QTextBrowser#corePreviewPaper:focus {border:2px solid @paperFocus@;}
+QTableView#coreSourceTable,QTableWidget#coreFieldMapping,QListWidget#coreTemplates,QListView#coreResultFiles {border:1px solid transparent;}
+QTableView#coreSourceTable:focus,QTableWidget#coreFieldMapping:focus,QListWidget#coreTemplates:focus,QListView#coreResultFiles:focus {border:1px solid @focus@;}
+QListView#coreResultFiles::item {padding:6px 8px;}
 QScrollBar:vertical {background:@rail@;width:9px;margin:0;}
 QScrollBar::handle:vertical {background:#63827A;border-radius:4px;min-height:26px;}
 QScrollBar:horizontal {background:@rail@;height:9px;margin:0;}

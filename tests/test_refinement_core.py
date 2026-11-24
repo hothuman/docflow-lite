@@ -37,14 +37,14 @@ def test_profile_button_saves_off_thread_and_reports_only_after_commit(ui,tmp_pa
  release.set();wait_idle(w);timer.stop()
  assert Profile.load(target).mapping==w.mapping()[0] and 'сохранён' in w.status.text()
 
-def test_new_failed_generation_does_not_show_old_success(ui,tmp_path,monkeypatch):
+def test_new_failed_generation_explains_error_and_keeps_previous_package(ui,tmp_path,monkeypatch):
  app,w=ui;w.output_path.setText(str(tmp_path));w.start_generation();wait_idle(w)
  old=w.last_result;assert old.documents==4
  def fail(*a,**kw):raise DocFlowError('Диск недоступен')
  monkeypatch.setattr(core,'generate',fail)
  w.start_generation();wait_idle(w)
- assert w.last_result is None and not w.result_open_btn.isEnabled()
- assert 'Готово:' not in w.result_summary.text() and 'Диск недоступен' in w.status.text()
+ assert w.last_result is old and w.result_open_btn.isEnabled()
+ assert 'Диск недоступен' in w.status.text() and w.operation_notice.property('isError')
  assert len(list(old.directory.rglob('*.docx')))==4
 
 @pytest.mark.parametrize('extension',['csv','xlsx'])
