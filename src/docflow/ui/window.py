@@ -386,12 +386,15 @@ class MainWindow(QMainWindow):
         short_journal=service and self._last_service_page==2 and self.height()<490
         detail=bool(service and self.service_workspace and self.service_workspace.current_page is not None)
         short_detail=detail and self.height()<530
-        self.title.setVisible(not short_detail)
-        self.work.layout().setSpacing(5 if short_journal or short_detail else 10)
-        vertical_margin=6 if short_journal or short_detail else 10
+        short_settings = (service and not detail and self.height() < 490
+                          and self.service_workspace.tabs.currentWidget() is self.service_workspace.settings_page)
+        short_content = short_journal or short_detail or short_settings
+        self.title.setVisible(not (short_detail or short_settings))
+        self.work.layout().setSpacing(5 if short_content else 10)
+        vertical_margin=6 if short_content else 10
         self.work.layout().setContentsMargins(12 if compact else 22,vertical_margin,12 if compact else 22,vertical_margin)
         if self.service_workspace:
-            self.service_workspace.set_short_journal(short_journal or short_detail)
+            self.service_workspace.set_compact_layout(short_content, settings=short_settings)
             detail=self.service_workspace.current_page is not None
             self.service_workspace.location.setVisible(not detail)
             self.service_workspace.section_picker.setVisible(service and compact and not detail)
@@ -410,7 +413,7 @@ class MainWindow(QMainWindow):
         if self.check_columns.direction() != check_direction:
             self.check_columns.setDirection(check_direction)
         self.about_button.setVisible(compact)
-        self.compact_settings.setVisible(compact and service and not short_detail)
+        self.compact_settings.setVisible(compact and service and not (short_detail or short_settings))
         if hasattr(self,'core_next'):
             if self._pinned_action is None:self.footer_layout.addWidget(self.generate_btn);self._pinned_action=True
 

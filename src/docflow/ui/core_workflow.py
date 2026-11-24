@@ -5,7 +5,7 @@ import json
 from math import ceil
 from pathlib import Path
 
-from PySide6.QtCore import QModelIndex, QStringListModel, Qt
+from PySide6.QtCore import QModelIndex, QStringListModel, Qt, QTimer
 from PySide6.QtWidgets import (QFrame,QVBoxLayout,QTabWidget,QWidget,QComboBox,QTextBrowser,QLineEdit,QCheckBox,QProgressBar,QListView)
 from .widgets import card,text,DataView,DataModel,RecordModel
 from .flow import ActionBar
@@ -286,7 +286,17 @@ def build_result(w):
 def toggle_new_run(w, expanded):
     w.update_readiness()
     if expanded:
-        w.output_path.setFocus(Qt.FocusReason.OtherFocusReason)
+        page = w.pages.currentWidget()
+        field = w.output_path
+        field.setFocus(Qt.FocusReason.OtherFocusReason)
+
+        def reveal_field():
+            if w.pages.currentWidget() is page and w.new_run_btn.isChecked() and w.focusWidget() is field:
+                center = field.mapTo(page.widget(), field.rect().center())
+                page.ensureVisible(center.x(), center.y(), 0, field.height() // 2 + 12)
+
+        # The scroll area's range grows after the options card is laid out.
+        QTimer.singleShot(0, page, reveal_field)
 
 
 def sync_result_actions(w):

@@ -47,6 +47,7 @@ class ServiceWorkspace(QWidget):
         super().__init__(parent);self.shell_navigation=shell_navigation;self.store=None;self.worker=None;self.project_lock=None;self.cache={};self._pending_refresh=False;self.dialogs=[];self._last_repairs={};self.project_state='not_open';self._project_busy=False;self._safe_project_buttons=[]
         self._project_attempt=None
         self._upgrade_candidate=None
+        self._compact_settings = False
         out=QVBoxLayout(self);out.setContentsMargins(0,0,0,0)
         self.location=QLabel('Проект не открыт');self.location.setObjectName('projectLocation');self.location.setWordWrap(True);out.addWidget(self.location)
         self.project_actions=ActionBar();out.addWidget(self.project_actions)
@@ -206,9 +207,23 @@ class ServiceWorkspace(QWidget):
         self.tabs.setCurrentWidget(self.journal)
         self.journal.finance_filter.setFocus()
 
-    def set_short_journal(self,short):
-        self.layout().setSpacing(4 if short else 6)
-        self.message.set_compact(short)
+    def set_compact_layout(self, compact, *, settings=False):
+        self.layout().setSpacing(4 if compact else 6)
+        self.message.set_compact(compact)
+        if self._compact_settings != settings:
+            self._compact_settings = settings
+            self._sync_project_actions()
+
+    def _sync_project_actions(self):
+        needs_action = self.project_state in ('cancelled', 'error', 'locked', 'upgrade_available')
+        # Settings already provides open, create and restore when no project is open.
+        project_missing = self.store is None and not self._compact_settings
+        self.project_actions.setVisible(needs_action or project_missing)
+        idle = not self._project_busy and not self.worker
+        self.retry_project_button.setVisible(needs_action and self._project_attempt is not None)
+        self.retry_project_button.setEnabled(idle)
+        self.copy_project_button.setVisible(needs_action and self._upgrade_candidate is not None)
+        self.copy_project_button.setEnabled(idle)
 
     def _sync_project_controls(self):
         ready=self.store is not None and not self._project_busy and not self.worker
@@ -218,12 +233,7 @@ class ServiceWorkspace(QWidget):
         for control in (*self.searches.values(),*self.views.values(),self.status_filter,self.archived,self.clients_archived,self.active_only):control.setEnabled(ready)
         for control in (self.open_project_button,self.new_project_button,self.restore_project_button):control.setEnabled(available)
         self.journal.project_state(self.store is not None,ready)
-        needs_action=self.project_state in ('cancelled','error','locked','upgrade_available')
-        self.project_actions.setVisible(self.store is None or needs_action)
-        self.retry_project_button.setVisible(needs_action and self._project_attempt is not None)
-        self.retry_project_button.setEnabled(available)
-        self.copy_project_button.setVisible(self._upgrade_candidate is not None and needs_action)
-        self.copy_project_button.setEnabled(available)
+        self._sync_project_actions()
         if self.store is None:
             for key in self.views:self.update_list_state(key)
             self.dashboard.empty.setText('Проект не открыт. Откройте локальную папку, создайте отдельный проект или восстановите копию.')

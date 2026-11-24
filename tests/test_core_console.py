@@ -1,6 +1,8 @@
 """The Core workspace keeps the completed run and its next action coherent."""
 from pathlib import Path
 
+import pytest
+
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLabel
@@ -122,6 +124,45 @@ def test_async_table_reload_moves_focus_from_replaced_mapping_control(tmp_path):
         assert not isValid(previous)
         assert window.core_next.hasFocus()
         assert window.mapping_table.cellWidget(0, 1).accessibleName()
+    finally:
+        wait_idle(window)
+        window.close()
+
+
+
+@pytest.mark.parametrize('size', [(1280, 800), (560, 320)])
+def test_new_run_reveals_focused_output_field(tmp_path, size):
+    window = MainWindow()
+    window.resize(*size)
+    window.show()
+    window.activateWindow()
+    QApplication.processEvents()
+    try:
+        window.load_demo()
+        wait_idle(window)
+        window.navigate(3)
+        window.output_path.setText(str(tmp_path / 'output'))
+        window.generate_btn.click()
+        wait_idle(window)
+        result = window.last_result
+        assert result.documents == 4
+
+        page = window.pages.currentWidget()
+        page.verticalScrollBar().setValue(0)
+        window.new_run_btn.setFocus()
+        QTest.keyClick(window.new_run_btn, Qt.Key.Key_Space)
+        QApplication.processEvents()
+
+        field = window.output_path
+        assert field.hasFocus()
+        rect = field.rect().translated(field.mapTo(page.viewport(), field.rect().topLeft()))
+        assert page.viewport().rect().contains(rect), (rect, page.viewport().rect())
+        assert window.last_result is result
+
+        window.new_run_btn.click()
+        QApplication.processEvents()
+        assert not window.options_card.isVisible()
+        assert window.result_file_btn.isVisible()
     finally:
         wait_idle(window)
         window.close()
