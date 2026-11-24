@@ -58,7 +58,7 @@ class SettingsPage(QWidget):
             scroll.setAccessibleName(f'Настройки: {title}')
             page=QWidget()
             page_layout=QVBoxLayout(page)
-            panel,body=card(title,description)
+            panel,body=card(title,'' if title=='Проекты' else description)
             bar=ActionBar()
             body.addWidget(bar)
             for label,callback in actions:
@@ -66,6 +66,7 @@ class SettingsPage(QWidget):
                 if callback in available_without_project:
                     workspace._safe_project_buttons.append(control)
             if title=='Проекты':
+                body.addWidget(text(description,'muted'))
                 self.project_path=text('','muted')
                 self.project_path.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse |
                                                           Qt.TextInteractionFlag.TextSelectableByKeyboard)

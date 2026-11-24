@@ -69,6 +69,8 @@ def test_settings_keep_a_usable_category_viewport_in_short_window(app, tmp_path,
             actions = settings.pages.currentWidget().findChildren(QPushButton)
             project = next(button for button in actions if button.text() == 'Открыть проект')
             assert project.isEnabled()
+            position = project.mapTo(viewport, project.rect().topLeft())
+            assert viewport.rect().contains(project.rect().translated(position))
             assert any(button.text() == 'Восстановить копию' and button.isEnabled()
                        for button in actions)
             assert not ui.project_actions.isVisible()
