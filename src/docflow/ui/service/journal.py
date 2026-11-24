@@ -425,7 +425,7 @@ class RepairJournal(QWidget):
         row = self.grid.selected()
         self.open_button.setEnabled(self._ready and row is not None)
         self.panels.update_repair(row, self.selected_equipment(), self._ready)
-        self.selected_summary.setVisible(row is not None and self.panels.compact and
+        self.selected_summary.setVisible(row is not None and bool(self.panels.compact) and
                                          self.panels.currentWidget() is self.panels.list_page)
         if row:
             self.selected_summary.setText(f"Выбран ремонт № {row['number']}   ·   Остаток: {display('balance', row)}")

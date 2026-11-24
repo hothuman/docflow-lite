@@ -13,6 +13,7 @@ from docflow.service.demo import seed_demo
 from docflow.service.documents import generate_document
 from docflow.service.repository import ServiceStore
 from docflow.ui.service import repair_editor
+from docflow.ui.service.journal import RepairJournal
 
 
 def settle(ui):
@@ -193,3 +194,16 @@ def test_return_after_a_dynamic_form_replaces_its_focused_field(desk):
     QApplication.processEvents()
     assert ui.current_page is parent and ui.pages.back_button.hasFocus()
     assert closed == [True]
+
+
+def test_journal_accepts_rows_before_a_hidden_view_is_laid_out(desk):
+    _, ui, root, _ = desk
+    data = ui._query_project_data(ServiceStore(root))
+    journal = RepairJournal(ui.journal.grid.records.columns, lambda:None, lambda:None, lambda:None)
+    assert journal.panels.compact is None
+    try:
+        journal.install(data['repairs'], data['journal_equipment'])
+        assert journal.grid.selected() is not None
+        assert not journal.selected_summary.isVisible()
+    finally:
+        journal.deleteLater()
