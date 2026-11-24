@@ -2,7 +2,7 @@
 
 <img src="docs/assets/repository-cover.png" alt="DocFlow — документы и история ремонта на вашем компьютере" width="100%">
 
-[Скачать для Windows](https://github.com/hothuman/docflow-lite/releases/download/v1.0.0/DocFlow-Lite-1.0.0-Windows-x64-Portable.zip) · [Сайт](https://docflow-lite.pages.dev/) · [Начать работу](docs/service/28_QUICK_START.md) · [Документация](docs/README.md)
+[Скачать для Windows](https://github.com/hothuman/docflow-lite/releases/download/v1.0.1/DocFlow-Lite-1.0.1-Windows-x64-Portable.zip) · [Сайт](https://docflow-lite.pages.dev/) · [Начать работу](docs/service/28_QUICK_START.md) · [Документация](docs/README.md)
 
 [![Проверки приложения](https://github.com/hothuman/docflow-lite/actions/workflows/windows-release.yml/badge.svg?branch=main)](https://github.com/hothuman/docflow-lite/actions/workflows/windows-release.yml)
 [![Проверки сайта](https://github.com/hothuman/docflow-lite/actions/workflows/website-v2.yml/badge.svg?branch=main)](https://github.com/hothuman/docflow-lite/actions/workflows/website-v2.yml)
@@ -13,9 +13,9 @@
 
 Локальное приложение для повторяющейся работы с документами и историей ремонта. **Core** создаёт DOCX из XLSX/CSV и ваших шаблонов. **Service** ведёт клиентов, аппараты, отдельные обращения, сметы и документы в проекте SQLite.
 
-**[1.0.0 опубликована](https://github.com/hothuman/docflow-lite/releases/tag/v1.0.0) — стабильный выпуск.** Программа бесплатна для личной и деловой работы по [условиям использования](LICENSE.txt). Индивидуальная настройка — отдельная услуга. Один оператор, локальные данные, без аккаунта и телеметрии.
+**[1.0.1 опубликована](https://github.com/hothuman/docflow-lite/releases/tag/v1.0.1) — стабильный выпуск.** Программа бесплатна для личной и деловой работы по [условиям использования](LICENSE.txt). Индивидуальная настройка — отдельная услуга. Один оператор, локальные данные, без аккаунта и телеметрии.
 
-Версия **1.0.1** готовится к выпуску. В ней обновлены рабочие процессы Core и Service, импорт и восстановление проектов. [Что изменилось](docs/release-v1.0.1.md) · [Переход с 1.0.0 и откат](docs/UPDATE.md).
+В версии **1.0.1** обновлены рабочие процессы Core и Service, импорт и восстановление проектов. [Что изменилось](docs/release-v1.0.1.md) · [Переход с 1.0.0 и откат](docs/UPDATE.md).
 
 ## Выберите задачу
 
@@ -58,7 +58,7 @@ Core поддерживает простые переменные {{поле}}, 
 
 Service поддерживает историю отдельных обращений, черновики и версии смет, ручные согласования, точные суммы, оплаты/возвраты, вложения, документы, импорт и backup/restore. Запись оплаты не перемещает деньги и не заменяет кассовый чек.
 
-Сетевой многопользовательский режим, облачная синхронизация, банк, касса, склад и ЭДО не реализованы. Совместимость с любой формой не обещается. Alpha не означает приёмку документов конкретного заказчика.
+Сетевой многопользовательский режим, облачная синхронизация, банк, касса, склад и ЭДО не реализованы. Совместимость с любой формой не обещается. Перед внедрением проверьте результат на шаблонах и в редакторе заказчика.
 
 [Полные ограничения](docs/LIMITATIONS.md) · [Адаптация заказчика](docs/CUSTOMER_ADAPTATION.md) · [Roadmap](ROADMAP.md)
 

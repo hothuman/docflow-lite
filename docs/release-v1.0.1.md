@@ -1,6 +1,6 @@
 # DocFlow Lite 1.0.1
 
-Статус — кандидат стабильного выпуска для проверки владельцем. Публичная версия на момент подготовки — [v1.0.0](https://github.com/hothuman/docflow-lite/releases/tag/v1.0.0).
+[Стабильный выпуск v1.0.1](https://github.com/hothuman/docflow-lite/releases/tag/v1.0.1) опубликован 22 ноября 2026 года. Git-тег указывает на `e1b1df1c1f38fd9be04e608886fda7e6d63b64f5`. [Файлы и контрольные суммы](https://github.com/hothuman/docflow-lite/releases/download/v1.0.1/SHA256SUMS.txt) относятся к этой поставке.
 
 ## Что изменилось с 1.0.0
 
