@@ -14,6 +14,8 @@ def release_closed_qt_windows(qt_application_lifetime):
  yield
  from PySide6.QtCore import QCoreApplication,QEvent,QThread
  from PySide6.QtWidgets import QApplication,QDialog,QMainWindow
+ # Some editors defer accepting close() until their route has unwound.
+ qt_application_lifetime.processEvents()
  retired = False
  for widget in QApplication.topLevelWidgets():
   if isinstance(widget,(QDialog,QMainWindow)) and not widget.isVisible():

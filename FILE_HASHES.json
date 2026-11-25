@@ -409,7 +409,7 @@
   "src/docflow/validation.py": "526899f0966affc81acbd068b787440066f13fa8ee9d6c9f399467a2e5749014",
   "src/docflow/versioning.py": "27a46cd2b2ac3c994ceabc210a63654afe1d549b8172af248ec3c27872a40981",
   "start_windows.bat": "b1f40c5a3ada7c295082bad46eea92cc246a2a2c3f389325566a81ab5b1b3cb9",
-  "tests/conftest.py": "0c9e53c356ec3ae7a00225adf0b89372178e1b5e24219007d12af6895b7e3092",
+  "tests/conftest.py": "53b3b697ab320342738ddd3d1e820565f94aae520505293dd28449b89ac76922",
   "tests/service/test_backup_atomic_publication.py": "519b9d91cd335ee939d03f251d9808bf58e5db33992233ac371bc464c215a0aa",
   "tests/service/test_completion.py": "7628b9a25c664dd218253b755ade87e2dd3843cc240003f1b3e727a4071b0889",
   "tests/service/test_completion_ui.py": "aae315846520a5b0ebc34e421104b258454304ae4c83f9b9e99884fe7e171d56",
