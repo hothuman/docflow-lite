@@ -242,6 +242,11 @@ def test_stage14_journal_uses_one_context_action_and_keeps_enter_and_filter_focu
     window.resize(560, 320)
     settle(ui)
     assert journal.open_button.isVisible()
+    assert journal.panels.context_button.isVisible()
+    journal.search.setText('синтетический фильтр без совпадений')
+    assert journal.panels.context_button.isHidden() and journal.open_button.isHidden()
+    journal.reset_button.click()
+    assert journal.panels.context_button.isVisible()
     journal.open_button.click()
     settle(ui)
     assert ui.current_page.key == repair_id

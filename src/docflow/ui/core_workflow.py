@@ -583,7 +583,7 @@ def readiness(w,valid,message):
         w.generate_btn.style().unpolish(w.generate_btn)
         w.generate_btn.style().polish(w.generate_btn)
     sync_result_actions(w)
-    w.status.setVisible(w.height() >= 500 and page < 4 and (page != 3 or not w.last_result))
+    w._sync_footer_status()
     title=('Выбрать таблицу' if not loaded else 'К шаблонам →','Добавить шаблон Word' if not w.active_templates() else 'К проверке полей →','Проверить все строки' if not checked else 'К созданию документов →')[min(page,2)]
     if not loaded:title='Выбрать таблицу'
     elif not w.active_templates() and page != 0:title='Добавить шаблон Word'

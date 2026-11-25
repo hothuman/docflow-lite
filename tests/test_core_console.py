@@ -23,7 +23,9 @@ def test_completed_run_opens_selected_document_and_new_run_is_explicit(tmp_path,
         assert window.pages.currentWidget().accessibleName() == window.title.text()
 
         window.load_demo()
+        assert window.operation_notice.isVisible() and window.status.isHidden()
         wait_idle(window)
+        assert window.operation_notice.isHidden()
         window.core_next.click()
         assert window.pages.currentIndex() == 1
         window.core_next.click()

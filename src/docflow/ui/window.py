@@ -379,6 +379,7 @@ class MainWindow(QMainWindow):
                 message='Дождитесь завершения операции перед переходом.' if busy else 'Сначала сохраните или закройте открытую форму ремонта.'
                 self.status.setText(message)
                 self.operation_notice.setText(message);self.operation_notice.show()
+                self._sync_footer_status()
                 self.mode_picker.blockSignals(True);self.mode_picker.setCurrentIndex(1 if previous==5 else 0);self.mode_picker.blockSignals(False);return
         if index==5 and self.service_workspace is None:
             from .service.workspace import ServiceWorkspace
@@ -478,10 +479,7 @@ class MainWindow(QMainWindow):
         self.account_caption.setVisible(service and self.height()>=600)
         self.nav_caption.setVisible(service and self.height()>=600)
         self.core_route.setVisible(self.pages.currentIndex() < 4 and not core_start)
-        core_page = self.pages.currentIndex()
-        checked = core_page == 2 and self.validation_panel.mode == 'rows'
-        self.status.setVisible(self.height() >= 500 and core_page < 4 and
-                               not checked and (core_page != 3 or not self.last_result))
+        self._sync_footer_status()
         if not service:
             self.subtitle.setVisible(self.height() >= 600 and bool(self.subtitle.text()))
         work_width = self.width() - (24 if compact else 248)
@@ -499,6 +497,13 @@ class MainWindow(QMainWindow):
         if hasattr(self,'core_next'):
             if self._pinned_action is None:self.footer_layout.addWidget(self.generate_btn);self._pinned_action=True
 
+    def _sync_footer_status(self):
+        page = self.pages.currentIndex()
+        reviewed = page == 2 and self.validation_panel.mode == 'rows'
+        visible = (self.height() >= 500 and page < 4 and self.operation_notice.isHidden()
+                   and not reviewed and (page != 3 or not self.last_result))
+        self.status.setVisible(visible)
+
     def active_templates(self):return [t for t in self.templates if t.path in self._active_paths]
 
     def error(self,message):
@@ -510,9 +515,11 @@ class MainWindow(QMainWindow):
         self.operation_notice.setText('Ошибка: '+str(message));self.operation_notice.setToolTip(str(message));self.operation_notice.show()
         self.validation_panel.set_error(str(message),self.validation_signature())
         self.tabs.setCurrentIndex(2)
+        self._sync_footer_status()
     def _clear_notice(self):
         self.operation_notice.hide();self.operation_notice.clear();self.operation_notice.setToolTip('')
         self._set_notice_error(False)
+        self._sync_footer_status()
 
     def _set_notice_error(self, is_error):
         self.operation_notice.setProperty('isError', is_error)
@@ -526,6 +533,7 @@ class MainWindow(QMainWindow):
         self._clear_notice()
         self._task_success=success;self.set_busy(True);self.status.setText(message)
         self.operation_notice.setText(message);self.operation_notice.show()
+        self._sync_footer_status()
         self.task_worker=TaskWorker(function,self)
         self.task_worker.completed.connect(self._task_result);self.task_worker.failed.connect(self.error)
         self.task_worker.finished.connect(self._task_finished);self.task_worker.start()
@@ -540,6 +548,7 @@ class MainWindow(QMainWindow):
         self.task_worker.deleteLater();self.task_worker=None;self._task_success=None
         self.set_busy(False)
         if not self.status.text().startswith('Ошибка:'):self.operation_notice.hide()
+        self._sync_footer_status()
         previous_focus, self._task_focus = self._task_focus, None
         if previous_focus and self.isActiveWindow():
             if self.pages.currentIndex() == 2 and previous_focus is self.core_next and self.validation_panel.first.isVisible():

@@ -130,7 +130,6 @@ class JournalPanels(QStackedWidget):
             return
         was_summary = self.currentWidget() is self.summary
         self.compact = compact
-        self.context_button.setVisible(compact)
         if compact:
             self.body.removeWidget(self.inspector)
             self.inspector.setMinimumWidth(0)
@@ -162,5 +161,7 @@ class JournalPanels(QStackedWidget):
     def update_repair(self, row, equipment, ready):
         if not row:
             self.return_to_list(restore=False)
-        self.context_button.setEnabled(ready and row is not None)
+        available = ready and row is not None
+        self.context_button.setEnabled(available)
+        self.context_button.setVisible(bool(self.compact and available))
         self.inspector.update_repair(row, equipment, ready)

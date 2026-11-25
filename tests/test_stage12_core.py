@@ -81,6 +81,7 @@ def test_check_marks_source_rows_can_open_error_and_invalidates_on_mapping_chang
     core.check_all()
     wait_idle(core)
     assert [item.text() for item in core.validation_panel.counts.values] == ['2', '1']
+    assert core.status.isHidden()
     assert not (tmp_path / 'dry-run').exists()
     assert core.data_model.headerData(0, Qt.Orientation.Vertical) == '✓ 2'
     assert core.data_model.headerData(2, Qt.Orientation.Vertical) == '! 4'
