@@ -134,7 +134,8 @@ def run(output, require_windows=False):
         window.row_selector.setCurrentIndex(2)
         assert 'будет пропущена' in window.preview_text.toPlainText()
         click(window.check_btn)
-        assert 'С ошибками: 1' in window.status.text()
+        assert [metric.text() for metric in window.validation_panel.counts.values] == ['2', '1']
+        assert 'Строки с ошибками будут пропущены' in window.validation_panel.heading.text()
         check('bundled_demo_and_validation')
         # Exercise the changed feature in the actual frozen GUI, not a source-only test.
         # Qt events are sent directly to our widgets; no desktop-global input.

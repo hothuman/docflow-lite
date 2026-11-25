@@ -316,7 +316,7 @@
   "src/docflow/gui.py": "a47eeb16821db5b3190385ae2d14b957460e34ed63ca026b0e36bf1baed3d3f2",
   "src/docflow/matching.py": "e324fee6711db71d123dbcaf6efe8dad8182bdcbb012755df2428e5fa42af2f0",
   "src/docflow/profile.py": "7a50b4c67dd058875b3eed3c60c4f5a5ca3c0f7d3e8ff74410dfe9e6ebf88d19",
-  "src/docflow/release_check.py": "b58d0d6ba107894ddacf71c57f6de96e2461aa2e4c113107f95b02863184fc4b",
+  "src/docflow/release_check.py": "59fcd65c69049ab064eef34be578e52c688ada35848c6110b4456d46663da94f",
   "src/docflow/resources/LICENSE.txt": "398a325092368d1cac225d54c502a7ca544b35e632c0e6ed0d6869b97513d9fa",
   "src/docflow/safety.py": "79956e3082c2e98f3d1b25e07ffe7e59936bb6eb85a0ebeb7a5bd1eb944eadf9",
   "src/docflow/service/__init__.py": "6b69a9259716f7583256c3078003cd70dc214bb5ccc403ae4f1def7fe8341cb4",
