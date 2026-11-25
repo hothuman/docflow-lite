@@ -92,7 +92,8 @@ def test_core_validation_opens_each_error_in_its_source_cell(tmp_path):
         wait_idle(window)
         panel = window.validation_panel
         assert panel.isVisible() and panel.property('severity') == 'error'
-        assert 'готовых строк: 2 из 3' in panel.heading.text()
+        assert 'Строки с ошибками будут пропущены' in panel.heading.text()
+        assert [metric.text() for metric in panel.counts.values] == ['2', '1']
         details = panel.report.toPlainText()
         assert 'Строка 4 · Сумма (amount): Нужно конечное число не меньше нуля' in details
         assert 'Строка 4 · Услуга (service): Обязательное поле пусто' in details

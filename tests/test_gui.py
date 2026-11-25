@@ -28,7 +28,7 @@ def test_gui_demo_preview_validation_and_worker(app, tmp_path):
     assert "будет пропущена" in window.preview_text.toPlainText()
     window.check_all()
     wait_idle(window)
-    assert "С ошибками: 1" in window.status.text()
+    assert [metric.text() for metric in window.validation_panel.counts.values] == ["2", "1"]
     window.output_path.setText(str(tmp_path))
     window.start_generation()
     deadline = time.monotonic() + 20
