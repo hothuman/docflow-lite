@@ -21,7 +21,7 @@ jobs:
       QT_QPA_PLATFORM: offscreen
       PYTHONUTF8: '1'
       PYTHONUNBUFFERED: '1'
-      PYTEST_ADDOPTS: '-v -o faulthandler_timeout=90'
+      PYTEST_ADDOPTS: '-vv --durations=10 -o faulthandler_timeout=90'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -58,7 +58,7 @@ jobs:
     env:
       PYTHONUTF8: '1'
       PYTHONUNBUFFERED: '1'
-      PYTEST_ADDOPTS: '-v -o faulthandler_timeout=90'
+      PYTEST_ADDOPTS: '-vv --durations=10 -o faulthandler_timeout=90'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:

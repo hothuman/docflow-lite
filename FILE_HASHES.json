@@ -5,7 +5,7 @@
   ".github/ISSUE_TEMPLATE/feature_request.yml": "45db6e85a324a37492f301429c680d588aba4e07708319288163ea368e8f87fb",
   ".github/PULL_REQUEST_TEMPLATE.md": "23f6cf465370433abd5b3af11d8f6a0ce19e70c9d0758e395667517005db0446",
   ".github/scripts/package_service_review.py": "590d5377f38bf8b8907965855e18cefed2390780b3076b31a6cc136ac7e89798",
-  ".github/workflows/app-modernization.yml": "d4ab2fbeca536600081fc40ed7b2e79659a86c7fc6d637909f2e305f8fe5937f",
+  ".github/workflows/app-modernization.yml": "a4dbd8a1afd632cdd61c272fd1d8f4d990b27e0d3eb1fc1784445a0707395ae6",
   ".github/workflows/pages.yml": "0126360b42b46bb7ad9ed87b53927903777a03ea2b505b7efa098e1cb46bcb08",
   ".github/workflows/service-review.yml": "bb772e9fa97286ad376136919ce0c461a31a5bbc18d123aabd0c369936728de7",
   ".github/workflows/verify.yml": "e69ed527808db4831c12d83f829505a9b24179d98ebbe6c3e79b557b4f83e7b3",
