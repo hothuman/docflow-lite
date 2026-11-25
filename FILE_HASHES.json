@@ -400,7 +400,7 @@
   "src/docflow/ui/service/settings_page.py": "3047a28bcce54a11cc3d336c71d44477225b3a22fffcfa4caa9e73390656fcd6",
   "src/docflow/ui/service/template_fields.py": "1a0e0e7b12585b57f2de3dbe44141bb7dc58c78585846deba87c6970df21ae5a",
   "src/docflow/ui/service/widgets.py": "96b365fbef4bdf4b0c635b053c847e88d9ef1c7575014fbe51aad102ee9243f9",
-  "src/docflow/ui/service/workspace.py": "b7cf9d3a28ace5423abd6c66fcbbc1ecaa61253f4f8fcf364820cce8143708fa",
+  "src/docflow/ui/service/workspace.py": "eea95594d80d2d40e7d86782e7dcfcca20a1525217d5bce0aef5e40230ff44cf",
   "src/docflow/ui/settings.py": "53de150fb459cf0441663a05e8005e5f35c95cffd5f0f2099a7d27b98197fa79",
   "src/docflow/ui/theme.py": "6970e24ce11afcec15a3780016fddac94eb5eff27fd64a5b126baaff8e17e78c",
   "src/docflow/ui/theme.qss": "75e6a76681ea7241e6724325595ef78db7ddee4327cf3674cd1242b1b23dd97f",

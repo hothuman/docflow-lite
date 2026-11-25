@@ -132,7 +132,12 @@ class ServiceWorkspace(QWidget):
             layout.addWidget(context)
             self.list_contexts[key] = context
             view.selectionModel().currentRowChanged.connect(lambda *_, k=key: self.sync_selection(k))
-            if key in SHORT_LISTS:layout.addStretch()
+            if key in SHORT_LISTS:
+                # Keep one full row and its scrollbar in a compact panel.
+                view.setMinimumHeight(view.horizontalHeader().sizeHint().height()
+                                      + view.verticalHeader().defaultSectionSize()
+                                      + 2 * view.frameWidth() + view.horizontalScrollBar().sizeHint().height())
+                layout.addStretch()
             search.textChanged.connect(view.proxy.setFilterFixedString);search.textChanged.connect(lambda _,k=key:self.update_list_state(k));self.views[key]=view;self.tabs.addTab(page,name)
         clients = self.toolbars['clients']
         button(clients, 'Добавить клиента', self.new_client, primary=True)
