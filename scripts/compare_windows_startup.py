@@ -1,4 +1,4 @@
-"""Read-only comparison with the immutable public 0.1.1 portable, on Windows CI.
+"""Read-only comparison with the immutable public 1.0.1 portable, on Windows CI.
 
 Only the expected SHA256 is executed. No release, tag, site or source is modified.
 """
@@ -7,8 +7,8 @@ from pathlib import Path, PurePosixPath
 from urllib.request import Request,urlopen
 from verify_windows_bundle import normal_start
 
-URL='https://github.com/hothuman/docflow-lite/releases/download/v0.1.1/DocFlow-Lite-0.1.1-Windows-x64-Portable.zip'
-EXPECTED='c0cac130ec4b39d7d42f0ea6ea1d5f128ff6402c89cc4cb8518bc60403f2a034'
+URL='https://github.com/hothuman/docflow-lite/releases/download/v1.0.1/DocFlow-Lite-1.0.1-Windows-x64-Portable.zip'
+EXPECTED='c61cbe6b076d8f0ee11a2a19e82fe6fe40b1e0b4f6a514fb46ed7f0b27d6eac5'
 
 def run(exe,output,baseline_zip=None):
     assert os.name=='nt'
@@ -34,10 +34,16 @@ def run(exe,output,baseline_zip=None):
             z.extractall(root/'before')
         baseline=root/'before/DocFlow-Lite/DocFlow-Lite.exe'
         # Interleave samples to reduce ordering/cache bias; no Python on child PATH.
+        environments = []
+        for side in ("stable", "candidate"):
+            settings = root / side
+            settings.mkdir()
+            environments.append({**env, 'APPDATA':str(settings), 'LOCALAPPDATA':str(settings),
+                                 'DOCFLOW_SETTINGS_DIR':str(settings / 'workspace')})
         before=[];after=[]
         for _ in range(3):
-            before.append(normal_start(baseline,root,env));after.append(normal_start(exe,root,env))
-        report={'status':'passed','baseline_release':'v0.1.1','baseline_zip_sha256':EXPECTED,
+            before.append(normal_start(baseline,root,environments[0]));after.append(normal_start(exe,root,environments[1]))
+        report={'status':'passed','baseline_release':'v1.0.1','baseline_zip_sha256':EXPECTED,
                 'before':before,'after':after,'manual_windows_test':False,
                 'startup_before_median_s':statistics.median(v['startup_to_visible_s'] for v in before),
                 'startup_after_median_s':statistics.median(v['startup_to_visible_s'] for v in after),

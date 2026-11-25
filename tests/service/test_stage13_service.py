@@ -208,3 +208,60 @@ def test_journal_accepts_rows_before_a_hidden_view_is_laid_out(desk):
         assert not journal.selected_summary.isVisible()
     finally:
         journal.deleteLater()
+
+
+def test_stage14_journal_uses_one_context_action_and_keeps_enter_and_filter_focus(desk):
+    window, ui, _, _ = desk
+    open_demo(desk)
+    window.resize(1280, 800)
+    ui.go_to_section(2)
+    settle(ui)
+    journal = ui.journal
+    journal.grid.selectRow(0)
+    assert journal.panels.inspector.open_button.isVisible()
+    assert journal.open_button.isHidden()
+    assert journal.reset_button.isHidden()
+
+    repair_id = journal.grid.selected()['id']
+    journal.grid.setFocus()
+    QTest.keyClick(journal.grid, Qt.Key.Key_Return)
+    settle(ui)
+    assert ui.current_page.key == repair_id
+    ui.back_page()
+    settle(ui)
+
+    journal.search.setText('синтетический фильтр без совпадений')
+    assert journal.grid.proxy.rowCount() == 0
+    assert journal.reset_button.isVisible()
+    journal.reset_button.setFocus()
+    QTest.keyClick(journal.reset_button, Qt.Key.Key_Space)
+    assert journal.reset_button.isHidden()
+    assert journal.search.hasFocus()
+    assert journal.grid.selected()['id'] == repair_id
+
+    window.resize(560, 320)
+    settle(ui)
+    assert journal.open_button.isVisible()
+    journal.open_button.click()
+    settle(ui)
+    assert ui.current_page.key == repair_id
+
+
+def test_stage14_document_footer_follows_unsaved_repair_state(desk):
+    _, ui, _, keys = desk
+    open_demo(desk)
+    ui.open_repair(keys['repair'], 'Документы')
+    settle(ui)
+    page = ui.current_page
+    assert page.save_button.isHidden() and page.cancel_edits.isHidden()
+    assert page.document_wizard.preview_button.accessibleName() == 'Текстовый предпросмотр'
+    page.tabs.show_section('Дефектовка')
+    before = page.fields['defects'].toPlainText()
+    page.fields['defects'].setPlainText('Учебная правка')
+    page.tabs.show_section('Документы')
+    assert page.save_button.isVisible() and page.save_button.isEnabled()
+    assert page.cancel_edits.isVisible()
+    page.cancel_edits.click()
+    assert page.fields['defects'].toPlainText() == before
+    assert page.save_button.isHidden() and page.cancel_edits.isHidden()
+    assert ui.store.snapshot(keys['repair'])['repair']['defects'] == before

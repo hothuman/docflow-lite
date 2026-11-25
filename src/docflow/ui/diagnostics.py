@@ -2,6 +2,7 @@
 import logging,os
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
+from .. import __version__
 from ..errors import DocFlowError
 def diagnostic_path():
  base=Path(os.environ.get('LOCALAPPDATA',Path.home()/'AppData/Local')) if os.name=='nt' else Path(os.environ.get('XDG_STATE_HOME',Path.home()/'.local/state'))
@@ -12,7 +13,7 @@ def record_project_event(result,exc=None):
  try:
   if not logger.handlers:
    path=diagnostic_path();path.parent.mkdir(parents=True,exist_ok=True);handler=RotatingFileHandler(path,maxBytes=2*1024**2,backupCount=2,encoding='utf-8');handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'));logger.addHandler(handler);logger.setLevel(logging.INFO);logger.propagate=False
-  logger.info('project result=%s error_type=%s',result,type(exc).__name__ if exc else 'none')
+  logger.info('version=%s project result=%s error_type=%s',__version__,result,type(exc).__name__ if exc else 'none')
  except OSError:pass
 
 def record_exception(context,exc):
@@ -20,7 +21,7 @@ def record_exception(context,exc):
  try:
   if not logger.handlers:
    path=diagnostic_path();path.parent.mkdir(parents=True,exist_ok=True);handler=RotatingFileHandler(path,maxBytes=2*1024**2,backupCount=2,encoding='utf-8');handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'));logger.addHandler(handler);logger.setLevel(logging.INFO);logger.propagate=False
-  logger.error('%s: %s',context,type(exc).__name__,exc_info=(type(exc),exc,exc.__traceback__))
+  logger.error('version=%s %s: %s',__version__,context,type(exc).__name__,exc_info=(type(exc),exc,exc.__traceback__))
  except OSError:pass
 def friendly_error(exc):
  if isinstance(exc,FileNotFoundError):return 'Файл или папка недоступны. Проверьте путь и наличие файла.'

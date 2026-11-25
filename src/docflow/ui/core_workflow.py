@@ -116,8 +116,8 @@ class ValidationPanel(QFrame):
         layout.setSpacing(7)
         self.heading = text('', 'section')
         layout.addWidget(self.heading)
-        self.counts = CoreCounts((('Готовы', 'coreCountGood'), ('С ошибками', 'coreCountBad'),
-                                  ('Будут пропущены', 'coreCountValue')))
+        self.counts = CoreCounts((('Строки готовы', 'coreCountGood'),
+                                  ('Строки с ошибками', 'coreCountBad')))
         self.counts.hide()
         layout.addWidget(self.counts)
         self.report = QTextBrowser()
@@ -192,10 +192,10 @@ class ValidationPanel(QFrame):
         self.issues, self.mapping, self.offset = tuple(issues), mapping, 0
         self.window.data_model.set_review(issues, mapping, checked=True)
         self.window.update_source_issue()
-        self.counts.update_counts(total - rejected, rejected, rejected)
+        self.counts.update_counts(total - rejected, rejected)
         self.counts.show()
         if issues:
-            self.heading.setText(f'⚠ Найдены ошибки · готовых строк: {total - rejected} из {total} · будут пропущены: {rejected}')
+            self.heading.setText('Строки с ошибками будут пропущены. Откройте замечание, чтобы найти ячейку.')
             self.first.setText('К первой ошибке')
             self.first.setAccessibleName(self.first.text())
             self.first.setAccessibleDescription(issue_text(self.issues[0], mapping))
@@ -204,7 +204,7 @@ class ValidationPanel(QFrame):
             self._show_issue_page()
             self._appearance('error')
         else:
-            self.heading.setText(f'✓ Проверка завершена · готовых строк: {total} из {total}')
+            self.heading.setText('Все строки готовы к созданию документов')
             self.report.setPlainText('Ошибок данных не обнаружено')
             self.report.hide()
             self.first.hide()
@@ -218,7 +218,7 @@ class ValidationPanel(QFrame):
                  f'{escape(issue_text(self.issues[index], self.mapping))}</a></li>'
                  for index in range(self.offset, stop)]
         self.report.setHtml(f'<p>Замечания {self.offset + 1}–{stop} из {len(self.issues)}. '
-                            'Откройте замечание, чтобы найти ячейку в таблице.</p>'
+                            '</p>'
                             f'<ul>{"".join(links)}</ul>')
         pageable = len(self.issues) > self.page_size
         self.previous.setVisible(pageable)
@@ -294,7 +294,7 @@ def build_create(w):
     actions.addWidget(w.select_first_table)
     actions.addWidget(w.demo_btn)
     empty.addWidget(actions)
-    empty.addWidget(text('Учебный пример содержит три вымышленные записи и два готовых шаблона.', 'muted'))
+    empty.addWidget(text('Попробуйте путь от таблицы до DOCX на вымышленных данных.', 'muted'))
     start_tools = ActionBar()
     for control in (w.button('Открыть профиль', w.open_profile, 'folder'),
                     w.button('Настройки чтения', lambda: toggle_source_settings(w, not w.source_settings.isVisible()), 'gear')):

@@ -112,8 +112,13 @@ def test_all_rejected_rows_offer_report_and_about_has_one_release_stage(tmp_path
 
         window.navigate(4)
         labels = [label.text() for label in window.pages.currentWidget().findChildren(QLabel)]
-        assert any('Стабильный выпуск' in label for label in labels)
-        assert all('Предварительная версия' not in label for label in labels)
+        from docflow import __version__
+        from docflow.versioning import stage_label
+
+        expected = f'Версия {__version__} · {stage_label(__version__)}'
+        assert labels.count(expected) == 1
+        assert window.version_label.text() == expected.removeprefix('Версия ')
+        assert window.windowTitle() == f'DocFlow Lite {__version__}'
         assert not window.result_file_btn.isVisible()
     finally:
         wait_idle(window)

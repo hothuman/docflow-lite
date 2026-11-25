@@ -194,7 +194,7 @@ class ServiceDocumentWizard(QWidget):
         self.photos = QVBoxLayout()
         layout.addLayout(self.photos)
         actions = self._actions(layout)
-        self.preview_button = button(actions, 'Посмотреть документ', lambda: self.editor.with_saved(self.preview), primary=True)
+        self.preview_button = button(actions, 'Текстовый предпросмотр', lambda: self.editor.with_saved(self.preview), primary=True)
         button(actions, 'Назад к типу документа', lambda: self._show(0))
         layout.addStretch()
 
@@ -203,7 +203,7 @@ class ServiceDocumentWizard(QWidget):
         layout.addWidget(text('Это текстовый предпросмотр содержания. Для проверки страниц и печати откройте DOCX в редакторе.', 'muted'))
         actions = self._actions(layout)
         self.preview_continue = button(actions, 'Продолжить к созданию', lambda: self._show(3), primary=True)
-        button(actions, 'Посмотреть разметку DOCX', self.open_preview)
+        button(actions, 'Открыть черновик DOCX', self.open_preview)
         button(actions, 'Назад к проверке', lambda: self._show(1))
         self.preview_text = paper('Содержимое DOCX перед созданием')
         self.preview_text.setMinimumHeight(100)

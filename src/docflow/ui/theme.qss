@@ -1,4 +1,4 @@
-/* DocFlow Night Instrument a6. Every native workspace and dialog shares these tokens. */
+/* Shared Night Instrument theme for windows and dialogues. */
 QWidget {font-family:"Segoe UI","DejaVu Sans";font-size:14px;color:@text@;background-color:@background@;}
 QMainWindow,QWidget#root,QWidget#work,QWidget#page,QDialog,QWizard,QWidget#servicePage {background:@background@;}
 QLabel {background:transparent;}
@@ -90,7 +90,7 @@ QListWidget::item:selected {background:@selection@;color:@accent@;}
 QListWidget#sectionList {border:0;background:transparent;}
 QListWidget#sectionList::item {padding:12px 8px;border:0;border-radius:5px;}
 QListWidget#sectionList::item:selected {background:@raised@;color:@accent@;border-left:2px solid @accent@;font-weight:600;}
-QHeaderView::section {background:@raised@;color:@muted@;padding:9px;border:0;border-bottom:1px solid @border@;font-weight:600;}
+QHeaderView::section {background:@raised@;color:@text@;padding:6px 8px;border:0;border-bottom:1px solid @border@;font-weight:600;}
 QHeaderView,QAbstractScrollArea::corner,QTableCornerButton::section {background:@raised@;}
 QTabWidget::pane {border:0;background:transparent;}
 QTabBar::tab {background:transparent;color:@muted@;padding:10px 13px;margin-right:4px;border-bottom:2px solid transparent;}

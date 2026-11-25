@@ -214,6 +214,7 @@ class RepairEditor:
             documents=self.tabs.is_section('Документы')
             self.overview.setVisible(not documents)
             self.next_button.setVisible(not documents)
+            self._sync_draft_actions()
             detailed = overview or self.tabs.is_section('Статус и история')
             self.identity.setVisible(detailed)
             self.short_identity.setVisible(not detailed)
@@ -376,11 +377,20 @@ class RepairEditor:
         w.setAccessibleName(label);w.setMinimumWidth(0)
         if self.embedded:w.setMaximumWidth({'date':180,'text':300}.get(kind,760) if isinstance(kind,str) else 480)
         form.addRow(label,w);self.fields[key]=w
+    def _sync_draft_actions(self):
+        if self.embedded:
+            visible = self.dirty or not self.tabs.is_section('Документы')
+            self.save_button.setVisible(visible)
+            self.cancel_edits.setVisible(visible)
+            self.dirty_label.setVisible(visible)
+
     def changed(self,*args):
         self.dirty=True
         if hasattr(self,'dirty_label'):self.dirty_label.setText('Есть несохранённые изменения')
         if hasattr(self,'save_button'):self.save_button.setEnabled(True)
-        if hasattr(self,'cancel_edits'):self.cancel_edits.setEnabled(True)
+        if hasattr(self,'cancel_edits'):
+            self.cancel_edits.setEnabled(True)
+            self._sync_draft_actions()
     def install(self,s):
         self.snapshot=s;r=s['repair'];self.revision=r['revision']
         from ...service.record_text import repair_display
@@ -450,6 +460,7 @@ class RepairEditor:
         self.grids['payments'].install([{**x,'amount':x['amount_cents']} for x in s['payments']]);
         if self.embedded:self.grids['payments'].fit_few_rows()
         self.grids['attachments'].install(s['attachments']);self.grids['history'].install(s['repair_status_history']);self.dirty=False;self.dirty_label.setText('Сохранено');self.save_button.setEnabled(False)
+        self._sync_draft_actions()
     def refresh_document_profile(self,*args):
         from ...service.document_readiness import assess
         check=assess(self.snapshot,self.doc_kind.currentData(),self.template_path.text());profile=check['profile']

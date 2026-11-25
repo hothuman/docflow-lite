@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 )
 from shiboken6 import isValid
 from .. import __version__
-from ..versioning import stage
+from ..versioning import stage_label
 from ..batch import BatchResult, Prepared, generate, prepare
 from ..cli import demo_profile
 from ..data import Record, Table, load_table
@@ -89,7 +89,7 @@ class GenerationWorker(QThread):
 
 class MainWindow(QMainWindow):
     PAGE_NAMES=('Выберите таблицу','Шаблоны Word','Проверка данных','Создание документов','О программе','Обзор мастерской')
-    NAV_NAMES=('Документы','Шаблоны Word','Поля и проверка','Создание','О программе','Мастерская')
+    NAV_NAMES=('Начало','Шаблоны Word','Поля и проверка','Создание','О программе','Мастерская')
 
     def __init__(self,service_root=None):
         super().__init__()
@@ -118,7 +118,7 @@ class MainWindow(QMainWindow):
         self.rail=QFrame();self.rail.setObjectName('rail');self.rail.setFixedWidth(224)
         nav=QVBoxLayout(self.rail);nav.setContentsMargins(14,22,14,18);nav.setSpacing(8)
         self.brand=text('d/ DocFlow','brand');nav.addWidget(self.brand)
-        self.version_label=text(f'v{__version__} · {stage(__version__)}','version');nav.addWidget(self.version_label)
+        self.version_label=text(f'{__version__} · {stage_label(__version__)}','version');nav.addWidget(self.version_label)
         self.mode_picker=ModeSwitch();self.mode_picker.setAccessibleName('Документы или Мастерская')
         self.mode_picker.currentIndexChanged.connect(lambda i:self.navigate(5 if i else self.resume_core_page()))
         self.nav_caption=text('ДОКУМЕНТЫ','eyebrow');nav.addWidget(self.nav_caption)
@@ -340,11 +340,12 @@ class MainWindow(QMainWindow):
         build_result(self)
 
     def _build_about(self):
-        version_stage = {'stable': 'Стабильный выпуск', 'RC': 'Кандидат в релиз',
-                         'alpha': 'Альфа-версия', 'beta': 'Бета-версия'}[stage(__version__)]
-        page,layout=self.page();box,body=card('DocFlow Lite',f'Версия {__version__} · {version_stage}')
+        page,layout=self.page()
+        box,body=section('DocFlow Lite', f'Версия {__version__} · {stage_label(__version__)}')
         layout.addWidget(box)
-        body.addWidget(text('Локальная генерация Word-документов из XLSX/CSV. Данные и шаблоны не отправляются на сервер.'))
+        body.addWidget(text('Документы: заполнение шаблонов Word по таблице Excel или CSV.'))
+        body.addWidget(text('Мастерская: ремонты, сметы, документы и резервные копии локального проекта.'))
+        body.addWidget(text('Данные и шаблоны обрабатываются на этом компьютере.', 'muted'))
         body.addWidget(text('До 5 000 записей, 100 столбцов и 20 DOCX-шаблонов за запуск. Исходники не перезаписываются.'))
         body.addWidget(text('Поддерживаются простые переменные {{поле}}. В Core нет PDF-экспорта, циклов и истории. Service отдельно ведёт ремонты и поддерживает ограниченное повторение строк. Текстовый предпросмотр не заменяет проверку оформления в Word/LibreOffice.','muted'))
         body.addWidget(text('© 2026 Гапоненко Ростислав Дмитриевич. Бесплатное личное и деловое использование по условиям поставки.'))
@@ -376,7 +377,7 @@ class MainWindow(QMainWindow):
                 *self.service_workspace.dialogs, *(r.widget for r in self.service_workspace.pages.routes)))
             if busy or dirty:
                 message='Дождитесь завершения операции перед переходом.' if busy else 'Сначала сохраните или закройте открытую форму ремонта.'
-                self.status.setText(message);self.mode_picker.setToolTip(message)
+                self.status.setText(message)
                 self.operation_notice.setText(message);self.operation_notice.show()
                 self.mode_picker.blockSignals(True);self.mode_picker.setCurrentIndex(1 if previous==5 else 0);self.mode_picker.blockSignals(False);return
         if index==5 and self.service_workspace is None:
@@ -408,7 +409,7 @@ class MainWindow(QMainWindow):
         if index != 5:
             subtitles = (
                 '',
-                'Отметьте документы, которые нужны для каждой подходящей строки.',
+                'Выберите, какие документы создавать для каждой готовой строки.',
                 '',
                 '',
                 '',
@@ -478,7 +479,9 @@ class MainWindow(QMainWindow):
         self.nav_caption.setVisible(service and self.height()>=600)
         self.core_route.setVisible(self.pages.currentIndex() < 4 and not core_start)
         core_page = self.pages.currentIndex()
-        self.status.setVisible(self.height() >= 500 and core_page < 4 and (core_page != 3 or not self.last_result))
+        checked = core_page == 2 and self.validation_panel.mode == 'rows'
+        self.status.setVisible(self.height() >= 500 and core_page < 4 and
+                               not checked and (core_page != 3 or not self.last_result))
         if not service:
             self.subtitle.setVisible(self.height() >= 600 and bool(self.subtitle.text()))
         work_width = self.width() - (24 if compact else 248)
@@ -864,7 +867,8 @@ class MainWindow(QMainWindow):
                 from .core_workflow import issue_summary
                 rejected=len({x.row for x in issues});total=len(prepared.table.records)
                 self._full_check=(signature,rejected,total)
-                self.status.setText(f'Проверено: {total} записей. Без ошибок: {total-rejected}. С ошибками: {rejected}')
+                self.status.setText('Проверка данных завершена')
+                self._responsive()
                 mapping=prepared.profile.mapping
                 message=issue_summary(issues,mapping) or 'Ошибок данных не обнаружено'
                 self.report_text.setPlainText(message)

@@ -198,7 +198,7 @@ class RepairJournal(QWidget):
             [('Все обращения',''), ('В работе и ожидают','active'), ('Завершённые и архив','archive')])
         self.finance_filter = self._filter(filters, 'Финансовый фильтр',
             [('Все расчёты',''), ('Есть долг','debt'), ('Расчёт неполон','incomplete')])
-        self.reset_button = button(filters, 'Сбросить фильтры', self.reset_filters)
+        self.reset_button = button(filters, 'Сбросить фильтры', self._clear_and_focus_search)
         self.grid = JournalGrid(columns)
         self.grid.setShowGrid(False)
         self.empty = text('', 'empty')
@@ -222,8 +222,8 @@ class RepairJournal(QWidget):
         self.search.textChanged.connect(self.apply_filters)
         self.grid.selectionModel().currentRowChanged.connect(self._user_selected)
         self.grid.pressed.connect(lambda _: self._user_selected())
-        self.grid.openRequested.connect(self.open_button.click)
-        self.grid.doubleClicked.connect(lambda _: self.open_button.click())
+        self.grid.openRequested.connect(open_repair)
+        self.grid.doubleClicked.connect(lambda _: open_repair())
         self.panels = JournalPanels(self, list_page, self.body, actions, open_repair, open_history)
         outer.addWidget(self.panels, 1)
         outer.addWidget(self.selected_summary)
@@ -335,6 +335,10 @@ class RepairJournal(QWidget):
         with self._preserve_view():
             self._set_filter_values()
 
+    def _clear_and_focus_search(self):
+        self.reset_filters()
+        self.search.setFocus()
+
     def reset_filters(self):
         controls = (self.search, self.status_filter, self.archive_filter, self.finance_filter)
         with self._preserve_view():
@@ -421,9 +425,11 @@ class RepairJournal(QWidget):
         self.grid.fit_few_rows()
         filtered = bool(self.search.text().strip() or any(control.currentIndex() for control in (
             self.status_filter, self.archive_filter, self.finance_filter)))
-        self.reset_button.setEnabled(self._ready and filtered)
+        self.reset_button.setVisible(self._ready and filtered)
         row = self.grid.selected()
-        self.open_button.setEnabled(self._ready and row is not None)
+        can_open = self._ready and row is not None
+        self.open_button.setEnabled(can_open)
+        self.open_button.setVisible(can_open and bool(self.panels.compact))
         self.panels.update_repair(row, self.selected_equipment(), self._ready)
         self.selected_summary.setVisible(row is not None and bool(self.panels.compact) and
                                          self.panels.currentWidget() is self.panels.list_page)

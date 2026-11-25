@@ -641,7 +641,7 @@ class ServiceWorkspace(QWidget):
         if not rows:QMessageBox.information(self,'История','Добавьте оборудование или импортируйте журнал.');return
         if len(rows)==1:
             self.show_history(rows[0])
-        else:self.find_equipment();self.message.setText('Найдите аппарат, выберите строку и нажмите «Карточка / история» или Enter.')
+        else:self.find_equipment();self.message.setText('Найдите аппарат, выберите строку и нажмите «История аппарата» или Enter.')
     def open_local(self,path):
         if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(path))):
             self.message.setText('Не удалось открыть файл или папку. Скопируйте путь: '+str(path));QMessageBox.warning(self,'Открытие','Система не смогла открыть файл или папку. Проверьте установленное приложение и доступ к файлу.');return False

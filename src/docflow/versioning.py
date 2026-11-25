@@ -12,3 +12,12 @@ def stage(version):
 
 def is_prerelease(version):
     return stage(version)!='stable'
+
+
+def stage_label(version):
+    return {
+        'alpha': 'Альфа-версия',
+        'beta': 'Бета-версия',
+        'RC': 'Кандидат в релиз',
+        'stable': 'Стабильный выпуск',
+    }[stage(version)]
