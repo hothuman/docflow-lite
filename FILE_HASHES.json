@@ -295,7 +295,7 @@
   "site/scripts/configure_public_url.py": "3b4d32c14c1069d3065b630339c3cc04b5387eef4fc8701d292e0945b0d7f354",
   "site/scripts/verify_public_site.py": "b4250dd16eed43dcab339554a04d0dd89c6a400dbbd921d8eb0d77d94aa0eb4e",
   "site/tests/browser_check.cjs": "fb82e15ae4779a5c37d01d687370455f2c4a45faeb0055a292e5d4a23015f1e9",
-  "site/tests/commercial_browser.cjs": "2fbe03103e47980d0591546473fd07fb6e290ad452b6e220ffb500bca1a910bd",
+  "site/tests/commercial_browser.cjs": "ddc9843c50b59670f0d5c3eddf0e1dc55bed82b43e5f2cb3975f2ab73ca6bcb5",
   "site/tests/prepare_browser_release_fixture.py": "89f38e66f89a8d6995d061dae0b7975b7967813c4f01d9ca7454e00f1feb1348",
   "site/tests/test_atelier.py": "f3d4e13f48a1f4c0dc24af43034cdeeda66946134fe54fc18152d41eb80f2918",
   "site/tests/test_commercial_flow.py": "b083782c5b7ac05a10eeb8634c7ffd486df2ddb6f9da168002490ca5279dc9fa",
