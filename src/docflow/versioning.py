@@ -14,6 +14,11 @@ def is_prerelease(version):
     return stage(version)!='stable'
 
 
+def local_state_namespace(version):
+    """Keep prerelease state separate from the installed stable application."""
+    return 'DocFlowLite-Preview' if is_prerelease(version) else 'DocFlowLite'
+
+
 def stage_label(version):
     return {
         'alpha': 'Альфа-версия',

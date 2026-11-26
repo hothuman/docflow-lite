@@ -168,6 +168,7 @@ def verify(archive,evidence,release):
             assert z.testzip() is None
             z.extractall(testroot)
         bundle=testroot/'DocFlow-Lite'
+        assert not (bundle/'examples/stage8').exists(), 'Stage 8 QA fixtures must not ship in Portable'
         exe=bundle/'DocFlow-Lite.exe'
         raw=exe.read_bytes()
         assert raw[:2]==b'MZ'
@@ -264,6 +265,9 @@ def verify(archive,evidence,release):
             stage4=json.loads((stage4_output/'STAGE4-SELF-TEST.json').read_text(encoding='utf-8'))
             assert stage4_run.returncode==0,stage4
             assert_stage4_checks(stage4);result['stage4'].append({'scale':scale,**stage4})
+        # The frozen diagnostic needs repository fixtures. Inject them into
+        # the temporary extraction only after testing the delivered bundle.
+        shutil.copytree(ROOT/'examples/stage8', bundle/'examples/stage8')
         result['hotfix']=[]
         from docflow.service.hotfix_check import CHECKS as HOTFIX_CHECKS
         for scale in ('1','1.25','1.5','1.75','2'):

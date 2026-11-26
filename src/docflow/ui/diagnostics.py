@@ -4,9 +4,10 @@ from pathlib import Path
 from logging.handlers import RotatingFileHandler
 from .. import __version__
 from ..errors import DocFlowError
+from ..versioning import local_state_namespace
 def diagnostic_path():
  base=Path(os.environ.get('LOCALAPPDATA',Path.home()/'AppData/Local')) if os.name=='nt' else Path(os.environ.get('XDG_STATE_HOME',Path.home()/'.local/state'))
- return base/'DocFlowLite'/'logs'/'diagnostic.log'
+ return base/local_state_namespace(__version__)/'logs'/'diagnostic.log'
 def record_project_event(result,exc=None):
  # No exception messages, paths or tracebacks: these may identify a customer.
  logger=logging.getLogger('docflow.project')
