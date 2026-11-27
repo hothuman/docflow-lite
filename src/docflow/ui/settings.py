@@ -3,6 +3,8 @@ import json
 import os
 from pathlib import Path
 from PySide6.QtCore import QSettings, QStandardPaths
+from .. import __version__
+from ..versioning import local_state_namespace
 
 
 LAST_PROJECT_KEY = 'workspace/v2/lastSuccessfulProject'
@@ -11,15 +13,20 @@ RESUME_PROJECT_KEY = 'workspace/v2/resumeProject'
 
 def preferences():
     folder = os.environ.get('DOCFLOW_SETTINGS_DIR')
-    if not folder:
-        folder = str(Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppConfigLocation)) / 'DocFlowLite')
-    return QSettings(str(Path(folder) / 'interface.ini'), QSettings.Format.IniFormat)
+    namespace = local_state_namespace(__version__)
+    if folder:
+        filename = 'interface.ini' if namespace == 'DocFlowLite' else f'interface-{namespace}.ini'
+        target = Path(folder) / filename
+    else:
+        config = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppConfigLocation)
+        target = Path(config) / namespace / 'interface.ini'
+    return QSettings(str(target), QSettings.Format.IniFormat)
 
 
 def load_widths(key):
     settings = preferences()
     raw = settings.value('columns/' + key)
-    if raw is None:
+    if raw is None and local_state_namespace(__version__) == 'DocFlowLite':
         # Existing installations keep their choices. Read only; no registry writes.
         raw = QSettings('DocFlowLite', 'Interface').value('columns/' + key, {})
     if isinstance(raw, str):

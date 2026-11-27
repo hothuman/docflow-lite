@@ -7,17 +7,16 @@ import os
 import platform
 import shutil
 import subprocess
-import tomllib
 import zipfile
 from pathlib import Path
 
 from generate_sbom import generate as generate_sbom
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"src"))
+from docflow import __version__ as VERSION
 from docflow.versioning import stage,is_prerelease
 
 ROOT=Path(__file__).resolve().parents[1]
-VERSION=tomllib.loads((ROOT/'pyproject.toml').read_text(encoding='utf-8'))['project']['version']
 INSTRUCTIONS=ROOT/'docs'/'README-WINDOWS-SERVICE.txt'
 
 
@@ -50,11 +49,21 @@ def package(bundle,out,sources):
     shutil.copy2(ROOT/'LICENSE.txt',bundle/'LICENSE.txt')
     shutil.copytree(ROOT/'src/docflow/examples',bundle/'examples',dirs_exist_ok=True)
     if (ROOT/'examples/catalog').is_dir():shutil.copytree(ROOT/'examples/catalog',bundle/'examples/catalog',dirs_exist_ok=True)
-    if (ROOT/'examples/stage8').is_dir():shutil.copytree(ROOT/'examples/stage8',bundle/'examples/stage8',dirs_exist_ok=True)
     commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
     sbom=generate_sbom(bundle,VERSION,commit)
     (bundle/'SBOM.cdx.json').write_bytes((json.dumps(sbom,ensure_ascii=False,indent=2)+'\n').encode())
     shutil.copy2(bundle/'SBOM.cdx.json',out/'SBOM.cdx.json')
+    info={'version':VERSION,'release_stage':stage(VERSION),'python':platform.python_version(),'platform':platform.platform(),
+          'architecture':platform.machine(),
+          'commit':commit,
+          'runner_os':os.environ.get('RUNNER_OS'),'runner_image':os.environ.get('ImageOS'),
+          'runner_image_version':os.environ.get('ImageVersion'),
+          'dependencies':{d.metadata['Name']:d.version for d in importlib.metadata.distributions()
+                          if d.metadata['Name'].lower().replace('_','-')!='docflow-lite'},
+          'exe_sha256':sha256(bundle/'DocFlow-Lite.exe'),
+          'procedure':'Pinned Windows wheels with SHA256, PyInstaller onedir; byte-for-byte reproducibility is not claimed'}
+    (bundle/'BUILD-INFO.json').write_text(json.dumps(info,indent=2),encoding='utf-8')
+    shutil.copy2(bundle/'BUILD-INFO.json', out/'BUILD-INFO.json')
     manifest={str(p.relative_to(bundle)).replace('\\','/'):sha256(p)
               for p in sorted(bundle.rglob('*')) if p.is_file() and p.name!='BUNDLE-SHA256.json'}
     assert not any(p.endswith(('.pem','.key')) for p in manifest)
@@ -72,16 +81,6 @@ def package(bundle,out,sources):
     with zipfile.ZipFile(source_zip) as archive:assert archive.testzip() is None
     library_zip=out/f'DocFlow-Lite-{VERSION}-ThirdParty-Sources.zip'
     archive_tree(library_zip,sources,'ThirdParty-Sources')
-    info={'version':VERSION,'python':platform.python_version(),'platform':platform.platform(),
-          'architecture':platform.machine(),
-          'commit':commit,
-          'runner_os':os.environ.get('RUNNER_OS'),'runner_image':os.environ.get('ImageOS'),
-          'runner_image_version':os.environ.get('ImageVersion'),
-          'dependencies':{d.metadata['Name']:d.version for d in importlib.metadata.distributions()
-                          if d.metadata['Name'].lower().replace('_','-')!='docflow-lite'},
-          'exe_sha256':sha256(bundle/'DocFlow-Lite.exe'),
-          'procedure':'Pinned Windows wheels with SHA256, PyInstaller onedir; byte-for-byte reproducibility is not claimed'}
-    (out/'BUILD-INFO.json').write_text(json.dumps(info,indent=2),encoding='utf-8')
     shutil.copy2(bundle/'README-WINDOWS.txt',out/'README-WINDOWS.txt')
     shutil.copy2(ROOT/'LICENSE.txt',out/'LICENSE.txt')
     print(json.dumps({'portable':str(portable),'source':str(source_zip),'third_party_sources':str(library_zip)}))

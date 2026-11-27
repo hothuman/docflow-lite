@@ -5,14 +5,19 @@ import threading
 import json
 import re
 from uuid import uuid4
+from .. import __version__
+from ..versioning import local_state_namespace
 from .database import Database
 from .validation import text,day,now,money,quantity,line_total,ServiceError
 from .statuses import STATUSES,APPROVALS,TERMINAL
 from .finance import totals,calculate,apply_evidence,apply_unknown_prices,ITEM_KINDS
 
 def default_root():
-    if os.name=='nt': return Path(os.environ.get('LOCALAPPDATA',Path.home()/'AppData/Local'))/'DocFlowLite'/'Service'
-    return Path(os.environ.get('XDG_DATA_HOME',Path.home()/'.local/share'))/'DocFlowLite'/'Service'
+    if os.name=='nt':
+        base = Path(os.environ.get('LOCALAPPDATA', Path.home()/'AppData/Local'))
+    else:
+        base = Path(os.environ.get('XDG_DATA_HOME', Path.home()/'.local/share'))
+    return base / local_state_namespace(__version__) / 'Service'
 
 def search_records(rows,query,fields):
     """Search meaningful record fields, excluding UUIDs and storage metadata."""

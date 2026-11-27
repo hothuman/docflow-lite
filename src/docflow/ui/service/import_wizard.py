@@ -10,9 +10,9 @@ from ...service.import_mapping import propose_history
 from ...service.statuses import STATUSES
 from ...validation import Issue
 from .forms import FieldsDialog,fit_dialog
-from ..flow import FlowLayout
+from ..flow import ActionBar, FlowLayout
 from ..theme import COLORS
-from ..widgets import DataModel, DataView, text
+from ..widgets import DataModel, DataView, labeled_input, section, text
 from .models import RowsModel
 from .presentation import IMPORT_STATES
 from .widgets import Grid,button
@@ -58,16 +58,33 @@ class HistoryWizard(QWizard):
         for title in ('1. Файл','2. Соответствие столбцов','3. Проверка строк и связей','4. Подтверждение','5. Результат'):
             p=QWizardPage();p.setTitle(title);outer=QVBoxLayout(p);scroll=QScrollArea();scroll.setWidgetResizable(True);body=QWidget();inner=QVBoxLayout(body);inner.setAlignment(Qt.AlignmentFlag.AlignTop);scroll.setWidget(body);outer.addWidget(scroll);self._layouts.append(inner);self.addPage(p)
             error=text('','error');error.setAccessibleName('Ошибка шага импорта');error.setStyleSheet(f'border:1px solid {COLORS["error"]};border-radius:5px;padding:6px;');error.hide();inner.addWidget(error);self._errors.append(error)
-        l=self._layouts[0];note=text('Выберите Excel или CSV, сохранённый на компьютере. Для журнала из 1С сначала выгрузите файл.\nСтарый номер ремонта и постоянный номер аппарата выбираются отдельно. Записи будут добавлены после подтверждения.');l.addWidget(note)
-        self.path=QLineEdit();self.path.setAccessibleName('Файл исторического журнала');l.addWidget(self.path);button(l,'Выбрать XLSX / CSV',self.choose)
-        self.sheet=QComboBox();self.sheet.setAccessibleName('Лист Excel');l.addWidget(self.sheet);button(l,'Прочитать список листов',self.inspect)
+        l=self._layouts[0]
+        l.addWidget(text('Выберите локальный Excel или CSV. На следующих шагах можно проверить связи и строки без записи в проект.', 'coreLead'))
+        source, fields = section(role='serviceContext')
+        l.addWidget(source)
+        self.path=QLineEdit()
+        labeled_input(fields, 'Таблица журнала', self.path, accessible_name='Файл исторического журнала')
+        files = ActionBar()
+        fields.addWidget(files)
+        button(files,'Выбрать XLSX / CSV',self.choose,primary=True)
+        self.inspect_button=button(files,'Прочитать список листов',self.inspect)
+        self.sheet=QComboBox()
+        self.sheet_caption = labeled_input(fields, 'Лист Excel', self.sheet)
         self.encoding=QComboBox();self.encoding.setAccessibleName('Кодировка журнала CSV')
         for label,value in [('Автоматически (UTF-8 / Windows-1251)','auto'),('UTF-8','utf-8'),('UTF-8 с BOM','utf-8-sig'),('Windows-1251 (CP1251)','cp1251')]:self.encoding.addItem(label,value)
-        l.addWidget(self.encoding)
+        self.encoding_caption = labeled_input(fields, 'Кодировка CSV', self.encoding, accessible_name='Кодировка журнала CSV')
         self.path.textChanged.connect(self.update_source_controls)
         self.update_source_controls()
-        self.source_label=QLineEdit();self.source_label.setPlaceholderText('Необязательный постоянный ID источника для сверки обновлённого журнала');l.addWidget(self.source_label)
-        self.copy_documents=QCheckBox('Скопировать указанные локальные документы в проект');l.addWidget(self.copy_documents);self.document_root=QLineEdit();self.document_root.setReadOnly(True);l.addWidget(self.document_root);button(l,'Разрешённая папка исходных документов',self.choose_root)
+        advanced, extra = section(role='coreSubsection')
+        extras = QCheckBox('Параметры источника и вложений')
+        extras.toggled.connect(advanced.setVisible)
+        l.addWidget(extras)
+        l.addWidget(advanced)
+        advanced.hide()
+        self.source_label=QLineEdit()
+        self.source_label.setPlaceholderText('Необязательно')
+        labeled_input(extra, 'Постоянный ID журнала для повторной сверки', self.source_label)
+        self.copy_documents=QCheckBox('Скопировать указанные локальные документы в проект');extra.addWidget(self.copy_documents);self.document_root=QLineEdit();self.document_root.setReadOnly(True);extra.addWidget(self.document_root);button(extra,'Разрешённая папка исходных документов',self.choose_root)
         l=self._layouts[1];self.count=text();l.addWidget(self.count)
         self.preview=DataView();self.preview.setAccessibleName('Ячейки исходного файла');self.preview.setAlternatingRowColors(True)
         self.preview.setEditTriggers(DataView.EditTrigger.NoEditTriggers);self.preview.setMinimumHeight(135)
@@ -106,7 +123,13 @@ class HistoryWizard(QWizard):
         l=self._layouts[4];self.report=QPlainTextEdit();self.report.setReadOnly(True);l.addWidget(self.report);button(l,'Сохранить отчёт JSON',self.save_report)
         for label in self.findChildren(QLabel):label.setTextFormat(Qt.TextFormat.PlainText)
     def update_source_controls(self):
-        self.encoding.setVisible(Path(self.path.text()).suffix.lower()=='.csv')
+        extension = Path(self.path.text()).suffix.lower()
+        csv = extension == '.csv'
+        xlsx = extension == '.xlsx'
+        for control in (self.encoding, self.encoding_caption):
+            control.setVisible(csv)
+        for control in (self.sheet, self.sheet_caption, self.inspect_button):
+            control.setVisible(xlsx)
 
     def show_error(self, message):
         if self.currentId()>=0:

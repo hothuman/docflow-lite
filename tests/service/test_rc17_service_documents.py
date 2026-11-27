@@ -113,7 +113,7 @@ def test_embedded_wizard_preview_commit_and_backup_restore(workshop, tmp_path, m
 
         with monkeypatch.context() as patch:
             patch.setattr('docflow.ui.service.document_actions.prepare_document', delayed)
-            click(wizard, 'Посмотреть документ')
+            click(wizard, 'Текстовый предпросмотр')
             try:
                 assert workspace.operation_cancel.isVisible()
                 workspace.operation_cancel.click()
@@ -125,7 +125,7 @@ def test_embedded_wizard_preview_commit_and_backup_restore(workshop, tmp_path, m
         assert 'отменён' in wizard.document_status.text()
         assert not workspace.store.documents()
 
-        click(wizard, 'Посмотреть документ')
+        click(wizard, 'Текстовый предпросмотр')
         idle(app, workspace)
         assert wizard.pages.currentIndex() == 2
         for expected in ('Диагностика', 'Уплотнение', '1 850,00', '850,00'):
@@ -133,7 +133,7 @@ def test_embedded_wizard_preview_commit_and_backup_restore(workshop, tmp_path, m
         assert not workspace.store.documents()
 
         prepared = wizard.prepared.rendered
-        click(wizard, 'Посмотреть разметку DOCX')
+        click(wizard, 'Открыть черновик DOCX')
         idle(app, workspace)
         assert len(opened) == 1 and opened[0].read_bytes() == prepared
         opened[0].write_bytes(b'synthetic modification in external viewer')

@@ -4,13 +4,13 @@ from uuid import uuid4
 from PySide6.QtCore import QUrl,Qt
 from PySide6.QtGui import QImageReader,QPixmap,QDesktopServices
 from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QFormLayout,QLabel,QTabWidget,QLineEdit,QPlainTextEdit,QComboBox,QScrollArea,QWidget,QFileDialog,QInputDialog,QMessageBox,QCheckBox,QFrame,QSizePolicy,QMenu,QPushButton)
-from ...service.validation import rub
+from ...service.validation import ServiceError, money, rub
 from ...service.statuses import STATUSES,APPROVALS
 from ...service.documents import KINDS,generate_document
 from ...service.attachments import add_attachment,attachment_path,remove_attachment,export_file
 from .forms import FieldsDialog,fit_dialog,DateField
-from ..flow import FlowLayout
-from ..widgets import text
+from ..flow import ActionBar, FlowLayout
+from ..widgets import section, text
 from .navigation import RepairNavigation
 from .widgets import Grid,button,confirm
 from .document_actions import open_for_printing
@@ -30,13 +30,19 @@ class RepairEditor:
         if self.embedded:root_layout.setContentsMargins(0,0,0,0);root_layout.setSpacing(6)
         self.overview=QWidget();self.overview_layout=QVBoxLayout(self.overview);self.overview_layout.setContentsMargins(0,0,0,0);self.overview_layout.setSpacing(7)
         outer.addWidget(self.overview)
-        passport=QFrame();passport.setObjectName('card');passport_layout=QVBoxLayout(passport);passport_layout.setContentsMargins(12,8,12,8)
+        passport,passport_layout=section(role='serviceContext' if self.embedded else 'card')
+        passport_layout.setContentsMargins(12,8,12,8)
+        passport_layout.setSpacing(5)
         self.identity=QLabel();self.identity.setWordWrap(True);self.heading=text('','section');passport_layout.addWidget(self.heading);passport_layout.addWidget(self.identity)
         if self.embedded:
             self.heading.hide()
             self.compact_status=text('','repairStatus')
             passport_layout.addWidget(self.compact_status)
-        number_bar=FlowLayout();passport_layout.addLayout(number_bar)
+        self.number_actions=ActionBar();passport_layout.addWidget(self.number_actions)
+        number_bar=self.number_actions
+        self.short_identity=text('','coreMeta')
+        passport_layout.insertWidget(1,self.short_identity)
+        self.short_identity.hide()
 
         self.repair_number=QLineEdit();self.repair_number.setReadOnly(True);self.repair_number.setAccessibleName('№ ремонта');self.repair_number.setMaximumWidth(160);self.repair_number.hide()
         button(number_bar,'Документы',lambda:self.tabs.show_section('Документы'))
@@ -47,7 +53,6 @@ class RepairEditor:
         more=QPushButton('Дополнительно');menu=QMenu(more);menu.addAction('Изменить № ремонта',lambda:self.with_saved(self.change_number));menu.addAction('Первоисточник',self.show_source);more.setMenu(menu);number_bar.addWidget(more)
         if self.embedded:
             menu.addAction('Финансы и оплаты',lambda:self.tabs.show_section('Финансы'))
-            menu.addAction('Изменить статус',self.open_status)
             menu.addAction('История статусов',self.show_status_history)
             self.show_checklist=menu.addAction('Что уже заполнено')
             self.show_checklist.setCheckable(True)
@@ -70,21 +75,20 @@ class RepairEditor:
             self.finance_values[key]=value
         finance.addStretch(1)
         passport_layout.addWidget(self.finance_strip)
-        self.state_frame=QFrame();self.state_frame.setObjectName('repairState');state_layout=QVBoxLayout(self.state_frame);state_layout.setContentsMargins(12,8,12,8)
+        self.state_frame=QFrame();self.state_frame.setObjectName('serviceRepairHint' if self.embedded else 'repairState');state_layout=QVBoxLayout(self.state_frame);state_layout.setContentsMargins(12,4,12,4)
         self.status_value=text('','section');self.status_value.setObjectName('repairStatus');state_layout.addWidget(self.status_value)
         if self.embedded:self.status_value.hide()
         self.state_hint=text('','muted');self.state_hint.setAccessibleName('Что сделать дальше');state_layout.addWidget(self.state_hint)
         status_actions=FlowLayout();state_layout.addLayout(status_actions)
-        self.status_action=button(status_actions,'Изменить статус',self.open_status)
-        if self.embedded:self.status_action.hide()
+        self.status_action=button(number_bar if self.embedded else status_actions,'Изменить статус',self.open_status)
         self.overview_layout.addWidget(self.state_frame)
         self.tabs=RepairNavigation(self,embedded=self.embedded);self.tabs.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Preferred);self.tabs.setMinimumHeight(0);root_layout.insertWidget(0,self.tabs.stage_bar)
         if self.embedded:
             checklist=QFrame();checklist.setObjectName('card');steps=QVBoxLayout(checklist);steps.addWidget(text('Что уже заполнено','section'));choices=FlowLayout();steps.addLayout(choices)
             self.checklist=checklist
             self.checks={}
-            for section,name in (('Приёмка','Приёмка'),('Дефектовка','Диагностика'),('Согласование','Согласование'),('Сметы','Смета'),('Работы','Работы'),('Документы','Документы'),('Статус и история','Выдача')):
-                self.checks[section]=(name,button(choices,name,lambda _,section=section:self.tabs.show_section(section)))
+            for area,name in (('Приёмка','Приёмка'),('Дефектовка','Диагностика'),('Согласование','Согласование'),('Сметы','Смета'),('Работы','Работы'),('Документы','Документы'),('Статус и история','Выдача')):
+                self.checks[area]=(name,button(choices,name,lambda _,area=area:self.tabs.show_section(area)))
             outer.addWidget(checklist)
             self.tabs.sectionChanged.connect(self.update_breadcrumb)
         outer.addWidget(self.tabs,1)
@@ -105,7 +109,7 @@ class RepairEditor:
                 button(bar,'Добавить',lambda _,g=group:self.with_saved(lambda:self.item(g)));button(bar,'Изменить',lambda _,g=group:self.with_saved(lambda:self.item(g,True)));button(bar,'Удалить',lambda _,g=group:self.with_saved(lambda:self.delete_item(g)),danger=True)
         p=QWidget();layout=QVBoxLayout(p);form=QFormLayout();layout.addLayout(form);self.add_field(form,'discount','Скидка, ₽','text')
         label=QLabel('Только внутренние записи. Программа не проводит платежи и не выдаёт чеки. Ошибочная запись исправляется аннулированием с причиной и новой корректной записью.');label.setWordWrap(True);layout.addWidget(label)
-        self.payment_summary=text('','section');layout.insertWidget(0,self.payment_summary)
+        self.payment_summary=text('','coreSectionTitle' if self.embedded else 'section');layout.insertWidget(0,self.payment_summary)
         bar=FlowLayout();layout.addLayout(bar)
         if self.embedded:
             button(bar,'Учесть оплату',lambda:self.with_saved(lambda:self.payment('payment')),primary=True)
@@ -121,6 +125,9 @@ class RepairEditor:
             button(bar,'Исправить запись',lambda:self.with_saved(self.void_payment))
             button(bar,'Сверить полноту истории',lambda:self.with_saved(self.financial_evidence))
         self.grids['payments']=Grid([('occurred_at','Дата'),('kind','Вид'),('amount','Сумма'),('method','Способ'),('voided','Состояние'),('void_reason','Причина'),('comment','Комментарий')],settings_key='repair/payments' if self.embedded else None);layout.addWidget(self.grids['payments'])
+        if self.embedded:
+            self.grids['payments'].setObjectName('serviceLedger')
+            self.grids['payments'].setShowGrid(False)
         if self.embedded:layout.addStretch(1)
         self.tabs.addTab(p,'Финансы')
         from .estimates import EstimatesPanel
@@ -207,6 +214,12 @@ class RepairEditor:
             documents=self.tabs.is_section('Документы')
             self.overview.setVisible(not documents)
             self.next_button.setVisible(not documents)
+            self._sync_draft_actions()
+            detailed = overview or self.tabs.is_section('Статус и история')
+            self.identity.setVisible(detailed)
+            self.short_identity.setVisible(not detailed)
+            self.number_actions.setVisible(detailed)
+            self.finance_strip.setVisible(detailed or self.tabs.is_section('Финансы'))
             self.compact_status.show()
             self.state_frame.setVisible(overview)
             self.checklist.setVisible(overview and self.show_checklist.isChecked())
@@ -364,11 +377,20 @@ class RepairEditor:
         w.setAccessibleName(label);w.setMinimumWidth(0)
         if self.embedded:w.setMaximumWidth({'date':180,'text':300}.get(kind,760) if isinstance(kind,str) else 480)
         form.addRow(label,w);self.fields[key]=w
+    def _sync_draft_actions(self):
+        if self.embedded:
+            visible = self.dirty or not self.tabs.is_section('Документы')
+            self.save_button.setVisible(visible)
+            self.cancel_edits.setVisible(visible)
+            self.dirty_label.setVisible(visible)
+
     def changed(self,*args):
         self.dirty=True
         if hasattr(self,'dirty_label'):self.dirty_label.setText('Есть несохранённые изменения')
         if hasattr(self,'save_button'):self.save_button.setEnabled(True)
-        if hasattr(self,'cancel_edits'):self.cancel_edits.setEnabled(True)
+        if hasattr(self,'cancel_edits'):
+            self.cancel_edits.setEnabled(True)
+            self._sync_draft_actions()
     def install(self,s):
         self.snapshot=s;r=s['repair'];self.revision=r['revision']
         from ...service.record_text import repair_display
@@ -384,6 +406,7 @@ class RepairEditor:
             w.blockSignals(False)
         number_gap=' ' if self.embedded else ''
         self.heading.setText('Ремонт №'+number_gap+r['number']);self.identity.setText(f"Аппарат №{number_gap}{s['equipment']['number']} · {s['equipment']['model']}\nЗаказчик ремонта: {s['client']['name']} · Собственник: {s.get('owner',s['client'])['name']}")
+        self.short_identity.setText(f"Аппарат № {s['equipment']['number']} · {s['equipment']['model']}")
         self.identity.setMinimumHeight(self.identity.fontMetrics().lineSpacing()*2+4)
         self.repair_number.setText(r['number']);self.setWindowTitle(('Ремонт № ' if self.embedded else 'Ремонт ')+r['number'])
         source_works=presented.get('source_works','');self.source_works.setPlainText(source_works);self._source_works_form.setRowVisible(self.source_works,bool(source_works))
@@ -406,7 +429,8 @@ class RepairEditor:
         hint=hints.get(r['status'],'')
         self.state_hint.setText(hint if self.embedded else f'{status} · {hint}')
         if not self.embedded:self.state_frame.hide()
-        self.payment_summary.setText('Итого '+rub(t['total'])+' · Учтено '+rub(t['paid'])+' · Остаток '+rub(t['balance'])+' · '+t['financial_status'])
+        self.payment_summary.setText('Расчёты · '+t['financial_status'] if self.embedded else
+                                     'Итого '+rub(t['total'])+' · Учтено '+rub(t['paid'])+' · Остаток '+rub(t['balance'])+' · '+t['financial_status'])
         self.update_step_actions()
         self.issue_button.setEnabled(r['status'] not in ('issued','closed','cancelled') and (not self.embedded or r['status']!='historical'))
         facts=[bool(presented.get('complaint')),bool(presented.get('defects')),bool(s['estimates']),bool(s['repair_items']),bool(r.get('issued_at'))]
@@ -436,6 +460,7 @@ class RepairEditor:
         self.grids['payments'].install([{**x,'amount':x['amount_cents']} for x in s['payments']]);
         if self.embedded:self.grids['payments'].fit_few_rows()
         self.grids['attachments'].install(s['attachments']);self.grids['history'].install(s['repair_status_history']);self.dirty=False;self.dirty_label.setText('Сохранено');self.save_button.setEnabled(False)
+        self._sync_draft_actions()
     def refresh_document_profile(self,*args):
         from ...service.document_readiness import assess
         check=assess(self.snapshot,self.doc_kind.currentData(),self.template_path.text());profile=check['profile']
@@ -594,13 +619,32 @@ class RepairEditor:
         d=FieldsDialog(title,fields,{'method':'Перевод — запись вручную'},self)
         if self.embedded:
             d.layout().insertWidget(0,text('Запись меняет внутренний расчёт. Банковские операции выполняются отдельно.','muted'))
-        d.check_values=lambda _:self.confirm_financial_change()
+            d.save_button.setText('Проверить и подтвердить')
+            d.save_button.setAccessibleName(d.save_button.text())
+            d.check_values=lambda values:self.review_payment(d, kind or values['kind'], values['amount'])
+        else:
+            d.check_values=lambda _:self.confirm_financial_change()
         request=uuid4().hex;s=self.store;r=self.key
         def persist(v):return s.add_payment(r,v['amount'],kind or v['kind'],v['method'],v['occurred_at'],v['comment'],request)
         if self.embedded:return self.persist_form(d,persist)
         if d.exec()==QDialog.DialogCode.Accepted:
             values=d.values()
             self.mutate(lambda:persist(values))
+
+    def review_payment(self, form, kind, raw_amount):
+        try:
+            cents = money(raw_amount)
+            if cents <= 0:
+                raise ServiceError('укажите сумму больше нуля')
+        except ServiceError as error:
+            form.show_error('Сумма, ₽: ' + str(error).removeprefix('Сумма: '))
+            return False
+        verb = 'Учесть возврат' if kind == 'refund' else 'Учесть оплату'
+        message = (f'{verb} {rub(cents)} по ремонту № {self.snapshot["repair"]["number"]}? '
+                   'Будет добавлена запись во внутренний расчёт.')
+        if notice := self.financial_change_notice():
+            message += ' ' + notice
+        return confirm(self, message, 'Подтвердить запись', cancel='Вернуться')
     def financial_evidence(self):
         t=self.snapshot['totals']
         d=FieldsDialog('Полнота исторических расчётов',[

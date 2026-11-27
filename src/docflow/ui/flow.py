@@ -43,6 +43,8 @@ class OperationNotice(QLabel):
     def __init__(self):
         super().__init__()
         self._compact = False
+        self.setObjectName('operationNotice')
+        self.setAccessibleName('Сообщение о действии')
         self.setWordWrap(True)
         self.setTextFormat(Qt.TextFormat.PlainText)
 
@@ -52,6 +54,12 @@ class OperationNotice(QLabel):
 
     def setText(self, value):
         super().setText(value)
+        self.setToolTip(value)
+        error = value.startswith(('Ошибка:', 'Не удалось'))
+        if self.property('isError') != error:
+            self.setProperty('isError', error)
+            self.style().unpolish(self)
+            self.style().polish(self)
         self._update_visibility()
 
     def _update_visibility(self):

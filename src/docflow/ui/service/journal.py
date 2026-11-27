@@ -144,6 +144,8 @@ class JournalGrid(Grid):
                 minimum = self._minimum[index]
                 if key == 'received_at':
                     minimum = max(minimum, self.fontMetrics().horizontalAdvance('29.12.2026') + 26)
+                if key == 'status':
+                    minimum = max(minimum, self.fontMetrics().horizontalAdvance('Ожидает запчастей') + 16)
                 amount = min(-remaining, max(0, widths[index] - minimum))
                 widths[index] -= amount
                 remaining += amount
@@ -185,6 +187,7 @@ class RepairJournal(QWidget):
         self.search = QLineEdit()
         self.search.setAccessibleName('Поиск ремонтов')
         self.search.setPlaceholderText('Ремонт, аппарат, серийный номер или заказчик')
+        self.search.setClearButtonEnabled(True)
         self.search.addAction(icon('search'), QLineEdit.ActionPosition.LeadingPosition)
         layout.addWidget(self.search)
         filters = ActionBar()
@@ -195,8 +198,9 @@ class RepairJournal(QWidget):
             [('Все обращения',''), ('В работе и ожидают','active'), ('Завершённые и архив','archive')])
         self.finance_filter = self._filter(filters, 'Финансовый фильтр',
             [('Все расчёты',''), ('Есть долг','debt'), ('Расчёт неполон','incomplete')])
-        self.reset_button = button(filters, 'Сбросить фильтры', self.reset_filters)
+        self.reset_button = button(filters, 'Сбросить фильтры', self._clear_and_focus_search)
         self.grid = JournalGrid(columns)
+        self.grid.setShowGrid(False)
         self.empty = text('', 'empty')
         self.empty.setAccessibleName('Состояние выдачи журнала')
         self.table_area = QVBoxLayout()
@@ -210,18 +214,16 @@ class RepairJournal(QWidget):
         self.body.addLayout(self.table_area, 1)
         layout.addLayout(self.body, 1)
         self.count = text('', 'journalCount')
+        self.count.setWordWrap(False)
         self.count.setAccessibleName('Количество найденных ремонтов')
         self.selected_summary = text('', 'journalSelectedSummary')
-        summary_policy = self.selected_summary.sizePolicy()
-        summary_policy.setRetainSizeWhenHidden(True)
-        self.selected_summary.setSizePolicy(summary_policy)
         self.selected_summary.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        layout.addWidget(self.count)
+        filters.addWidget(self.count)
         self.search.textChanged.connect(self.apply_filters)
         self.grid.selectionModel().currentRowChanged.connect(self._user_selected)
         self.grid.pressed.connect(lambda _: self._user_selected())
-        self.grid.openRequested.connect(self.open_button.click)
-        self.grid.doubleClicked.connect(lambda _: self.open_button.click())
+        self.grid.openRequested.connect(open_repair)
+        self.grid.doubleClicked.connect(lambda _: open_repair())
         self.panels = JournalPanels(self, list_page, self.body, actions, open_repair, open_history)
         outer.addWidget(self.panels, 1)
         outer.addWidget(self.selected_summary)
@@ -230,7 +232,10 @@ class RepairJournal(QWidget):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        previous = self.panels.compact
         self.panels.responsive(event.size().width())
+        if self.panels.compact != previous:
+            self._sync()
 
     def view_context(self):
         if self.panels.currentWidget() is self.panels.summary and self.panels.context:
@@ -330,6 +335,10 @@ class RepairJournal(QWidget):
         with self._preserve_view():
             self._set_filter_values()
 
+    def _clear_and_focus_search(self):
+        self.reset_filters()
+        self.search.setFocus()
+
     def reset_filters(self):
         controls = (self.search, self.status_filter, self.archive_filter, self.finance_filter)
         with self._preserve_view():
@@ -416,11 +425,14 @@ class RepairJournal(QWidget):
         self.grid.fit_few_rows()
         filtered = bool(self.search.text().strip() or any(control.currentIndex() for control in (
             self.status_filter, self.archive_filter, self.finance_filter)))
-        self.reset_button.setEnabled(self._ready and filtered)
+        self.reset_button.setVisible(self._ready and filtered)
         row = self.grid.selected()
-        self.open_button.setEnabled(self._ready and row is not None)
+        can_open = self._ready and row is not None
+        self.open_button.setEnabled(can_open)
+        self.open_button.setVisible(can_open and bool(self.panels.compact))
         self.panels.update_repair(row, self.selected_equipment(), self._ready)
-        self.selected_summary.setVisible(row is not None and self.panels.currentWidget() is self.panels.list_page)
+        self.selected_summary.setVisible(row is not None and bool(self.panels.compact) and
+                                         self.panels.currentWidget() is self.panels.list_page)
         if row:
             self.selected_summary.setText(f"Выбран ремонт № {row['number']}   ·   Остаток: {display('balance', row)}")
         else:

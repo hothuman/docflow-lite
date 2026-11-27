@@ -7,7 +7,7 @@ from pathlib import Path
 
 CHECKS={'client_retry','equipment_retry','permission_retry','intake_cancel_discard','catalog_geometry','core_retry_context','documents_versions','reused_profile_templates','core_accessible_action','stage5_configuration','stage6_template_diagnostics','stage7_template_identity','stage7_owner_close','stage8_history_and_documents'}
 
-def exercise(window,app,output,idle):
+def exercise(window,app,output,idle,fixtures=None):
     from PySide6.QtCore import QTimer,Qt
     from PySide6.QtWidgets import QApplication,QMessageBox,QDialogButtonBox
     from PySide6.QtTest import QTest
@@ -148,11 +148,14 @@ def exercise(window,app,output,idle):
     from .stage7_check import exercise as exercise_stage7
     checks.extend(exercise_stage7(window,app,output,idle))
     from .stage8_check import exercise as exercise_stage8
-    checks.extend(exercise_stage8(window,app,output,idle))
+    checks.extend(exercise_stage8(window,app,output,idle,samples=fixtures))
     assert set(checks)==CHECKS
     return {'status':'passed','checks':checks,'layout':layouts,'documents':documents,'old_document_unchanged':True,'word_checked':False,'human_acceptance':False,'QA03':'Partial: OOXML/footer improvement; long-row ONLYOFFICE pagination requires separate renderer verification'}
 
-def run(output,require_windows=False):
+def run(output,require_windows=False,fixtures=None):
+    from .stage8_check import samples_root, validate_fixtures
+    fixtures = Path(fixtures).resolve() if fixtures is not None else samples_root()
+    validate_fixtures(fixtures)
     from PySide6.QtWidgets import QApplication
     from ..gui import MainWindow,configure_app
     from .. import __version__
@@ -166,7 +169,7 @@ def run(output,require_windows=False):
         app.processEvents();app.processEvents()
     try:
         if require_windows:assert sys.platform=='win32' and app.platformName()=='windows' and proof['frozen']
-        window=MainWindow(service_root=output/'Synthetic');window.show();proof.update(exercise(window,app,output,idle))
+        window=MainWindow(service_root=output/'Synthetic');window.show();proof.update(exercise(window,app,output,idle,fixtures=fixtures))
     except Exception:proof.update(status='failed',traceback=traceback.format_exc())
     finally:
         if window:window.close();app.processEvents()
@@ -174,8 +177,12 @@ def run(output,require_windows=False):
     return 0 if proof['status']=='passed' else 1
 
 def main(argv=None):
-    p=argparse.ArgumentParser();p.add_argument('--output',type=Path,required=True);p.add_argument('--require-windows',action='store_true');a=p.parse_args(argv)
-    try:return run(a.output,a.require_windows)
+    p=argparse.ArgumentParser(description='Run the offline hotfix diagnostic on synthetic QA data.')
+    p.add_argument('--output',type=Path,required=True)
+    p.add_argument('--require-windows',action='store_true')
+    p.add_argument('--fixtures',type=Path,help='Complete synthetic examples/stage8 directory from the matching source archive')
+    a=p.parse_args(argv)
+    try:return run(a.output,a.require_windows,fixtures=a.fixtures)
     except (ValueError,OSError) as exc:
         if sys.stderr is not None:print(str(exc),file=sys.stderr)
         return 2

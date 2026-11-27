@@ -168,6 +168,7 @@ def verify(archive,evidence,release):
             assert z.testzip() is None
             z.extractall(testroot)
         bundle=testroot/'DocFlow-Lite'
+        assert not (bundle/'examples/stage8').exists(), 'Stage 8 QA fixtures must not ship in Portable'
         exe=bundle/'DocFlow-Lite.exe'
         raw=exe.read_bytes()
         assert raw[:2]==b'MZ'
@@ -176,6 +177,12 @@ def verify(archive,evidence,release):
         assert struct.unpack_from('<H',raw,pe+4)[0]==0x8664
         result['exe_sha256']=hashlib.sha256(raw).hexdigest()
         result['portable_sha256']=hashlib.sha256(archive.read_bytes()).hexdigest()
+        info=json.loads((bundle/'BUILD-INFO.json').read_text(encoding='utf-8'))
+        version=info['version']
+        assert info['exe_sha256']==result['exe_sha256']
+        assert archive.name==f'DocFlow-Lite-{version}-Windows-x64-Portable.zip'
+        result['version']=version
+        result['release_stage']=info['release_stage']
         hashes=json.loads((bundle/'BUNDLE-SHA256.json').read_text(encoding='utf-8'))
         for name,digest in hashes.items():
             assert hashlib.sha256((bundle/name).read_bytes()).hexdigest()==digest,name
@@ -189,6 +196,7 @@ def verify(archive,evidence,release):
         result['runtime_path_contains_python']=False
         for attempt in (1,2):
             ordinary=normal_start(exe,testroot,env)
+            assert ordinary['title']==f'DocFlow Lite {version}'
             output=evidence/f'Запуск {attempt}'
             completed=subprocess.run([str(exe),'--release-self-test','--require-windows',
                                       '--output',str(output)],cwd=testroot,env=env,
@@ -198,7 +206,7 @@ def verify(archive,evidence,release):
                 raise RuntimeError(f'EXE produced no report; exit {completed.returncode}; stderr {completed.stderr[-1000:]!r}')
             report=json.loads(reportpath.read_text(encoding='utf-8'))
             assert completed.returncode==0, report
-            assert report['status']=='passed' and report['frozen']
+            assert report['status']=='passed' and report['frozen'] and report['version']==version
             assert report['qt_platform']=='windows' and all(x['passed'] for x in report['checks'])
             docs=[p for p in output.rglob('*.docx') if 'Исходные файлы с пробелами' not in p.parts]
             assert len(docs)==12
@@ -212,6 +220,7 @@ def verify(archive,evidence,release):
         service_output=evidence/'Service с пробелами'
         service_run=subprocess.run([str(exe),'--service-self-test','--require-windows','--output',str(service_output)],cwd=testroot.parent if testroot.exists() else evidence,env=env,capture_output=True,timeout=180)
         service=json.loads((service_output/'SERVICE-SELF-TEST.json').read_text(encoding='utf-8'))
+        assert service['version']==version
         assert service_run.returncode==0 and service['status']=='passed',service
         assert service['frozen'] and service['qt_platform']=='windows'
         assert service['completion']['status']=='passed'
@@ -256,11 +265,22 @@ def verify(archive,evidence,release):
             stage4=json.loads((stage4_output/'STAGE4-SELF-TEST.json').read_text(encoding='utf-8'))
             assert stage4_run.returncode==0,stage4
             assert_stage4_checks(stage4);result['stage4'].append({'scale':scale,**stage4})
+        # A clean user archive must reject missing QA material before it writes.
+        missing_output=evidence/'Hotfix-without-fixtures'
+        missing=subprocess.run([str(exe),'--hotfix-self-test','--require-windows',
+                                '--output',str(missing_output)],cwd=testroot,env=env,
+                               capture_output=True,timeout=30)
+        assert missing.returncode==2 and not missing_output.exists()
+        result['hotfix_without_fixtures']={'exit_code':missing.returncode,'output_created':False}
+        # Exercise the full diagnostic using a separate copy of QA inputs.
+        fixtures=testroot/'QA fixtures'
+        shutil.copytree(ROOT/'examples/stage8', fixtures)
         result['hotfix']=[]
         from docflow.service.hotfix_check import CHECKS as HOTFIX_CHECKS
         for scale in ('1','1.25','1.5','1.75','2'):
             output=evidence/('Hotfix-'+scale)
-            completed=subprocess.run([str(exe),'--hotfix-self-test','--require-windows','--output',str(output)],cwd=testroot,env={**env,'QT_SCALE_FACTOR':scale},capture_output=True,timeout=180)
+            completed=subprocess.run([str(exe),'--hotfix-self-test','--require-windows','--output',str(output),
+                                      '--fixtures',str(fixtures)],cwd=testroot,env={**env,'QT_SCALE_FACTOR':scale},capture_output=True,timeout=180)
             report=json.loads((output/'HOTFIX-SELF-TEST.json').read_text(encoding='utf-8'))
             assert completed.returncode==0 and report['status']=='passed' and report['frozen'] and report['qt_platform']=='windows',report
             assert set(report['checks'])==HOTFIX_CHECKS and len(report['checks'])==len(HOTFIX_CHECKS)

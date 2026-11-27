@@ -25,9 +25,13 @@ class RepairInspector(QScrollArea):
         layout = QVBoxLayout(content)
         layout.setContentsMargins(12, 10, 12, 10)
         layout.setSpacing(7)
-        layout.addWidget(text('ВЫБРАННЫЙ РЕМОНТ', 'eyebrow'))
         self.title = text('', 'journalSelectionTitle')
         layout.addWidget(self.title)
+        actions = ActionBar()
+        self.open_button = button(actions, 'Открыть ремонт', open_repair, primary=True)
+        self.open_button.setAccessibleName('Открыть выбранный ремонт')
+        self.history_button = button(actions, 'История аппарата', open_history)
+        layout.addWidget(actions)
         self.fields = {}
         self.money_card = QFrame()
         self.money_card.setObjectName('journalMoney')
@@ -43,11 +47,6 @@ class RepairInspector(QScrollArea):
                 money.addWidget(label)
                 if key=='balance':layout.addWidget(self.money_card)
             else:layout.addWidget(label)
-        actions = ActionBar()
-        self.open_button = button(actions, 'Открыть ремонт', open_repair, primary=True)
-        self.open_button.setAccessibleName('Открыть выбранный ремонт')
-        self.history_button = button(actions, 'История аппарата', open_history)
-        layout.addWidget(actions)
         layout.addStretch()
         self.update_repair(None, None, False)
 
@@ -131,7 +130,6 @@ class JournalPanels(QStackedWidget):
             return
         was_summary = self.currentWidget() is self.summary
         self.compact = compact
-        self.context_button.setVisible(compact)
         if compact:
             self.body.removeWidget(self.inspector)
             self.inspector.setMinimumWidth(0)
@@ -163,5 +161,7 @@ class JournalPanels(QStackedWidget):
     def update_repair(self, row, equipment, ready):
         if not row:
             self.return_to_list(restore=False)
-        self.context_button.setEnabled(ready and row is not None)
+        available = ready and row is not None
+        self.context_button.setEnabled(available)
+        self.context_button.setVisible(bool(self.compact and available))
         self.inspector.update_repair(row, equipment, ready)

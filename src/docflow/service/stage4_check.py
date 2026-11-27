@@ -53,7 +53,11 @@ def exercise(window,app,output,idle):
     window._load_data(output/'missing.csv');wait_idle(window);assert 'missing.csv' in window.status.text()
     window.apply_profile(Profile.load(demo_profile()));wait_idle(window);window.output_path.setText(str(output/'Core DOCX'));window.navigate(3);app.processEvents();click(window.generate_btn);wait_idle(window)
     assert window.last_result.documents==4;first_output=window.last_result.directory
-    capture('core-result',window);click(window.generate_btn);wait_idle(window)
+    capture('core-result',window)
+    assert window.result_file_btn.isVisible() and window.result_file_btn.isEnabled()
+    assert not window.generate_btn.isVisible()
+    click(window.new_run_btn)
+    click(window.generate_btn);wait_idle(window)
     assert window.last_result.documents==4 and first_output.is_dir()
     passed('core_error_retry_generation',documents_per_run=4)
     click(window.mode_picker.buttons[1]);idle(ui)

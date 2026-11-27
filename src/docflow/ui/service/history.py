@@ -305,6 +305,9 @@ class _HistoryContent:
             self.grid = Grid(COLUMNS)
             self.grid.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.grid.setAccessibleName('Хронология ремонтов выбранного аппарата')
+        if embedded:
+            self.grid.setObjectName('serviceLedger')
+            self.grid.setShowGrid(False)
         self.empty_hint = text('', 'muted')
         layout.addWidget(self.empty_hint)
         self.splitter = QSplitter(Qt.Orientation.Vertical)

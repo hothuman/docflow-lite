@@ -16,6 +16,24 @@ def samples_root():
             else Path(__file__).resolve().parents[3]/'examples/stage8')
 
 
+def validate_fixtures(samples):
+    """Check all required files before the frozen diagnostic starts Qt or writes."""
+    required = (
+        'catalog-1c-qa.xlsx', 'journal-qa.xlsx', 'journal-qa-utf8.csv',
+        'journal-qa-no-bom.csv', 'journal-qa-cp1251.csv', 'qa-photo.png',
+        'Templates-QA/QA-TEMPLATE-SETTINGS.json',
+        *(f'Templates-QA/{kind}-qa.docx' for kind in (
+            'completion', 'estimate_final', 'estimate_preliminary', 'handover', 'intake', 'warranty',
+        )),
+    )
+    missing = [name for name in required
+               if not (samples / name).is_file() or not (samples / name).stat().st_size]
+    if missing:
+        raise ValueError('Required synthetic Stage 8 fixtures are missing or empty. '
+                         'Use --fixtures PATH with the complete examples/stage8 QA directory. '
+                         'Missing: ' + ', '.join(missing))
+
+
 def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
@@ -183,12 +201,13 @@ def run_domain(root,samples=None):
     return proof
 
 
-def exercise(window,app,output,idle):
+def exercise(window,app,output,idle,samples=None):
     """Qt handler tests; not native human input or customer acceptance."""
     from ..ui.service.import_wizard import HistoryWizard
     from ..ui.service.template_fields import TemplateFieldsDialog
     from PySide6.QtWidgets import QWizard,QScrollArea
-    samples=samples_root();proof=run_domain(output/'Stage8')
+    samples=Path(samples) if samples is not None else samples_root()
+    proof=run_domain(output/'Stage8',samples)
     window.navigate(5);ui=window.service_workspace;idle(ui)
     d=HistoryWizard(ui);ui.dialogs.append(d);d.show();layouts=[]
     try:

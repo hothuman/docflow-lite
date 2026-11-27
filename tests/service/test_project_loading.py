@@ -26,7 +26,8 @@ def test_first_legacy_cancel_has_terminal_status_and_safe_actions(app, tmp_path,
         for index in range(workspace.tabs.count()):
             workspace.tabs.setCurrentIndex(index)
             app.processEvents()
-        add = next(b for b in workspace.toolbars['clients'].findChildren(QPushButton) if b.text() == 'Добавить')
+        add = next(b for b in workspace.toolbars['clients'].findChildren(QPushButton)
+                   if b.accessibleName() == 'Добавить клиента')
         assert not add.isEnabled()
         assert workspace.open_project_button.isEnabled()
         assert workspace.new_project_button.isEnabled()

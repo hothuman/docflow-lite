@@ -5,7 +5,7 @@ from PySide6.QtWidgets import QCheckBox, QComboBox, QScrollArea, QStackedWidget,
 
 from ..flow import ActionBar
 from ..settings import RESUME_PROJECT_KEY, preferences
-from ..widgets import card, text
+from ..widgets import section, text
 from .widgets import button
 
 
@@ -31,7 +31,8 @@ class SettingsPage(QWidget):
                 ('Настроить стартовые действия',workspace.customize_dashboard),
                 ('Быстрый старт: ремонт за 5 минут',workspace.quick_help)]),
             ('Проекты','Открывайте рабочий проект, отдельную копию или учебную базу.',[
-                ('Открыть другой проект',workspace.choose_project),('Создать отдельный проект',workspace.new_project),
+                ('Открыть проект',workspace.choose_project),('Создать отдельный проект',workspace.new_project),
+                ('Восстановить копию',workspace.restore),
                 ('Открыть папку проекта',workspace.open_folder),('Создать отдельное демо',workspace.demo)]),
             ('Организация','Данные исполнителя и правила нумерации хранятся в профиле организации.',[
                 ('Профили организаций',workspace.organization_profiles)]),
@@ -54,9 +55,17 @@ class SettingsPage(QWidget):
             self.category_bar.addTab(title)
             scroll=QScrollArea()
             scroll.setWidgetResizable(True)
+            scroll.setAccessibleName(f'Настройки: {title}')
             page=QWidget()
             page_layout=QVBoxLayout(page)
-            panel,body=card(title,description)
+            panel,body=section(role='serviceContext')
+            bar=ActionBar()
+            body.addWidget(bar)
+            for label,callback in actions:
+                control=button(bar,label,callback)
+                if callback in available_without_project:
+                    workspace._safe_project_buttons.append(control)
+            body.addWidget(text(description,'muted'))
             if title=='Проекты':
                 self.project_path=text('','muted')
                 self.project_path.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse |
@@ -66,12 +75,6 @@ class SettingsPage(QWidget):
                 self.resume_project.setChecked(preferences().value(RESUME_PROJECT_KEY,True,type=bool))
                 self.resume_project.toggled.connect(self._save_resume)
                 body.addWidget(self.resume_project)
-            bar=ActionBar()
-            body.addWidget(bar)
-            for label,callback in actions:
-                control=button(bar,label,callback)
-                if callback in available_without_project:
-                    workspace._safe_project_buttons.append(control)
             page_layout.addWidget(panel)
             page_layout.addStretch()
             scroll.setWidget(page)

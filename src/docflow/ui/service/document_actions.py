@@ -8,7 +8,7 @@ from docx import Document
 from docx.text.paragraph import Paragraph
 from PySide6.QtCore import QSignalBlocker, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QLineEdit, QMessageBox, QPlainTextEdit,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QLineEdit, QMessageBox,
                                QSizePolicy, QStackedWidget, QVBoxLayout, QWidget)
 
 from ...service.attachments import attachment_path, export_file
@@ -17,7 +17,7 @@ from ...service.document_readiness import assess
 from ...service.documents import KINDS, prepare_document, save_prepared_document
 from ...templates import Template
 from ..flow import ActionBar
-from ..widgets import card, text
+from ..widgets import paper, section, text
 from .images import ImagesPanel
 from .presentation import date_text
 from .widgets import Grid, button
@@ -117,9 +117,9 @@ class ServiceDocumentWizard(QWidget):
         self.setAccessibleName('Мастер создания документа')
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 8, 0, 0)
-        self.step = text('', 'muted')
+        self.step = text('', 'coreMeta')
         layout.addWidget(self.step)
-        self.heading = text('', 'section')
+        self.heading = text('', 'coreSectionTitle')
         layout.addWidget(self.heading)
         self.document_status = text('', 'status')
         self.document_status.setAccessibleName('Состояние документа')
@@ -194,7 +194,7 @@ class ServiceDocumentWizard(QWidget):
         self.photos = QVBoxLayout()
         layout.addLayout(self.photos)
         actions = self._actions(layout)
-        self.preview_button = button(actions, 'Посмотреть документ', lambda: self.editor.with_saved(self.preview), primary=True)
+        self.preview_button = button(actions, 'Текстовый предпросмотр', lambda: self.editor.with_saved(self.preview), primary=True)
         button(actions, 'Назад к типу документа', lambda: self._show(0))
         layout.addStretch()
 
@@ -203,11 +203,9 @@ class ServiceDocumentWizard(QWidget):
         layout.addWidget(text('Это текстовый предпросмотр содержания. Для проверки страниц и печати откройте DOCX в редакторе.', 'muted'))
         actions = self._actions(layout)
         self.preview_continue = button(actions, 'Продолжить к созданию', lambda: self._show(3), primary=True)
-        button(actions, 'Посмотреть разметку DOCX', self.open_preview)
+        button(actions, 'Открыть черновик DOCX', self.open_preview)
         button(actions, 'Назад к проверке', lambda: self._show(1))
-        self.preview_text = QPlainTextEdit()
-        self.preview_text.setReadOnly(True)
-        self.preview_text.setAccessibleName('Содержимое DOCX перед созданием')
+        self.preview_text = paper('Содержимое DOCX перед созданием')
         self.preview_text.setMinimumHeight(100)
         self.preview_text.setMaximumHeight(235)
         layout.addWidget(self.preview_text)
@@ -238,7 +236,7 @@ class ServiceDocumentWizard(QWidget):
 
     def _result_page(self):
         layout = self._page()
-        frame, content = card('Документ создан')
+        frame, content = section(role='serviceContext')
         self.result_name = text('', 'section')
         self.result_info = text('')
         self.result_name.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -258,6 +256,8 @@ class ServiceDocumentWizard(QWidget):
         self.grid = Grid([('kind','Тип'),('version','Версия'),('created_at','Создано'),('path','Файл')],
                          settings_key='documents/repair-versions')
         self.grid.setAccessibleName('Созданные документы ремонта')
+        self.grid.setObjectName('serviceLedger')
+        self.grid.setShowGrid(False)
         self.grid.setMaximumHeight(205)
         layout.addWidget(self.grid)
         self._result_actions(layout, self.grid.selected)

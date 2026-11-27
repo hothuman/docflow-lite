@@ -12,3 +12,20 @@ def stage(version):
 
 def is_prerelease(version):
     return stage(version)!='stable'
+
+
+def local_state_namespace(version):
+    """Never resume a project remembered by another stable major or preview."""
+    if is_prerelease(version):
+        return 'DocFlowLite-Preview'
+    major = version.partition('.')[0]
+    return 'DocFlowLite' if major in ('0', '1') else f'DocFlowLite-{major}'
+
+
+def stage_label(version):
+    return {
+        'alpha': 'Альфа-версия',
+        'beta': 'Бета-версия',
+        'RC': 'Кандидат в релиз',
+        'stable': 'Стабильный выпуск',
+    }[stage(version)]

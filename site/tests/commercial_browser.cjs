@@ -9,9 +9,9 @@ async function verify({page,context,base,name,width,output,results}) {
  assert(await workspace.locator(`[data-request-package="${expectedDefault}"]`).isVisible());
  if(name==='index.html'){
   await page.locator('#example .demo-next a').focus();await page.keyboard.press('Enter');
-  assert(new URL(page.url()).hash==='#services');
+  await page.waitForURL(url=>url.hash==='#services');
   await page.locator('.featured-plan [data-select-request="one"]').focus();await page.keyboard.press('Enter');
-  assert(new URL(page.url()).hash==='#request-one');
+  await page.waitForURL(url=>url.hash==='#request-one');
  }
  const labels={one:'1 DOCX',bundle:'до 3 DOCX',service:'Service'};
  for(const key of ['one','bundle','service']){

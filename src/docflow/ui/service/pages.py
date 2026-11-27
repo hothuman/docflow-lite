@@ -5,6 +5,7 @@ from collections.abc import Callable
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QSizePolicy, QStackedWidget, QVBoxLayout, QWidget
+from shiboken6 import isValid
 
 from ..widgets import text
 from .widgets import button
@@ -126,8 +127,11 @@ class WorkspacePages(QWidget):
         self.setVisible(bool(self.routes))
         self.update_heading()
         self.changed.emit()
-        if route.previous_focus and route.previous_focus.isVisible() and route.previous_focus.isEnabled():
-            route.previous_focus.setFocus(Qt.FocusReason.OtherFocusReason)
+        focus = route.previous_focus
+        if focus and isValid(focus) and focus.isVisible() and focus.isEnabled():
+            focus.setFocus(Qt.FocusReason.OtherFocusReason)
+        elif self.routes:
+            self.back_button.setFocus(Qt.FocusReason.OtherFocusReason)
         if notify and not self._clearing and route.on_close:
             route.on_close()
 

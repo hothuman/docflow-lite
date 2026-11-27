@@ -134,7 +134,8 @@ def run(output, require_windows=False):
         window.row_selector.setCurrentIndex(2)
         assert 'будет пропущена' in window.preview_text.toPlainText()
         click(window.check_btn)
-        assert 'С ошибками: 1' in window.status.text()
+        assert [metric.text() for metric in window.validation_panel.counts.values] == ['2', '1']
+        assert 'Строки с ошибками будут пропущены' in window.validation_panel.heading.text()
         check('bundled_demo_and_validation')
         # Exercise the changed feature in the actual frozen GUI, not a source-only test.
         # Qt events are sent directly to our widgets; no desktop-global input.
@@ -206,11 +207,15 @@ def run(output, require_windows=False):
             with dialog_choice(QFileDialog,'getOpenFileName',(str(saved),'')):
                 click(window.open_profile_btn)
             assert window.table.source==data.resolve()
-            window.navigate(0);app.processEvents()
+            window.navigate(3);app.processEvents()
+            assert window.last_result and window.result_file_btn.isVisible()
+            if not window.new_run_btn.isChecked():
+                click(window.new_run_btn)
+            assert window.output_btn.isVisible()
             with dialog_choice(QFileDialog,'getExistingDirectory',str(output/('Документы '+extension))):
                 click(window.output_btn)
-            window.last_result=None
-            window.navigate(3);app.processEvents();click(window.generate_btn)
+            assert window.generate_btn.isVisible()
+            click(window.generate_btn)
             result=wait_for_generation()
             assert all(hashlib.sha256(p.read_bytes()).hexdigest()==sha for p,sha in before.items())
             check('unicode_spaces_'+extension,directory=str(result.directory),documents=4,

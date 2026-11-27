@@ -118,7 +118,7 @@ jobs:
           STABLE_APPROVED: ${{ inputs.stable_approved }}
         run: |
           set -euo pipefail
-          version=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          version=$(PYTHONPATH=src python3 -c "from docflow import __version__; print(__version__)")
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+((a|b|rc)[0-9]+)?$ ]] || { echo 'Unsupported release version'; exit 1; }
           tag="v$version"
           notes="docs/release-$tag.md"

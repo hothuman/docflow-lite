@@ -3,7 +3,7 @@ import hashlib
 import json
 import shutil
 import zipfile
-import tomllib
+import sys
 from pathlib import Path
 from html.parser import HTMLParser
 
@@ -11,7 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT.parent / "deliverables"
 DIST = ROOT / "site" / "dist"
 SKIP = {".venv", "__pycache__", ".pytest_cache", ".git", "docflow-output", "build"}
-VERSION = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
+sys.path.insert(0, str(ROOT / "src"))
+from docflow import __version__ as VERSION
 SOURCE_FILES = set(json.loads((ROOT / "FILE_HASHES.json").read_text(encoding="utf-8")))
 
 

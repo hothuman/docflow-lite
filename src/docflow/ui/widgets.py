@@ -1,6 +1,6 @@
 from PySide6.QtCore import QAbstractListModel, QAbstractTableModel, QModelIndex, Qt, QSize
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
-from PySide6.QtWidgets import QFrame, QLabel, QSizePolicy, QTableView, QVBoxLayout
+from PySide6.QtWidgets import QFrame, QLabel, QSizePolicy, QTableView, QTextBrowser, QVBoxLayout
 
 from .theme import COLORS
 
@@ -60,6 +60,38 @@ def card(title, description=''):
     layout.addWidget(text(title,'section'))
     if description:layout.addWidget(text(description,'muted'))
     return widget,layout
+
+
+def section(title='', description='', *, role='coreSection'):
+    panel = QFrame()
+    panel.setObjectName(role)
+    body = QVBoxLayout(panel)
+    body.setContentsMargins(12, 10, 12, 10)
+    body.setSpacing(8)
+    if title:
+        body.addWidget(text(title, 'coreSectionTitle'))
+    if description:
+        body.addWidget(text(description, 'muted'))
+    return panel, body
+
+
+def labeled_input(layout, label, widget, *, accessible_name=None):
+    caption = text(label, 'coreControlLabel')
+    caption.setBuddy(widget)
+    widget.setAccessibleName(accessible_name or label)
+    layout.addWidget(caption)
+    layout.addWidget(widget)
+    return caption
+
+
+def paper(name):
+    view = QTextBrowser()
+    view.setObjectName('corePreviewPaper')
+    view.setOpenExternalLinks(False)
+    view.setAccessibleName(name)
+    view.setAccessibleDescription('Текстовый пример. Оформление готового DOCX проверяйте в Word.')
+    view.document().setDocumentMargin(18)
+    return view
 
 
 class DataModel(QAbstractTableModel):

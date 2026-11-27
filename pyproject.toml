@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "docflow-lite"
-version = "1.0.1"
+dynamic = ["version"]
 readme = "README.md"
 license = "LicenseRef-DocFlow"
 license-files = ["LICENSE.txt"]
@@ -21,6 +21,9 @@ build = ["pyinstaller==6.22.3"]
 [project.scripts]
 docflow = "docflow.cli:main"
 docflow-gui = "docflow.gui:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "docflow.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
