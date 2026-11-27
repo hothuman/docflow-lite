@@ -19,7 +19,7 @@ from .journal import RepairJournal
 from .pages import WorkspacePages
 from .collections import selected_context
 from ..flow import ActionBar, OperationNotice
-from ..diagnostics import record_exception,record_project_event,friendly_error,diagnostic_path
+from ..diagnostics import record_exception,record_project_event,friendly_error,read_diagnostics
 
 def needs_project(function):
     @wraps(function)
@@ -656,7 +656,7 @@ class ServiceWorkspace(QWidget):
         store=self.store
         def query():
             with store.db.connection() as c:rows=[dict(r) for r in c.execute('SELECT * FROM operations ORDER BY id DESC LIMIT 200')]
-            path=diagnostic_path();return rows,path.read_text(encoding='utf-8')[-100000:] if path.is_file() else ''
+            return rows,read_diagnostics()
         def show(data):
             from .dashboard import DiagnosticsDialog
             self.modal(DiagnosticsDialog(self,data[0],{r['id']:r['number'] for r in self.cache.get('finance',[])},data[1]))

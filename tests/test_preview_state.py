@@ -4,9 +4,43 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from PySide6.QtCore import QSettings
+import pytest
 
 from docflow.service import repository
 from docflow.ui import diagnostics, settings
+
+
+@pytest.mark.parametrize('override', [False, True])
+def test_stable_major_and_preview_do_not_inherit_auto_resume(tmp_path, monkeypatch, override):
+    from docflow.ui.service.workspace import ServiceWorkspace
+
+    if override:
+        monkeypatch.setenv('DOCFLOW_SETTINGS_DIR', str(tmp_path / 'shared'))
+    else:
+        monkeypatch.delenv('DOCFLOW_SETTINGS_DIR')
+        monkeypatch.setattr(settings, 'QStandardPaths', SimpleNamespace(
+            StandardLocation=SimpleNamespace(AppConfigLocation='config'),
+            writableLocation=lambda location: str(tmp_path / location),
+        ))
+    opened = []
+    monkeypatch.setattr(ServiceWorkspace, 'open_project', lambda self, path, **kwargs: opened.append(path))
+    states = {}
+    for version, project in (('1.0.1', 'original'), ('2.0.0rc1', 'preview-copy'), ('2.0.0', 'stable-copy')):
+        monkeypatch.setattr(settings, '__version__', version)
+        workspace = ServiceWorkspace()
+        assert opened == []
+        workspace.close()
+        values = settings.preferences()
+        values.setValue(settings.LAST_PROJECT_KEY, project)
+        values.setValue(settings.RESUME_PROJECT_KEY, True)
+        values.sync()
+        states[version] = Path(values.fileName())
+    assert len(set(states.values())) == 3
+    for version, project in (('2.0.0', 'stable-copy'), ('2.0.0rc2', 'preview-copy'), ('1.0.1', 'original')):
+        monkeypatch.setattr(settings, '__version__', version)
+        workspace = ServiceWorkspace()
+        assert opened.pop() == project
+        workspace.close()
 
 
 def test_preview_uses_separate_defaults(tmp_path, monkeypatch):

@@ -265,14 +265,22 @@ def verify(archive,evidence,release):
             stage4=json.loads((stage4_output/'STAGE4-SELF-TEST.json').read_text(encoding='utf-8'))
             assert stage4_run.returncode==0,stage4
             assert_stage4_checks(stage4);result['stage4'].append({'scale':scale,**stage4})
-        # The frozen diagnostic needs repository fixtures. Inject them into
-        # the temporary extraction only after testing the delivered bundle.
-        shutil.copytree(ROOT/'examples/stage8', bundle/'examples/stage8')
+        # A clean user archive must reject missing QA material before it writes.
+        missing_output=evidence/'Hotfix-without-fixtures'
+        missing=subprocess.run([str(exe),'--hotfix-self-test','--require-windows',
+                                '--output',str(missing_output)],cwd=testroot,env=env,
+                               capture_output=True,timeout=30)
+        assert missing.returncode==2 and not missing_output.exists()
+        result['hotfix_without_fixtures']={'exit_code':missing.returncode,'output_created':False}
+        # Exercise the full diagnostic using a separate copy of QA inputs.
+        fixtures=testroot/'QA fixtures'
+        shutil.copytree(ROOT/'examples/stage8', fixtures)
         result['hotfix']=[]
         from docflow.service.hotfix_check import CHECKS as HOTFIX_CHECKS
         for scale in ('1','1.25','1.5','1.75','2'):
             output=evidence/('Hotfix-'+scale)
-            completed=subprocess.run([str(exe),'--hotfix-self-test','--require-windows','--output',str(output)],cwd=testroot,env={**env,'QT_SCALE_FACTOR':scale},capture_output=True,timeout=180)
+            completed=subprocess.run([str(exe),'--hotfix-self-test','--require-windows','--output',str(output),
+                                      '--fixtures',str(fixtures)],cwd=testroot,env={**env,'QT_SCALE_FACTOR':scale},capture_output=True,timeout=180)
             report=json.loads((output/'HOTFIX-SELF-TEST.json').read_text(encoding='utf-8'))
             assert completed.returncode==0 and report['status']=='passed' and report['frozen'] and report['qt_platform']=='windows',report
             assert set(report['checks'])==HOTFIX_CHECKS and len(report['checks'])==len(HOTFIX_CHECKS)
